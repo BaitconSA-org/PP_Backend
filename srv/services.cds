@@ -6,7 +6,6 @@ service SupplierPortalService {
   entity SupplierUsers as projection on supplierPortalGD.SupplierUsers;
 
   entity Roles as projection on supplierPortalGD.Roles;
-
   entity Permissions as projection on supplierPortalGD.Permissions;
 
   entity Products as projection on supplierPortalGD.Products;
