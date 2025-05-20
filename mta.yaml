@@ -1,0 +1,135 @@
+_schema-version: 3.3.0
+ID: SUPPLIERPORTAL_GD
+version: 1.0.0
+description: "A simple CAP project."
+parameters:
+  enable-parallel-deployments: true
+  deploy_mode: html5-repo
+build-parameters:
+  before-all:
+    - builder: custom
+      commands:
+        - npm ci
+        - npx cds build --production
+modules:
+  - name: SUPPLIERPORTAL_GD-srv
+    type: nodejs
+    path: gen/srv
+    parameters:
+      instances: 1
+      buildpack: nodejs_buildpack
+    build-parameters:
+      builder: npm-ci
+    provides:
+      - name: srv-api # required by consumers of CAP services (e.g. approuter)
+        properties:
+          srv-url: ${default-url}
+    requires:
+      - name: SUPPLIERPORTAL_GD-db
+      - name: SUPPLIERPORTAL_GD-messaging
+      - name: SUPPLIERPORTAL_GD-connectivity
+      - name: SUPPLIERPORTAL_GD-destination
+      - name: SUPPLIERPORTAL_GD-logging
+
+  - name: SUPPLIERPORTAL_GD-db-deployer
+    type: hdb
+    path: gen/db
+    parameters:
+      buildpack: nodejs_buildpack
+    requires:
+      - name: SUPPLIERPORTAL_GD-db
+
+  - name: SUPPLIERPORTAL_GD
+    type: approuter.nodejs
+    path: app/router
+    parameters:
+      keep-existing-routes: true
+      disk-quota: 256M
+      memory: 256M
+    requires:
+      - name: srv-api
+        group: destinations
+        properties:
+          name: srv-api # must be used in xs-app.json as well
+          url: ~{srv-url}
+          forwardAuthToken: true
+      - name: SUPPLIERPORTAL_GD-destination
+      - name: SUPPLIERPORTAL_GD-html5-runtime
+      - name: SUPPLIERPORTAL_GD-portal
+      - name: SUPPLIERPORTAL_GD-logging
+    provides:
+      - name: app-api
+        properties:
+          app-protocol: ${protocol}
+          app-uri: ${default-uri}
+
+  - name: SUPPLIERPORTAL_GD-app-deployer
+    type: com.sap.application.content
+    path: gen
+    requires:
+      - name: SUPPLIERPORTAL_GD-html5-repo-host
+        parameters:
+          content-target: true
+    build-parameters:
+      build-result: app/
+      requires:
+
+
+  - name: SUPPLIERPORTAL_GD-portal-deployer
+    type: com.sap.application.content
+    path: app/portal
+    requires:
+      - name: SUPPLIERPORTAL_GD-portal
+        parameters:
+          content-target: true
+          service-key:
+            name: SUPPLIERPORTAL_GD-portal-key
+            config:
+              content-endpoint: developer
+      - name: SUPPLIERPORTAL_GD-html5-repo-host
+      - name: SUPPLIERPORTAL_GD-app-deployer
+    deployed-after:
+      - SUPPLIERPORTAL_GD-app-deployer
+resources:
+  - name: SUPPLIERPORTAL_GD-db
+    type: com.sap.xs.hdi-container
+    parameters:
+      service: hana
+      service-plan: hdi-shared
+  - name: SUPPLIERPORTAL_GD-messaging
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: enterprise-messaging
+      service-plan: default
+      path: ./event-mesh.json
+  - name: SUPPLIERPORTAL_GD-connectivity
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: connectivity
+      service-plan: lite
+  - name: SUPPLIERPORTAL_GD-destination
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: destination
+      service-plan: lite
+
+  - name: SUPPLIERPORTAL_GD-html5-repo-host
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: html5-apps-repo
+      service-plan: app-host
+  - name: SUPPLIERPORTAL_GD-html5-runtime
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: html5-apps-repo
+      service-plan: app-runtime
+  - name: SUPPLIERPORTAL_GD-portal
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: portal
+      service-plan: standard
+  - name: SUPPLIERPORTAL_GD-logging
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: application-logs
+      service-plan: standard
