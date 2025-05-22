@@ -1,36 +1,36 @@
 {
-  "name": "SUPPLIERPORTAL_GD",
+  "name": "pp-backend",
   "version": "1.0.0",
   "description": "A simple CAP project.",
   "repository": "<Add your repository here>",
   "license": "UNLICENSED",
   "private": true,
   "dependencies": {
+    "@cap-js/hana": "^1",
     "@sap/cds": "^8",
-    "express": "^4",
-    "@cap-js/hana": "^1"
+    "@sap/xsenv": "^3.2.0",
+    "@sap/xssec": "^3.6.2",
+    "express": "^4"
   },
   "devDependencies": {
     "@cap-js/cds-types": "^0.10.0",
     "@cap-js/sqlite": "^1",
-    "@sap/cds-dk": "^8"
+    "@sap/cds-dk": "^8",
+    "eslint": "^9.27.0"
   },
   "scripts": {
-    "start": "cds-serve"
+    "start": "cds-serve",
+    "cds-watch": "cds watch --open",
+    "clean-install": "rm -rf node_modules package-lock.json && npm cache clean --force && sudo npm install"
   },
   "cds": {
-    "sql": {
-      "native_hana_associations": false
-    },
     "requires": {
-      "messaging": {
-        "kind": "enterprise-messaging"
+      "db": {
+        "kind": "hana"
       },
-      "connectivity": true,
-      "destinations": true,
-      "html5-runtime": true,
-      "portal": true,
-      "application-logging": true
+      "auth": {
+        "kind": "xsuaa"
+      }
     }
   }
 }

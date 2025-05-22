@@ -1,0 +1,33 @@
+{
+  "xsappname": "pp-backendServices-001",
+  "tenant-mode": "dedicated",
+  "scopes": [
+    {
+      "name": "$XSAPPNAME.Display",
+      "description": "Public access"
+    }
+  ],
+  "role-templates": [
+    {
+      "name": "DisplayRole",
+      "description": "Role for public display",
+      "scope-references": [
+        "$XSAPPNAME.Display"
+      ]
+    }
+  ],
+  "role-collections": [
+    {
+      "name": "Public",
+      "description": "Public role collection",
+      "role-template-references": [
+        "DisplayRole"
+      ],
+      "principals": [
+        {
+          "type": "anonymous"
+        }
+      ]
+    }
+  ]
+}

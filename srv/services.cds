@@ -1,5 +1,6 @@
 using supplierPortalGD from '../db/schema';
 
+@path: 'ppservices'
 service SupplierPortalService {
   entity Suppliers as projection on supplierPortalGD.Suppliers;
 
