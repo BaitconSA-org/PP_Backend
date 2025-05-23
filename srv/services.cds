@@ -1,8 +1,6 @@
 using supplierPortalGD from '../db/schema';
 using { purchaseorder_edmx as external } from './external/purchaseorder.edmx';
 
-
-
 @path: 'ppservices'
 service SupplierPortalService {
   entity Suppliers as projection on supplierPortalGD.Suppliers;
