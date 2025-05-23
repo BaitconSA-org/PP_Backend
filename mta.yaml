@@ -31,7 +31,6 @@ modules:
       - name: pp-backend-db
       - name: pp-backend-connectivity
       - name: pp-backend-destination
-      - name: pp-backend-uaa
 
   - name: pp-backend-db-deployer
     type: hdb
