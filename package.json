@@ -10,7 +10,10 @@
     "@sap/cds": "^8",
     "@sap/xsenv": "^3.2.0",
     "@sap/xssec": "^3.6.2",
-    "express": "^4"
+    "express": "^4",
+    "@sap-cloud-sdk/connectivity": "^3",
+    "@sap-cloud-sdk/http-client": "^3",
+    "@sap-cloud-sdk/resilience": "^3"
   },
   "devDependencies": {
     "@cap-js/cds-types": "^0.10.0",
@@ -30,6 +33,17 @@
       },
       "auth": {
         "kind": "dummy"
+      },
+      "purchaseorder_edmx": {
+        "kind": "odata",
+        "model": "srv/external/purchaseorder.edmx"
+      }
+    },
+    "POService": {
+      "kind": "odata-v2",
+      "model": "srv/external/purchaseorder",
+      "credentials": {
+        "destination": "S4HANA"
       }
     }
   }
