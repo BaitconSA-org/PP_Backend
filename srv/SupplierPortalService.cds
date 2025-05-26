@@ -28,6 +28,6 @@ service SupplierPortalService {
   
   entity Notifications as projection on supplierPortalGD.Notifications;
 
-  entity POOrders as projection on external.PurchaseOrder;
+  entity RemotePurchaseOrders as projection on external.PurchaseOrder;
 
 }
