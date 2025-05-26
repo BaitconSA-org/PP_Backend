@@ -28,6 +28,13 @@
   },
   "cds": {
     "requires": {
+      "POService": {
+      "kind": "odata-v4",
+      "model": "srv/external/purchaseorder.edmx",
+      "credentials": {
+        "destination": "S4HANA"
+      }
+    },
       "db": {
         "kind": "hana"
       },
@@ -37,13 +44,6 @@
       "purchaseorder_edmx": {
         "kind": "odata",
         "model": "srv/external/purchaseorder.edmx"
-      }
-    },
-    "POService": {
-      "kind": "odata-v2",
-      "model": "srv/external/purchaseorder",
-      "credentials": {
-        "destination": "S4HANA"
       }
     }
   }

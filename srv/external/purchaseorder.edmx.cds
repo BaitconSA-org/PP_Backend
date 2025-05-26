@@ -86,7 +86,15 @@ type purchaseorder_edmx.SAP__Message {
 }
 @Capabilities.KeyAsSegmentSupported : true
 @Capabilities.AsynchronousRequestsSupported : true
-service purchaseorder_edmx {};
+service POService {
+  entity POProxyOrders        as projection on purchaseorder_edmx.PurchaseOrder;
+  entity POProxyItems         as projection on purchaseorder_edmx.PurchaseOrderItem;
+  entity POProxyNotes         as projection on purchaseorder_edmx.PurchaseOrderNote;
+  entity POProxyPartners      as projection on purchaseorder_edmx.PurchaseOrderPartner;
+  entity POProxyAddresses     as projection on purchaseorder_edmx.PurchaseOrderSupplierAddress;
+}
+
+
 
 @cds.external : true
 @cds.persistence.skip : true
