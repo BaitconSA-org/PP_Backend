@@ -30,5 +30,4 @@ service SupplierPortalService {
 
   entity POOrders as projection on external.PurchaseOrder;
 
-
 }
