@@ -30,7 +30,10 @@ service SupplierPortalService {
 
   @cds.persistence.skip
   @readonly
-  entity PurchaseOrderExt as projection on ext.PurchaseOrder;
+  entity PurchaseOrderExt as projection on ext.PurchaseOrder {
+    key PurchaseOrder,
+    *                   
+  };
 
   // ✅ Proyección de los ítems de la orden de compra
   @cds.persistence.skip

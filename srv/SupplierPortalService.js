@@ -4,7 +4,17 @@ module.exports = cds.service.impl(async function () {
   const s4 = await cds.connect.to('purchaseorder_edmx');
 
   this.on('READ', 'PurchaseOrderExt', async (req) => {
-    const poHeaders = await s4.run(req.query);
+    let poHeaders;
+
+    if (req.params && req.params.length) {
+      const poNumber = req.params[0].PurchaseOrder;
+
+      poHeaders = await s4.run(
+        SELECT.from('PurchaseOrder').where({ PurchaseOrder: poNumber }),
+      );
+    } else {
+      poHeaders = await s4.run(req.query);
+    }
 
     const poIds = poHeaders.map(p => p.PurchaseOrder);
     if (!poIds.length) return poHeaders;
@@ -24,6 +34,6 @@ module.exports = cds.service.impl(async function () {
       po._PurchaseOrderItem = itemsByPO[po.PurchaseOrder] || [];
     }
 
-    return poHeaders;
+    return poHeaders.length === 1 ? poHeaders[0] : poHeaders;
   });
 });
