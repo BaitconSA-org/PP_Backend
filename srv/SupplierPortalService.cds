@@ -1,5 +1,5 @@
 using supplierPortalGD from '../db/schema';
-using { purchaseorder_edmx as external } from './external/purchaseorder.edmx';
+using { purchaseorder_edmx as ext } from './external/purchaseorder_edmx.csn';
 
 @path: 'ppservices'
 service SupplierPortalService {
@@ -28,6 +28,8 @@ service SupplierPortalService {
   
   entity Notifications as projection on supplierPortalGD.Notifications;
 
-  entity RemotePurchaseOrders as projection on external.PurchaseOrder;
+  @cds.persistence.skip
+  @readonly
+  entity PurchaseOrderExt as projection on ext.PurchaseOrder;
 
 }

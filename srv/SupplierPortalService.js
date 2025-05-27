@@ -1,9 +1,15 @@
 const cds = require('@sap/cds');
+const { executeHttpRequest } = require('@sap-cloud-sdk/http-client');
 
-module.exports = cds.service.impl(async function () {
-  const s4 = await cds.connect.to('POService');
 
-  this.on('READ', 'POOrders', req => {
-    return s4.run(SELECT.from('POProxyOrders'));
-  });
+module.exports = cds.service.impl (async function() {
+
+  const s4hanaPO = await cds.connect.to('purchaseorder_edmx');
+
+  this.on('READ', 'PurchaseOrderExt', (req) => {
+    console.log('>> delegating to remote service...');
+    return s4hanaPO.run(req.query);
+  });    
+
+
 });
