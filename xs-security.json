@@ -5,6 +5,14 @@
     {
       "name": "$XSAPPNAME.Display",
       "description": "Public access"
+    },
+    {
+      "name": "$XSAPPNAME.SupplierViewer",
+      "description": "View suppliers"
+    },
+    {
+      "name": "$XSAPPNAME.SupplierAdmin",
+      "description": "Manage suppliers"
     }
   ],
   "role-templates": [
@@ -14,7 +22,22 @@
       "scope-references": [
         "$XSAPPNAME.Display"
       ]
+    },
+    {
+      "name": "SupplierViewer",
+      "description": "Can view suppliers",
+      "scope-references": [
+        "$XSAPPNAME.SupplierViewer"
+      ]
+    },
+    {
+      "name": "SupplierAdmin",
+      "description": "Can manage suppliers",
+      "scope-references": [
+        "$XSAPPNAME.SupplierAdmin"
+      ]
     }
+    
   ],
   "role-collections": [
     {
@@ -28,6 +51,15 @@
           "type": "anonymous"
         }
       ]
+    },
+    {
+      "name": "SupplierAccess",
+      "description": "All supplier access roles",
+      "role-template-references": [
+        "SupplierViewer",
+        "SupplierAdmin"
+      ]
     }
+    
   ]
 }
