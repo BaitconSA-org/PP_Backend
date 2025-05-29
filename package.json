@@ -42,7 +42,7 @@
         "kind": "hana"
       },
       "auth": {
-        "kind": "dummy"
+        "kind": "xsuaa"
       }
     }
   }

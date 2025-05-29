@@ -9,11 +9,17 @@
   ],
   "role-templates": [
     {
-      "name": "DisplayRole",
-      "description": "Role for public display",
-      "scope-references": [
-        "$XSAPPNAME.Display"
-      ]
+      "name": "SupplierUser",
+      "description": "Access for suppliers",
+      "attribute-references": ["supplierID"]
+    }
+  ],
+  "attributes": [
+    {
+      "name": "supplierID",
+      "description": "Supplier ID assigned to the user",
+      "valueType": "string",
+      "multiValue": true
     }
   ],
   "role-collections": [
