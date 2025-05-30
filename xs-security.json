@@ -3,6 +3,10 @@
   "tenant-mode": "dedicated",
   "scopes": [
     {
+      "name": "$XSAPPNAME.Supplier",
+      "description": "Access to supplier-restricted areas"
+    },
+    {
       "name": "$XSAPPNAME.Display",
       "description": "Public access"
     }
@@ -11,6 +15,9 @@
     {
       "name": "SupplierUser",
       "description": "Access for suppliers",
+      "scope-references": [
+        "$XSAPPNAME.Supplier"
+      ],
       "attribute-references": ["supplierID"]
     }
   ],
@@ -18,22 +25,17 @@
     {
       "name": "supplierID",
       "description": "Supplier ID assigned to the user",
-      "valueType": "string",
-      "multiValue": true
+      "valueType": "string"
     }
   ],
   "role-collections": [
-    {
-      "name": "Public",
-      "description": "Public role collection",
-      "role-template-references": [
-        "DisplayRole"
-      ],
-      "principals": [
-        {
-          "type": "anonymous"
-        }
-      ]
-    }
-  ]
+  {
+    "name": "SupplierAccess",
+    "description": "Access to supplier entities",
+    "role-template-references": [
+      "$XSAPPNAME.SupplierUser" 
+    ]
+  }
+]
+
 }
