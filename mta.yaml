@@ -28,6 +28,7 @@ modules:
         properties:
           srv-url: ${default-url}
     requires:
+      - name: pp-backend-uaa
       - name: pp-backend-db
       - name: pp-backend-connectivity
       - name: pp-backend-destination
@@ -98,11 +99,10 @@ resources:
     parameters:
       service: html5-apps-repo
       service-plan: app-runtime
-
   - name: pp-backend-uaa
-    type: org.cloudfoundry.managed-service
+    type: com.sap.xs.uaa
     parameters:
-      service: xsuaa
-      service-plan: application
-      service-name: pp-backend-xsuaa
-      path: xs-security.json
+      path: ./xs-security.json
+
+
+

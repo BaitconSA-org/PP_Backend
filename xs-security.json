@@ -3,63 +3,39 @@
   "tenant-mode": "dedicated",
   "scopes": [
     {
+      "name": "$XSAPPNAME.Supplier",
+      "description": "Access to supplier-restricted areas"
+    },
+    {
       "name": "$XSAPPNAME.Display",
       "description": "Public access"
-    },
-    {
-      "name": "$XSAPPNAME.SupplierViewer",
-      "description": "View suppliers"
-    },
-    {
-      "name": "$XSAPPNAME.SupplierAdmin",
-      "description": "Manage suppliers"
     }
   ],
   "role-templates": [
     {
-      "name": "DisplayRole",
-      "description": "Role for public display",
+      "name": "SupplierUser",
+      "description": "Access for suppliers",
       "scope-references": [
-        "$XSAPPNAME.Display"
-      ]
-    },
-    {
-      "name": "SupplierViewer",
-      "description": "Can view suppliers",
-      "scope-references": [
-        "$XSAPPNAME.SupplierViewer"
-      ]
-    },
-    {
-      "name": "SupplierAdmin",
-      "description": "Can manage suppliers",
-      "scope-references": [
-        "$XSAPPNAME.SupplierAdmin"
-      ]
+        "$XSAPPNAME.Supplier"
+      ],
+      "attribute-references": ["supplierID"]
     }
-    
+  ],
+  "attributes": [
+    {
+      "name": "supplierID",
+      "description": "Supplier ID assigned to the user",
+      "valueType": "string"
+    }
   ],
   "role-collections": [
-    {
-      "name": "Public",
-      "description": "Public role collection",
-      "role-template-references": [
-        "DisplayRole"
-      ],
-      "principals": [
-        {
-          "type": "anonymous"
-        }
-      ]
-    },
-    {
-      "name": "SupplierAccess",
-      "description": "All supplier access roles",
-      "role-template-references": [
-        "SupplierViewer",
-        "SupplierAdmin"
-      ]
-    }
-    
-  ]
+  {
+    "name": "SupplierAccess",
+    "description": "Access to supplier entities",
+    "role-template-references": [
+      "$XSAPPNAME.SupplierUser"
+    ]
+  }
+]
+
 }
