@@ -33,7 +33,7 @@
     "name": "SupplierAccess",
     "description": "Access to supplier entities",
     "role-template-references": [
-      "$XSAPPNAME.SupplierUser" 
+      "$XSAPPNAME.SupplierUser"
     ]
   }
 ]

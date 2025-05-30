@@ -100,6 +100,9 @@ resources:
       service: html5-apps-repo
       service-plan: app-runtime
   - name: pp-backend-uaa
-    type: com.sap.xs.uaa 
+    type: com.sap.xs.uaa
     parameters:
       path: ./xs-security.json
+
+
+
