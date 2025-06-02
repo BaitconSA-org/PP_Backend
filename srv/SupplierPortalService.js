@@ -16,6 +16,7 @@ module.exports = cds.service.impl(async function () {
 
   // Lógica de PurchaseOrderExt con expand manual (como ya tenés)
   this.on('READ', 'PurchaseOrderExt', async (req) => {
+    console.log(req.user);
     let poHeaders;
 
     if (req.params && req.params.length) {
