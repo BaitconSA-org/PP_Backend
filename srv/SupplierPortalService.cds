@@ -62,9 +62,6 @@ service SupplierPortalService
     entity PurchaseOrderItemExt as
         projection on ext.PurchaseOrderItem;
 
-    @readonly
-    entity PurchaseOrderSupplierAddress as
-         projection on ext.PurchaseOrderSupplierAddress;
 
 }
 

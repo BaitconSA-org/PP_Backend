@@ -17,14 +17,7 @@ module.exports = cds.service.impl(async function () {
 
   // Lógica de PurchaseOrderExt con expand manual (como ya tenés)
   this.on('READ', 'PurchaseOrderExt', async (req) => {
-    //Obtengo los roles
-    const userSupplierIDs = req.user?.attr?.supplierID;
-
-    if (!userSupplierIDs) {
-      return req.reject(403, 'El usuario no cuenta con roles de proveedor (supplierID).');
-    }
-
-
+ 
     let poHeaders;
 
     if (req.params && req.params.length) {
