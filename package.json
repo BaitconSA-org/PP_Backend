@@ -2,18 +2,22 @@
   "name": "pp-backend",
   "version": "1.0.0",
   "description": "A simple CAP project.",
-  "repository": "<Add your repository here>",
+  "repository": {
+    "type": "git",
+    "url": "<Add your repository here>"
+  },
   "license": "UNLICENSED",
   "private": true,
   "dependencies": {
     "@cap-js/hana": "^1",
-    "@sap/cds": "^8",
-    "@sap/xsenv": "^3.2.0",
-    "@sap/xssec": "^3.6.2",
-    "express": "^4",
     "@sap-cloud-sdk/connectivity": "^3",
     "@sap-cloud-sdk/http-client": "^3",
-    "@sap-cloud-sdk/resilience": "^3"
+    "@sap-cloud-sdk/resilience": "^3",
+    "@sap/cds": "^8",
+    "@sap/cf-tools": "^3.2.2",
+    "@sap/xsenv": "^3.2.0",
+    "@sap/xssec": "^3.6.2",
+    "express": "^4"
   },
   "devDependencies": {
     "@cap-js/cds-types": "^0.10.0",
@@ -24,7 +28,8 @@
   "scripts": {
     "start": "cds-serve",
     "cds-watch": "cds watch --open",
-    "clean-install": "rm -rf node_modules package-lock.json && npm cache clean --force && sudo npm install"
+    "clean-install": "rm -rf node_modules package-lock.json && npm cache clean --force && sudo npm install",
+    "refresh-env": "./generate-env.sh"
   },
   "cds": {
     "requires": {
@@ -45,5 +50,8 @@
         "kind": "xsuaa"
       }
     }
-  }
+  },
+  "main": "generate-env.js",
+  "keywords": [],
+  "author": ""
 }

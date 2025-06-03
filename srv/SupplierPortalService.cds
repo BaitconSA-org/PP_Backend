@@ -51,16 +51,21 @@ service SupplierPortalService
         projection on supplierPortalGD.Notifications;
 
     @readonly
-    entity PurchaseOrderExt as
-        projection on ext.PurchaseOrder
-        {
-            key PurchaseOrder,
-            *
-        };
+    entity PurchaseOrderExt as projection on ext.PurchaseOrder {
+        key PurchaseOrder,
+        *,
+        _SupplierAddress
+    };
+
 
     @readonly
     entity PurchaseOrderItemExt as
         projection on ext.PurchaseOrderItem;
+
+    @readonly
+    entity PurchaseOrderSupplierAddress as
+         projection on ext.PurchaseOrderSupplierAddress;
+
 }
 
 annotate SupplierPortalService with @requires :

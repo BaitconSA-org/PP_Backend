@@ -32,3 +32,7 @@ mta_archives/
 
 # @cap-js/cds-typer
 @cds-models
+
+#Scripts y archivos de prueba locales
+test-api.sh
+generate-env.js
