@@ -13,7 +13,6 @@ module.exports = cds.service.impl(async function () {
     }
   });
 
-  // Handler para lectura de órdenes con filtrado por supplierID
   this.on('READ', 'PurchaseOrderExt', async (req) => {
     const userSupplierIDs = req.user?.attr?.supplierID;
 
@@ -22,7 +21,7 @@ module.exports = cds.service.impl(async function () {
     }
 
     try {
-      let poHeaders = [];
+      let poHeaders;
 
       if (req.params?.length) {
         const poNumber = req.params[0].PurchaseOrder;
@@ -33,8 +32,17 @@ module.exports = cds.service.impl(async function () {
             .and({ Supplier: { in: userSupplierIDs } }),
         );
       } else {
-        // Construcción segura del query con filtro por Supplier
-        const query = SELECT.from('PurchaseOrder').where({ Supplier: { in: userSupplierIDs } });
+        // Clonamos y fusionamos el filtro original con el de seguridad
+        const query = Object.assign({}, req.query); // copia "shallow"
+
+        const supplierFilter = ['Supplier', 'in', userSupplierIDs];
+
+        if (query.where) {
+          query.where = ['and', query.where, supplierFilter];
+        } else {
+          query.where = supplierFilter;
+        }
+
         poHeaders = await s4.run(query);
       }
 
@@ -45,7 +53,6 @@ module.exports = cds.service.impl(async function () {
         SELECT.from('PurchaseOrderItem').where({ PurchaseOrder: { in: poIds } }),
       );
 
-      // Agrupar items por orden
       const itemsByPO = poItems.reduce((acc, item) => {
         const key = item.PurchaseOrder;
         acc[key] = acc[key] || [];
@@ -53,7 +60,6 @@ module.exports = cds.service.impl(async function () {
         return acc;
       }, {});
 
-      // Asociar items a cada orden
       poHeaders.forEach(po => {
         po._PurchaseOrderItem = itemsByPO[po.PurchaseOrder] || [];
       });
