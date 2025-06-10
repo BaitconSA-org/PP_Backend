@@ -55,17 +55,21 @@ service SupplierPortalService
         projection on ext.PurchaseOrder
         {
             key PurchaseOrder,
-            *
+            *,
+            _SupplierAddress
         };
 
     @readonly
     entity PurchaseOrderItemExt as
         projection on ext.PurchaseOrderItem;
 
+    entity PurchaseOrderSupplierAddress as projection on ext.PurchaseOrderSupplierAddress;
+
+
 
 }
 
-annotate SupplierPortalService with @requires :
-[
-    'Supplier'
-];
+//annotate SupplierPortalService with @requires :
+//[
+//    'Supplier'
+//];
