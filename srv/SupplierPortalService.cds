@@ -69,7 +69,7 @@ service SupplierPortalService
 
 }
 
-//annotate SupplierPortalService with @requires :
-//[
-//    'Supplier'
-//];
+annotate SupplierPortalService with @requires :
+[
+    'Supplier'
+];
