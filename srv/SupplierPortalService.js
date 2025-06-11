@@ -17,69 +17,97 @@ module.exports = cds.service.impl(async function () {
   });
 
 
-  // Handler para lectura de órdenes con filtrado por supplierID
   this.on('READ', 'PurchaseOrderExt', async (req) => {
     const userSupplierIDs = req.user?.attr?.supplierID;
-
+    // const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
+  
     if (!Array.isArray(userSupplierIDs) || userSupplierIDs.length === 0) {
       return req.reject(403, 'El usuario no cuenta con roles de proveedor (supplierID).');
     }
-
+  
     try {
       let poHeaders = [];
-
+  
       if (req.params?.length) {
         const poNumber = req.params[0].PurchaseOrder;
-
+  
         poHeaders = await s4.run(
           SELECT.from('PurchaseOrder')
             .where({ PurchaseOrder: poNumber })
             .and({ Supplier: { in: userSupplierIDs } }),
         );
       } else {
-        // Clonar query original y agregar condición de seguridad por supplier
-        const query = req.query;
-  
-        if (!query.SELECT.where) {
-          query.SELECT.where = [];
-        } else if (query.SELECT.where.length > 0) {
-          query.SELECT.where.push('and');
-        }
-  
-        query.SELECT.where.push({ ref: ['Supplier'] });
-        query.SELECT.where.push('in');
-        query.SELECT.where.push({ val: userSupplierIDs });
-  
+        const query = SELECT.from('PurchaseOrder').where({ Supplier: { in: userSupplierIDs } });
         poHeaders = await s4.run(query);
       }
   
       if (!poHeaders.length) return [];
+  
+      const filters = req.query?.SELECT?.where;
 
+      const values = [];
+
+      if (Array.isArray(filters)) {
+        if (
+          filters.length === 3 &&
+          filters[0]?.ref?.[0] === 'PurchaseOrder' &&
+          filters[1] === '=' &&
+          typeof filters[2]?.val !== 'undefined'
+        ) {
+          values.push(filters[2].val);
+        }
+
+        else if (
+          filters.length === 1 &&
+          Array.isArray(filters[0]?.xpr)
+        ) {
+          const xpr = filters[0].xpr;
+
+          for (let i = 0; i < xpr.length; i++) {
+            if (
+              xpr[i]?.ref?.[0] === 'PurchaseOrder' &&
+              xpr[i + 1] === '=' &&
+              typeof xpr[i + 2]?.val !== 'undefined'
+            ) {
+              values.push(xpr[i + 2].val);
+              i += 2;
+            }
+          }
+        }
+
+        // Aplicar el filtro si encontramos valores
+        if (values.length > 0) {
+          poHeaders = poHeaders.filter(po => values.includes(po.PurchaseOrder));
+        }
+      }
+
+  
+ 
+  
       const poIds = poHeaders.map(po => po.PurchaseOrder);
       const poItems = await s4.run(
         SELECT.from('PurchaseOrderItem').where({ PurchaseOrder: { in: poIds } }),
       );
-
-      // Agrupar items por orden
+  
       const itemsByPO = poItems.reduce((acc, item) => {
         const key = item.PurchaseOrder;
         acc[key] = acc[key] || [];
         acc[key].push(item);
         return acc;
       }, {});
-
-      // Asociar items a cada orden
+  
       poHeaders.forEach(po => {
         po._PurchaseOrderItem = itemsByPO[po.PurchaseOrder] || [];
       });
-
+  
       return poHeaders.length === 1 ? poHeaders[0] : poHeaders;
-
+  
     } catch (err) {
       console.error('Error reading PurchaseOrderExt:', err);
       return req.reject(500, 'Error al leer órdenes de compra');
     }
   });
+  
 
   /**
    * READ: PurchaseOrderExt._SupplierAddress
