@@ -18,8 +18,8 @@ module.exports = cds.service.impl(async function () {
 
 
   this.on('READ', 'PurchaseOrderExt', async (req) => {
-    const userSupplierIDs = req.user?.attr?.supplierID;
-    // const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
+    //const userSupplierIDs = req.user?.attr?.supplierID;
+    const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
   
     if (!Array.isArray(userSupplierIDs) || userSupplierIDs.length === 0) {
       return req.reject(403, 'El usuario no cuenta con roles de proveedor (supplierID).');
@@ -37,52 +37,27 @@ module.exports = cds.service.impl(async function () {
             .and({ Supplier: { in: userSupplierIDs } }),
         );
       } else {
-        const query = SELECT.from('PurchaseOrder').where({ Supplier: { in: userSupplierIDs } });
+        // Clonar el query original con todos los filtros del front
+        const query = { ...req.query };
+
+        // Inyectar filtro adicional por Supplier (sin romper los filtros frontend)
+        if (!query.where) {
+          query.where = [
+            { ref: ['Supplier'] },
+            'in',
+            { val: userSupplierIDs }
+          ];
+        } else {
+          query.where = [
+            '(', query.where, ')', 'and',
+            { ref: ['Supplier'] },
+            'in',
+            { val: userSupplierIDs }
+          ];
+        }
+
         poHeaders = await s4.run(query);
       }
-  
-      if (!poHeaders.length) return [];
-  
-      const filters = req.query?.SELECT?.where;
-
-      const values = [];
-
-      if (Array.isArray(filters)) {
-        if (
-          filters.length === 3 &&
-          filters[0]?.ref?.[0] === 'PurchaseOrder' &&
-          filters[1] === '=' &&
-          typeof filters[2]?.val !== 'undefined'
-        ) {
-          values.push(filters[2].val);
-        }
-
-        else if (
-          filters.length === 1 &&
-          Array.isArray(filters[0]?.xpr)
-        ) {
-          const xpr = filters[0].xpr;
-
-          for (let i = 0; i < xpr.length; i++) {
-            if (
-              xpr[i]?.ref?.[0] === 'PurchaseOrder' &&
-              xpr[i + 1] === '=' &&
-              typeof xpr[i + 2]?.val !== 'undefined'
-            ) {
-              values.push(xpr[i + 2].val);
-              i += 2;
-            }
-          }
-        }
-
-        // Aplicar el filtro si encontramos valores
-        if (values.length > 0) {
-          poHeaders = poHeaders.filter(po => values.includes(po.PurchaseOrder));
-        }
-      }
-
-  
- 
   
       const poIds = poHeaders.map(po => po.PurchaseOrder);
       const poItems = await s4.run(
