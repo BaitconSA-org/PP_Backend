@@ -37,11 +37,22 @@ module.exports = cds.service.impl(async function () {
             .and({ Supplier: { in: userSupplierIDs } }),
         );
       } else {
-      // Construcción segura del query con filtro por Supplier
-        const query = SELECT.from('PurchaseOrder').where({ Supplier: { in: userSupplierIDs } });
+        // Clonar query original y agregar condición de seguridad por supplier
+        const query = req.query;
+  
+        if (!query.SELECT.where) {
+          query.SELECT.where = [];
+        } else if (query.SELECT.where.length > 0) {
+          query.SELECT.where.push('and');
+        }
+  
+        query.SELECT.where.push({ ref: ['Supplier'] });
+        query.SELECT.where.push('in');
+        query.SELECT.where.push({ val: userSupplierIDs });
+  
         poHeaders = await s4.run(query);
       }
-
+  
       if (!poHeaders.length) return [];
 
       const poIds = poHeaders.map(po => po.PurchaseOrder);
