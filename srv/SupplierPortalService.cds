@@ -158,7 +158,9 @@ service SupplierPortalService
         po._SupplierAddress,
         // ✅ Campos agregados
         cast(null as Decimal(15,2)) as NetAmountTotal,
-        cast(null as Decimal(15,2)) as SupplierInvoiceAmountTotal
+        cast(null as Decimal(15,2)) as SupplierInvoiceAmountTotal,
+        cast(null as Decimal(5,2)) as InvoicePercent
+
         }
 
 

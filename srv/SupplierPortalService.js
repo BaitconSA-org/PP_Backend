@@ -94,7 +94,16 @@ module.exports = cds.service.impl(async function () {
         po._PurchaseOrderItem = itemsByPO[po.PurchaseOrder] || [];
         po.NetAmountTotal = netAmountByPO[po.PurchaseOrder] || 0;
         po.SupplierInvoiceAmountTotal = supplierInvoiceAmountByPO[po.PurchaseOrder] || 0;
+      
+        if (po.NetAmountTotal > 0) {
+          po.InvoiceCoveragePercent = Number(
+            ((po.SupplierInvoiceAmountTotal / po.NetAmountTotal) * 100).toFixed(2),
+          );
+        } else {
+          po.InvoiceCoveragePercent = 0;
+        }
       });
+      
   
       return poHeaders.length === 1 ? poHeaders[0] : poHeaders;
   
