@@ -86,13 +86,81 @@ service SupplierPortalService
         projection on supplierPortalGD.Notifications;
 
     @readonly
-    entity PurchaseOrderExt as
-        projection on ext.PurchaseOrder
-        {
-            key PurchaseOrder,
-            *,
-            _SupplierAddress,
-        };
+        entity PurchaseOrderExt as select from ext.PurchaseOrder as po {
+        key po.PurchaseOrder,
+        po.PurchaseOrderType,
+        po.PurchaseOrderSubtype,
+        po.PurchasingDocumentOrigin,
+        po.PurchasingDocumentProcessCode,
+        po.CreatedByUser,
+        po.CreationDate,
+        po.PurchaseOrderDate,
+        po.LastChangeDateTime,
+        po.ValidityStartDate,
+        po.ValidityEndDate,
+        po.Language,
+        po.PurchaseOrderDeletionCode,
+        po.ReleaseIsNotCompleted,
+        po.PurchasingCompletenessStatus,
+        po.PurchasingProcessingStatus,
+        po.PurgReleaseSequenceStatus,
+        po.ReleaseCode,
+        po.PurchasingReleaseStrategy,
+        po.PurgReasonForDocCancellation,
+        po.CompanyCode,
+        po.PurchasingOrganization,
+        po.PurchasingGroup,
+        po.Supplier,
+        po.ManualSupplierAddressID,
+        po.SupplierAddressID,
+        po.SupplierRespSalesPersonName,
+        po.SupplierPhoneNumber,
+        po.SupplyingSupplier,
+        po.SupplyingPlant,
+        po.InvoicingParty,
+        po.Customer,
+        po.PurchaseContract,
+        po.SupplierQuotationExternalID,
+        po.QuotationSubmissionDate,
+        po.ItemNumberIntervalForSubItems,
+        po.PaymentTerms,
+        po.CashDiscount1Days,
+        po.CashDiscount2Days,
+        po.NetPaymentDays,
+        po.CashDiscount1Percent,
+        po.CashDiscount2Percent,
+        po.DownPaymentType,
+        po.DownPaymentPercentageOfTotAmt,
+        po.DownPaymentAmount,
+        po.DownPaymentDueDate,
+        po.IncotermsClassification,
+        po.IncotermsTransferLocation,
+        po.IncotermsVersion,
+        po.IncotermsLocation1,
+        po.IncotermsLocation2,
+        po.IsIntrastatReportingRelevant,
+        po.IsIntrastatReportingExcluded,
+        po.CorrespncExternalReference,
+        po.CorrespncInternalReference,
+        po.PricingDocument,
+        po.PricingProcedure,
+        po.DocumentCurrency,
+        po.ExchangeRate,
+        po.ExchangeRateIsFixed,
+        po.TaxReturnCountry,
+        po.VATRegistrationCountry,
+        po.PurgAggrgdProdCmplncSuplrSts,
+        po.PurgAggrgdProdMarketabilitySts,
+        po.PurgAggrgdSftyDataSheetStatus,
+        po.PurgProdCmplncTotDngrsGoodsSts,
+        po.PurchasingCollectiveNumber,
+        po.SAP__Messages,
+        po._SupplierAddress,
+        // ✅ Campos agregados
+        cast(null as Decimal(15,2)) as NetAmountTotal,
+        cast(null as Decimal(15,2)) as SupplierInvoiceAmountTotal
+        }
+
 
     @readonly
     @cds.redirection.target : true
@@ -134,7 +202,7 @@ service SupplierPortalService
 
 }
 
-annotate SupplierPortalService with @requires :
+/*annotate SupplierPortalService with @requires :
 [
     'Supplier'
-];
+];*/
