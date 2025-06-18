@@ -10,10 +10,17 @@ const {
   handleItemSupplierInvoiceAmountRead,
 } = require('./supplier/VirtualAggregatesService');
 
+const { 
+  handleBusinessPartnerRead,
+} = require('./businessPartner/BusinessPartnerService');
+
+
 module.exports = cds.service.impl(async function () {
   // Conexiones
   const s4Purchase = await cds.connect.to('purchaseorder_edmx');
   const s4Invoices = await cds.connect.to('A_SupplierInvoice_edmx');
+  const s4bp = await cds.connect.to('A_BusinessPartner');
+
 
   
   /**************** 1 ****************/
@@ -96,11 +103,11 @@ module.exports = cds.service.impl(async function () {
         po.SupplierInvoiceAmountTotal = supplierInvoiceAmountByPO[po.PurchaseOrder] || 0;
       
         if (po.NetAmountTotal > 0) {
-          po.InvoiceCoveragePercent = Number(
+          po.InvoicePercent = Number(
             ((po.SupplierInvoiceAmountTotal / po.NetAmountTotal) * 100).toFixed(2),
           );
         } else {
-          po.InvoiceCoveragePercent = 0;
+          po.InvoicePercent = 0;
         }
       });
       
@@ -176,8 +183,16 @@ module.exports = cds.service.impl(async function () {
   /**************** FIN 3 **************/
 
   
-  
-  
+  /**************** 4 ****************/
+  /**
+ * GET BusinessPartnerExt
+ * Devuelve los socios comerciales desde el servicio S/4HANA,
+ * incluyendo direcciones (_BusinessPartnerAddress) y roles (_BusinessPartnerRole)
+ */
+
+  this.on('READ', 'BusinessPartnerExt', (req) => handleBusinessPartnerRead(req, s4bp));
+
+  /**************** FIN 4 **************/
   
   
 });

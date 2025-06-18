@@ -4,6 +4,8 @@ using supplierPortalGD from '../db/schema';
 using { purchaseorder_edmx as ext } from './external/purchaseorder_edmx.csn';
 // Facturación Proveedor
 using { A_SupplierInvoice_edmx as inv } from './external/A_SupplierInvoice/A_SupplierInvoice_edmx.csn';
+// Business Partner
+using { A_BusinessPartner as prt } from './external/A_BusinessPartner/A_BusinessPartner_edmx.csn';
 
 // View agregados con totales
 using {
@@ -186,6 +188,25 @@ service SupplierPortalService
     @readonly
     @cds.redirection.target : true
     entity SupplierInvoiceItemExt as projection on inv.A_SuplrInvcItemPurOrdRef;
+
+
+    @readonly
+    entity BusinessPartnerExt as select from prt.A_BusinessPartner as bp {
+    key bp.BusinessPartner,
+        bp.Customer,
+        bp.Supplier,
+        bp.BusinessPartnerFullName,
+        bp.CreationDate,
+        bp.to_Customer,
+        bp.Language,
+        bp.LastName,
+        bp.BusinessPartnerBirthplaceName,
+        bp.NameCountry,
+        bp.to_Supplier,
+        bp.to_BusinessPartner,
+        bp.to_BusinessPartnerAddress
+
+    }
 
 
     // Exponiendo vistas Virtuales
