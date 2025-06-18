@@ -106,15 +106,15 @@ module.exports = cds.service.impl(async function () {
           po.InvoicePercent = Math.round((po.SupplierInvoiceAmountTotal / po.NetAmountTotal) * 100);
         
           if (po.InvoicePercent < 25) {
-            po.InvoiceStatusColor = 'Red';
+            po.InvoiceStatusColor = '1';
           } else if (po.InvoicePercent <= 75) {
-            po.InvoiceStatusColor = 'Yellow';
+            po.InvoiceStatusColor = '2';
           } else {
-            po.InvoiceStatusColor = 'Green';
+            po.InvoiceStatusColor = '3';
           }
         } else {
           po.InvoicePercent = 0;
-          po.InvoiceStatusColor = 'Red';
+          po.InvoiceStatusColor = '1';
         }
         
       });
