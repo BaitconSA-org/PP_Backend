@@ -161,7 +161,10 @@ service SupplierPortalService
         // ✅ Campos agregados
         cast(null as Decimal(15,2)) as NetAmountTotal,
         cast(null as Decimal(15,2)) as SupplierInvoiceAmountTotal,
-        cast(null as Decimal(5,2)) as InvoicePercent
+        cast(null as Decimal(5,2)) as InvoicePercent,
+        cast(null as String) as InvoiceStatusColor,
+        _PurchaseOrderItem : Composition of many PurchaseOrderItemExt
+             on _PurchaseOrderItem.PurchaseOrder = PurchaseOrder
 
         }
 
