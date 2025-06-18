@@ -228,7 +228,7 @@ service SupplierPortalService
 
 }
 
-/*annotate SupplierPortalService with @requires :
+annotate SupplierPortalService with @requires :
 [
     'Supplier'
-];*/
+];
