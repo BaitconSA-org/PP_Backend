@@ -31,43 +31,48 @@ module.exports = cds.service.impl(async function () {
     const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
   
     try {
-      // 1. Obtener filtros
-      const query = req.query;
-      const filters = query?.SELECT?.where;
+      const query = SELECT.from('PurchaseOrderItem');
   
-      // 2. Obtener ítems
-      const poItems = await s4Purchase.run(
-        SELECT.from('PurchaseOrderItem')
-          .where(filters || {}),
-      );
+      // Si viene desde navegación: /PurchaseOrderExt('4500000008')/_PurchaseOrderItem
+      if (req.params?.length) {
+        const purchaseOrder = req.params[0].PurchaseOrder;
+        query.where({ PurchaseOrder: purchaseOrder });
+      }
   
-      const poIds = [...new Set(poItems.map(item => item.PurchaseOrder))];
+      // Si hay filtros adicionales ($filter) se delegan
+      Object.assign(query, req.query);
   
-      const supplierInvoiceAmount = await handleItemSupplierInvoiceAmountRead(poIds);
+      const poItems = await s4Purchase.run(query);
   
-      const invoiceMap = supplierInvoiceAmount.reduce((acc, row) => {
-        const key = `${row.PurchaseOrder}-${row.PurchaseOrderItem}`;
+      const poIds = [...new Set(poItems.map(i => i.PurchaseOrder))];
+  
+      const invoiceAmounts = await handleItemSupplierInvoiceAmountRead(poIds);
+  
+      const amountMap = invoiceAmounts.reduce((acc, row) => {
+        const key = `${row.PurchaseOrder}`;
         acc[key] = row.SupplierInvoiceItemAmount;
         return acc;
       }, {});
   
-      // 3. Agregar el monto de facturación por ítem
       poItems.forEach(item => {
-        const key = `${item.PurchaseOrder}-${item.PurchaseOrderItem}`;
-        item.SupplierInvoiceItemAmount = invoiceMap[key] || 0;
+        const key = `${item.PurchaseOrder}`;
+        item.SupplierInvoiceItemAmount = amountMap[key] || 0;
       });
   
       return poItems;
+  
     } catch (err) {
       console.error('Error en PurchaseOrderItemExt:', err);
       return req.reject(500, 'Error al leer ítems de órdenes');
     }
   });
   
+  
+  
 
   this.on('READ', 'PurchaseOrderExt', async (req) => {
-    const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
-    //const userSupplierIDs = req.user?.attr?.supplierID;
+    //const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
+    const userSupplierIDs = req.user?.attr?.supplierID;
   
     if (!Array.isArray(userSupplierIDs) || userSupplierIDs.length === 0) {
       return req.reject(403, 'El usuario no cuenta con roles de proveedor (supplierID).');
