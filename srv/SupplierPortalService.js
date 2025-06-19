@@ -33,39 +33,40 @@ module.exports = cds.service.impl(async function () {
     try {
       const query = SELECT.from('PurchaseOrderItem');
   
-      // Si viene desde navegación: /PurchaseOrderExt('4500000008')/_PurchaseOrderItem
       if (req.params?.length) {
-        const purchaseOrder = req.params[0].PurchaseOrder;
-        query.where({ PurchaseOrder: purchaseOrder });
+        const { PurchaseOrder, PurchaseOrderItem } = req.params[0];
+        query.where({ PurchaseOrder, PurchaseOrderItem });
       }
   
-      // Si hay filtros adicionales ($filter) se delegan
+      // Delegar $select, $top, etc.
       Object.assign(query, req.query);
   
-      const poItems = await s4Purchase.run(query);
+      const poItemsRaw = await s4Purchase.run(query);
+      const poItems = Array.isArray(poItemsRaw) ? poItemsRaw : [poItemsRaw];
   
       const poIds = [...new Set(poItems.map(i => i.PurchaseOrder))];
   
       const invoiceAmounts = await handleItemSupplierInvoiceAmountRead(poIds);
   
       const amountMap = invoiceAmounts.reduce((acc, row) => {
-        const key = `${row.PurchaseOrder}`;
+        const key = `${row.PurchaseOrder}-${row.PurchaseOrderItem}`;
         acc[key] = row.SupplierInvoiceItemAmount;
         return acc;
       }, {});
   
       poItems.forEach(item => {
-        const key = `${item.PurchaseOrder}`;
+        const key = `${item.PurchaseOrder}-${item.PurchaseOrderItem}`;
         item.SupplierInvoiceItemAmount = amountMap[key] || 0;
       });
   
-      return poItems;
+      return req.params?.length === 1 ? poItems[0] : poItems;
   
     } catch (err) {
       console.error('Error en PurchaseOrderItemExt:', err);
       return req.reject(500, 'Error al leer ítems de órdenes');
     }
   });
+  
   
   
   
@@ -115,16 +116,22 @@ module.exports = cds.service.impl(async function () {
         acc[key].push(item);
         return acc;
       }, {});
-
-      supplierInvoiceAmount.forEach((supplier) => {
-        const { PurchaseOrder, SupplierInvoiceItemAmount } = supplier;
-        const items = itemsByPO[PurchaseOrder];
-        if (items) {
-          items.forEach(item => {
-            item.SupplierInvoiceItemAmount = SupplierInvoiceItemAmount;
-          });
-        }
+      
+      // Crear índice por orden + posición
+      const amountMap = supplierInvoiceAmount.reduce((acc, row) => {
+        const key = `${row.PurchaseOrder}-${row.PurchaseOrderItem}`;
+        acc[key] = row.SupplierInvoiceItemAmount;
+        return acc;
+      }, {});
+      
+      // Asignar el monto correcto por ítem
+      Object.entries(itemsByPO).forEach(([po, items]) => {
+        items.forEach(item => {
+          const key = `${item.PurchaseOrder}-${item.PurchaseOrderItem}`;
+          item.SupplierInvoiceItemAmount = amountMap[key] || 0;
+        });
       });
+      
       
   
       const netAmountByPO = netAmounts.reduce((acc, row) => {
