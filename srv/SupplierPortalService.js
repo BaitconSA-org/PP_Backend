@@ -1,4 +1,6 @@
 const cds = require('@sap/cds');
+
+
 const {
   handleSupplierInvoiceRead,
   handleSupplierInvoiceItemRead,
@@ -26,9 +28,42 @@ module.exports = cds.service.impl(async function () {
   /**************** 1 ****************/
 
   this.on('READ', 'PurchaseOrderItemExt', async (req) => {
-    try { return await s4Purchase.run(req.query);  // delega con $select, $skip, etc. incluidos
-    } catch (err) {  req.reject(500, 'Error delegating to remote service'); }
+    const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
+  
+    try {
+      // 1. Obtener filtros
+      const query = req.query;
+      const filters = query?.SELECT?.where;
+  
+      // 2. Obtener ítems
+      const poItems = await s4Purchase.run(
+        SELECT.from('PurchaseOrderItem')
+          .where(filters || {}),
+      );
+  
+      const poIds = [...new Set(poItems.map(item => item.PurchaseOrder))];
+  
+      const supplierInvoiceAmount = await handleItemSupplierInvoiceAmountRead(poIds);
+  
+      const invoiceMap = supplierInvoiceAmount.reduce((acc, row) => {
+        const key = `${row.PurchaseOrder}-${row.PurchaseOrderItem}`;
+        acc[key] = row.SupplierInvoiceItemAmount;
+        return acc;
+      }, {});
+  
+      // 3. Agregar el monto de facturación por ítem
+      poItems.forEach(item => {
+        const key = `${item.PurchaseOrder}-${item.PurchaseOrderItem}`;
+        item.SupplierInvoiceItemAmount = invoiceMap[key] || 0;
+      });
+  
+      return poItems;
+    } catch (err) {
+      console.error('Error en PurchaseOrderItemExt:', err);
+      return req.reject(500, 'Error al leer ítems de órdenes');
+    }
   });
+  
 
   this.on('READ', 'PurchaseOrderExt', async (req) => {
     const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
