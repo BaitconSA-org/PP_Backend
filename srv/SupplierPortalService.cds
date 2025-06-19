@@ -161,12 +161,24 @@ service SupplierPortalService
         // ✅ Campos agregados
         cast(null as Decimal(15,2)) as NetAmountTotal,
         cast(null as Decimal(15,2)) as SupplierInvoiceAmountTotal,
-        cast(null as Decimal(5,2)) as InvoicePercent,
+        cast(null as Integer) as InvoicePercent,
         cast(null as Integer) as InvoiceStatusColor,
         _PurchaseOrderItem : Composition of many PurchaseOrderItemExt
              on _PurchaseOrderItem.PurchaseOrder = PurchaseOrder
 
         }
+
+    // Anotaciones UI
+  annotate PurchaseOrderExt with {
+    InvoicePercent @UI.DataPoint #Coverage : {
+      title: 'Cobertura de Factura (%)',
+      value: 'InvoicePercent',
+      criticality: 'InvoiceStatusColor'
+    };
+  };
+
+
+
 
 
     @readonly
@@ -228,7 +240,4 @@ service SupplierPortalService
 
 }
 
-annotate SupplierPortalService with @requires :
-[
-    'Supplier'
-];
+annotate SupplierPortalService with @requires : ['Supplier'];
