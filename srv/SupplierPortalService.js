@@ -16,9 +16,8 @@ const {
   handleBusinessPartnerRead,
 } = require('./businessPartner/BusinessPartnerService');
 
-const { 
-  handlePurchaseOrderInvoiceMapRead,
-} = require('./aggregates/PurchaseOrderInvoiceMapService');
+const handlePOWithInvoicesRead = require('./aggregates/PurchaseOrderWithInvoices');
+
 
 module.exports = cds.service.impl(async function () {
   // Conexiones
@@ -68,8 +67,8 @@ module.exports = cds.service.impl(async function () {
   });  
 
   this.on('READ', 'PurchaseOrderExt', async (req) => {
-    //const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
-    const userSupplierIDs = req.user?.attr?.supplierID;
+    const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
+    //const userSupplierIDs = req.user?.attr?.supplierID;
   
     if (!Array.isArray(userSupplierIDs) || userSupplierIDs.length === 0) {
       return req.reject(403, 'El usuario no cuenta con roles de proveedor (supplierID).');
@@ -246,7 +245,7 @@ module.exports = cds.service.impl(async function () {
  * Devuelve las facturas asociadas a las posiciones de la OC,
  */
 
-  this.on('READ', 'PurchaseOrderInvoiceMap', (req) => handlePurchaseOrderInvoiceMapRead(req, s4Invoices));
+  this.on('READ', 'PurchaseOrderWithInvoices', (req) => handlePOWithInvoicesRead(req, s4Purchase, s4Invoices));
 
   /**************** FIN 5 **************/
   

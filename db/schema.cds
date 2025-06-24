@@ -118,3 +118,4 @@ entity Notifications : cuid {
   read: Boolean default false;
   createdAt: Timestamp;
 }
+

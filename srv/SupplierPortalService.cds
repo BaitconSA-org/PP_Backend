@@ -14,12 +14,6 @@ using {
   PurchaseOrderItemSupplierInvoiceAmount as VirtualItemSuppInv
 } from './aggregates/Virtual';
 
-//Referencia OC con Facturación
-using { 
-  PurchaseOrderInvoiceMap as OC_INV 
-} from './aggregates/PurchaseOrderInvoiceMap';
-
-
 
 @path : 'ppservices'
 service SupplierPortalService
@@ -353,7 +347,9 @@ service SupplierPortalService
         poi.StockSegment,
         poi.SAP__Messages,
         cast(null as Decimal(15,2)) as SupplierInvoiceItemAmount
+
     }
+    
         
 
     entity PurchaseOrderSupplierAddress as projection on ext.PurchaseOrderSupplierAddress;
@@ -405,10 +401,39 @@ service SupplierPortalService
     @readonly
     entity PurchaseOrderItemSupplierInvoiceAmount as projection on VirtualItemSuppInv;
 
+     // FIN vistas Virtuales
+
     @readonly
-    entity PurchaseOrderInvoiceMap as projection on OC_INV;
+    entity PurchaseOrderItemWithInvoices as projection on PurchaseOrderItemExt {
+        key PurchaseOrder,
+        key PurchaseOrderItem,
+        Material,
+        NetAmount,
+        OrderQuantity,
+        SupplierInvoiceItemAmount,
+
+        _InvoiceItems : Association to many SupplierInvoiceItemExt
+            on _InvoiceItems.PurchaseOrder = PurchaseOrder
+            and _InvoiceItems.PurchaseOrderItem = PurchaseOrderItem
+    }
+
+
+     @readonly
+    entity PurchaseOrderWithInvoices as projection on PurchaseOrderExt {
+        key PurchaseOrder,
+        Supplier,
+        PurchaseOrderDate,
+        DocumentCurrency,
+        NetAmountTotal,
+        SupplierInvoiceAmountTotal,
+        InvoicePercent,
+        InvoiceStatusColor,
+
+        _PurchaseOrderItem : Composition of many PurchaseOrderItemWithInvoices
+            on _PurchaseOrderItem.PurchaseOrder = PurchaseOrder
+    }
 
 
 }
 
-annotate SupplierPortalService with @requires : ['Supplier'];
+//annotate SupplierPortalService with @requires : ['Supplier'];
