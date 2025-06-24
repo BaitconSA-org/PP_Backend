@@ -14,7 +14,7 @@ async function handleBusinessPartnerRead (req) {
   /** 1. SupplierIDs permitidos para el usuario */
   //  ➜  Des-comentar la línea real cuando tengas los atributos
   const userSupplierIDs = req.user?.attr?.supplierID;
-  // const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006']; // ← mock para pruebas
+   //const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006']; // ← mock para pruebas
 
   if (!Array.isArray(userSupplierIDs) || userSupplierIDs.length === 0) {
     return req.reject(403, 'El usuario no cuenta con roles de proveedor (supplierID).');

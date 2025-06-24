@@ -27,7 +27,7 @@ module.exports = cds.service.impl(async function () {
 
   /**************** 1 ****************/
   this.on('READ', 'PurchaseOrderItemExt', async (req) => {
-    const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
+  // const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
   
     try {
       const query = SELECT.from('PurchaseOrderItem');
@@ -67,8 +67,8 @@ module.exports = cds.service.impl(async function () {
   });  
 
   this.on('READ', 'PurchaseOrderExt', async (req) => {
-    const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
-    //const userSupplierIDs = req.user?.attr?.supplierID;
+    //const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
+    const userSupplierIDs = req.user?.attr?.supplierID;
   
     if (!Array.isArray(userSupplierIDs) || userSupplierIDs.length === 0) {
       return req.reject(403, 'El usuario no cuenta con roles de proveedor (supplierID).');
