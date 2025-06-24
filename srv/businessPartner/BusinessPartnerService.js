@@ -10,9 +10,18 @@ async function handleBusinessPartnerRead(req) {
   const s4bp = await cds.connect.to('A_BusinessPartner');
 
   try {
-    const result = await s4bp.run(req.query);
+    // Cloná la query para poder modificarla
+    const cleanQuery = JSON.parse(JSON.stringify(req.query)); // clonar deep
+
+    if (cleanQuery.SELECT?.count) {
+      delete cleanQuery.SELECT.count;
+    }
+
+
+    const result = await s4bp.run(cleanQuery);
+
     const bpIds = result.map(bp => bp.BusinessPartner);
-    const customerIds = result.map(bp => bp.Customer).filter(Boolean); // filtra vacíos
+    const customerIds = result.map(bp => bp.Customer).filter(Boolean);
     const supplierIds = result.map(bp => bp.Supplier).filter(Boolean);
 
     if (!bpIds.length) return result;
@@ -42,11 +51,13 @@ async function handleBusinessPartnerRead(req) {
     });
 
     return result.length === 1 ? result[0] : result;
+
   } catch (err) {
     console.error('[ERROR] BusinessPartnerExt:', err);
     return req.reject(500, 'Error al obtener socios comerciales');
   }
 }
+
 
 module.exports = {
   handleBusinessPartnerRead,

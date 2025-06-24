@@ -16,6 +16,9 @@ const {
   handleBusinessPartnerRead,
 } = require('./businessPartner/BusinessPartnerService');
 
+const { 
+  handlePurchaseOrderInvoiceMapRead,
+} = require('./aggregates/PurchaseOrderInvoiceMapService');
 
 module.exports = cds.service.impl(async function () {
   // Conexiones
@@ -23,10 +26,7 @@ module.exports = cds.service.impl(async function () {
   const s4Invoices = await cds.connect.to('A_SupplierInvoice_edmx');
   const s4bp = await cds.connect.to('A_BusinessPartner');
 
-
-  
   /**************** 1 ****************/
-
   this.on('READ', 'PurchaseOrderItemExt', async (req) => {
     const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
   
@@ -65,15 +65,11 @@ module.exports = cds.service.impl(async function () {
       console.error('Error en PurchaseOrderItemExt:', err);
       return req.reject(500, 'Error al leer ítems de órdenes');
     }
-  });
-  
-  
-  
-  
+  });  
 
   this.on('READ', 'PurchaseOrderExt', async (req) => {
-    //const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
-    const userSupplierIDs = req.user?.attr?.supplierID;
+    const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
+    //const userSupplierIDs = req.user?.attr?.supplierID;
   
     if (!Array.isArray(userSupplierIDs) || userSupplierIDs.length === 0) {
       return req.reject(403, 'El usuario no cuenta con roles de proveedor (supplierID).');
@@ -130,9 +126,7 @@ module.exports = cds.service.impl(async function () {
           const key = `${item.PurchaseOrder}-${item.PurchaseOrderItem}`;
           item.SupplierInvoiceItemAmount = amountMap[key] || 0;
         });
-      });
-      
-      
+      });  
   
       const netAmountByPO = netAmounts.reduce((acc, row) => {
         acc[row.PurchaseOrder] = row.NetAmount;
@@ -166,15 +160,12 @@ module.exports = cds.service.impl(async function () {
         
       });
       
-  
       return poHeaders.length === 1 ? poHeaders[0] : poHeaders;
-  
     } catch (err) {
       console.error('Error al leer órdenes de compra:', err);
       return req.reject(500, 'Error al leer órdenes de compra');
     }
   });
-  
   
   this.on('READ', 'PurchaseOrderExt._SupplierAddress', async (req) => {
     try {
@@ -248,6 +239,16 @@ module.exports = cds.service.impl(async function () {
   this.on('READ', 'BusinessPartnerExt', (req) => handleBusinessPartnerRead(req, s4bp));
 
   /**************** FIN 4 **************/
+
+  /**************** 5 ****************/
+  /**
+ * GET PurchaseOrderInvoiceMap
+ * Devuelve las facturas asociadas a las posiciones de la OC,
+ */
+
+  this.on('READ', 'PurchaseOrderInvoiceMap', (req) => handlePurchaseOrderInvoiceMapRead(req, s4Invoices));
+
+  /**************** FIN 5 **************/
   
   
 });

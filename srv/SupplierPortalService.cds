@@ -14,6 +14,11 @@ using {
   PurchaseOrderItemSupplierInvoiceAmount as VirtualItemSuppInv
 } from './aggregates/Virtual';
 
+//Referencia OC con Facturación
+using { 
+  PurchaseOrderInvoiceMap as OC_INV 
+} from './aggregates/PurchaseOrderInvoiceMap';
+
 
 
 @path : 'ppservices'
@@ -400,7 +405,10 @@ service SupplierPortalService
     @readonly
     entity PurchaseOrderItemSupplierInvoiceAmount as projection on VirtualItemSuppInv;
 
+    @readonly
+    entity PurchaseOrderInvoiceMap as projection on OC_INV;
+
 
 }
 
-annotate SupplierPortalService with @requires : ['Supplier'];
+//annotate SupplierPortalService with @requires : ['Supplier'];
