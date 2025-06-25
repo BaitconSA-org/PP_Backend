@@ -15,6 +15,10 @@ using {
 } from './aggregates/Virtual';
 
 
+using {
+  PurchaseOrderSupplierInvoices      as PO_SI,
+} from './aggregates/views/PurchaseOrderSupplierInvoices';
+
 @path : 'ppservices'
 service SupplierPortalService
 {
@@ -86,7 +90,7 @@ service SupplierPortalService
     entity Notifications as
         projection on supplierPortalGD.Notifications;
 
-
+    @cds.redirection.target
     @readonly
         entity PurchaseOrderExt as select from ext.PurchaseOrder as po {
         key po.PurchaseOrder,
@@ -417,21 +421,24 @@ service SupplierPortalService
             and _InvoiceItems.PurchaseOrderItem = PurchaseOrderItem
     }
 
+    // Proyección directa de la vista agregada
+  entity PurchaseOrderSupplierInvoices as projection on PO_SI {
+    key PurchaseOrder,
+    key SupplierInvoice,
+    key FiscalYear,
+        TotalAmount,
+        InvoiceDate,
+  }
 
-     @readonly
-    entity PurchaseOrderWithInvoices as projection on PurchaseOrderExt {
-        key PurchaseOrder,
-        Supplier,
-        PurchaseOrderDate,
-        DocumentCurrency,
-        NetAmountTotal,
-        SupplierInvoiceAmountTotal,
-        InvoicePercent,
-        InvoiceStatusColor,
+  // Asociación desde PurchaseOrder si lo deseas
+  entity PurchaseOrderWithInvoices as projection on ext.PurchaseOrder {
+    key PurchaseOrder,
+    Supplier,
+    PurchaseOrderDate,
 
-        _PurchaseOrderItem : Composition of many PurchaseOrderItemWithInvoices
-            on _PurchaseOrderItem.PurchaseOrder = PurchaseOrder
-    }
+    _SupplierInvoices: Composition of many PO_SI
+      on _SupplierInvoices.PurchaseOrder = $self.PurchaseOrder
+  }
 
 
 }
