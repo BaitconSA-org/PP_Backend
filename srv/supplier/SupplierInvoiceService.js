@@ -31,12 +31,27 @@ async function handleSupplierInvoiceRead(req, s4Invoices) {
   }
 }
 
-async function handleSupplierInvoiceItemRead(req) {
+async function handleSupplierInvoiceItemRead (req) {
   try {
-    const s4Invoices = await cds.connect.to('A_SupplierInvoice_edmx');
-    return await s4Invoices.run(req.query);
+    const s4Inv = await cds.connect.to('A_SupplierInvoice_edmx');
+
+    const q = JSON.parse(JSON.stringify(req.query));
+    delete q.SELECT?.count;
+
+    const refPath = q?.SELECT?.from?.ref;
+    const last = refPath?.at(-1);
+
+    // Si es navegación hacia _InvoiceItems, reemplazar todo el "from"
+    if (last === '_InvoiceItems') {
+      q.SELECT.from = { ref: ['A_SuplrInvcItemPurOrdRef'] };
+    }
+
+    return await s4Inv.run(q);
+
+
+
   } catch (err) {
-    console.error('Error al leer SupplierInvoiceItemExt:', err);
+    console.error('[ERROR] SupplierInvoiceItemExt:', err);
     return req.reject(500, 'Error delegando a servicio remoto de facturas');
   }
 }
