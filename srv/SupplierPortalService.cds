@@ -351,7 +351,6 @@ service SupplierPortalService
         poi.StockSegment,
         poi.SAP__Messages,
         cast(null as Decimal(15,2)) as SupplierInvoiceItemAmount
-
     }
     
         
@@ -427,7 +426,7 @@ service SupplierPortalService
     key SupplierInvoice,
     key FiscalYear,
         TotalAmount,
-        InvoiceDate,
+        InvoiceDate
   }
 
   // Asociación desde PurchaseOrder si lo deseas

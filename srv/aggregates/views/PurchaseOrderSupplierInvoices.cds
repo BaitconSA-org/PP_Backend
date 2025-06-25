@@ -6,7 +6,7 @@ entity PurchaseOrderSupplierInvoices as select from suppInv.A_SuplrInvcItemPurOr
   PurchaseOrder,
   SupplierInvoice,
   FiscalYear,
-  sum(SupplierInvoiceItemAmount)  as TotalAmount,
-  max(RetentionDueDate)                as InvoiceDate
+  sum(SupplierInvoiceItemAmount)  as TotalAmount : Decimal(15,2),
+  max(RetentionDueDate)           as InvoiceDate : Date
 }
 group by PurchaseOrder, SupplierInvoice, FiscalYear;
