@@ -16,6 +16,10 @@ const {
   handleBusinessPartnerRead,
 } = require('./businessPartner/BusinessPartnerService');
 
+const {
+  handlePurchaseOrderSupplierInvRead,
+} = require('./aggregates/views/PurchaseOrderSupplierInvoicesRead');
+
 const handlePOWithInvoicesRead = require('./aggregates/PurchaseOrderWithInvoices');
 
 
@@ -253,6 +257,8 @@ module.exports = cds.service.impl(async function () {
   this.on('READ', 'PurchaseOrderWithInvoices', (req) => handlePOWithInvoicesRead(req, s4Purchase, s4Invoices));
 
   /**************** FIN 5 **************/
+
+  this.on('READ', 'PurchaseOrderSupplierInvoices', req => handlePurchaseOrderSupplierInvRead(req, s4Invoices));
   
   
 });

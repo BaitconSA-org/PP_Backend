@@ -406,21 +406,9 @@ service SupplierPortalService
 
      // FIN vistas Virtuales
 
-    @readonly
-    entity PurchaseOrderItemWithInvoices as projection on PurchaseOrderItemExt {
-        key PurchaseOrder,
-        key PurchaseOrderItem,
-        Material,
-        NetAmount,
-        OrderQuantity,
-        SupplierInvoiceItemAmount,
-
-        _InvoiceItems : Association to many SupplierInvoiceItemExt
-            on _InvoiceItems.PurchaseOrder = PurchaseOrder
-            and _InvoiceItems.PurchaseOrderItem = PurchaseOrderItem
-    }
 
     // Proyección directa de la vista agregada
+  @readonly
   entity PurchaseOrderSupplierInvoices as projection on PO_SI {
     key PurchaseOrder,
     key SupplierInvoice,
@@ -429,7 +417,7 @@ service SupplierPortalService
         InvoiceDate
   }
 
-  // Asociación desde PurchaseOrder si lo deseas
+  // PurchaseOrder + posiciones + facturas
   entity PurchaseOrderWithInvoices as projection on ext.PurchaseOrder {
     key PurchaseOrder,
     Supplier,
@@ -438,8 +426,6 @@ service SupplierPortalService
     _SupplierInvoices: Composition of many PO_SI
       on _SupplierInvoices.PurchaseOrder = $self.PurchaseOrder
   }
-
-
 }
 
-annotate SupplierPortalService with @requires : ['Supplier'];
+//annotate SupplierPortalService with @requires : ['Supplier'];
