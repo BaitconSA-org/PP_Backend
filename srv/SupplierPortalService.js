@@ -67,8 +67,13 @@ module.exports = cds.service.impl(async function () {
   });  
 
   this.on('READ', 'PurchaseOrderExt', async (req) => {
+    const fallback = ['31300001', '31300002', '31300003', '31300006'];
+
     const userSupplierIDs =
-      req.user?.attr?.supplierID ?? ['31300001', '31300002', '31300003', '31300006'];
+      Array.isArray(req.user?.attr?.supplierID) && req.user.attr.supplierID.length
+        ? req.user.attr.supplierID
+        : fallback;
+
   
     if (!Array.isArray(userSupplierIDs) || userSupplierIDs.length === 0) {
       return req.reject(403, 'El usuario no cuenta con roles de proveedor (supplierID).');
