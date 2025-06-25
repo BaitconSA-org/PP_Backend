@@ -181,8 +181,6 @@ service SupplierPortalService
     };
   };
 
-
-
     @readonly
     @cds.redirection.target : true
     entity PurchaseOrderItemExt as select from ext.PurchaseOrderItem as poi {
@@ -350,9 +348,11 @@ service SupplierPortalService
         poi.ValAddedSrvcParentItmNumber,
         poi.StockSegment,
         poi.SAP__Messages,
-        cast(null as Decimal(15,2)) as SupplierInvoiceItemAmount
+        cast(null as Decimal(15,2)) as SupplierInvoiceItemAmount,
+        _InvoiceItems: Association to many SupplierInvoiceItemExt
+            on  _InvoiceItems.PurchaseOrder     = PurchaseOrder
+            and _InvoiceItems.PurchaseOrderItem = PurchaseOrderItem
     }
-    
         
 
     entity PurchaseOrderSupplierAddress as projection on ext.PurchaseOrderSupplierAddress;
@@ -368,9 +368,16 @@ service SupplierPortalService
                 and _InvoiceItem.FiscalYear = FiscalYear
         };
 
-    @readonly
+   @readonly
     @cds.redirection.target : true
-    entity SupplierInvoiceItemExt as projection on inv.A_SuplrInvcItemPurOrdRef;
+    entity SupplierInvoiceItemExt as projection on inv.A_SuplrInvcItemPurOrdRef {
+    *,
+    
+    _SupplierInvoice: Association to inv.A_SupplierInvoice
+        on  _SupplierInvoice.SupplierInvoice = SupplierInvoice
+        and _SupplierInvoice.FiscalYear     = FiscalYear
+    }
+
 
 
     @readonly
