@@ -33,7 +33,7 @@ async function handleSupplierInvoiceItemRead (req) {
         { ref: ['SupplierInvoiceItem'] },
         { ref: ['PurchaseOrder'] },
         { ref: ['PurchaseOrderItem'] },
-        { ref: ['SupplierInvoiceItemAmount'] }
+        { ref: ['SupplierInvoiceItemAmount'] },
       ];
     }
 
@@ -46,7 +46,7 @@ async function handleSupplierInvoiceItemRead (req) {
       q.SELECT.where = [
         { ref: ['PurchaseOrder'] },     '=', { val: PurchaseOrder },
         'and',
-        { ref: ['PurchaseOrderItem'] }, '=', { val: PurchaseOrderItem.padStart(5,'0') }
+        { ref: ['PurchaseOrderItem'] }, '=', { val: PurchaseOrderItem.padStart(5,'0') },
       ];
     }
 

@@ -165,6 +165,7 @@ service SupplierPortalService
         // ✅ Campos agregados
         cast(null as Decimal(15,2)) as NetAmountTotal,
         cast(null as Decimal(15,2)) as SupplierInvoiceAmountTotal,
+        cast(null as Decimal(15,2)) as UnitPrice,
         cast(null as Integer) as InvoicePercent,
         cast(null as Integer) as InvoiceStatusColor,
         _PurchaseOrderItem : Composition of many PurchaseOrderItemExt
@@ -349,6 +350,8 @@ service SupplierPortalService
         poi.StockSegment,
         poi.SAP__Messages,
         cast(null as Decimal(15,2)) as SupplierInvoiceItemAmount,
+        cast(null as Decimal(15,2)) as UnitPrice,
+
         _InvoiceItems: Association to many SupplierInvoiceItemExt
             on  _InvoiceItems.PurchaseOrder     = PurchaseOrder
             and _InvoiceItems.PurchaseOrderItem = PurchaseOrderItem
@@ -435,4 +438,4 @@ service SupplierPortalService
   }
 }
 
-//annotate SupplierPortalService with @requires : ['Supplier'];
+annotate SupplierPortalService with @requires : ['Supplier'];

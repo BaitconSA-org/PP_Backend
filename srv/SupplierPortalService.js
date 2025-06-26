@@ -59,7 +59,11 @@ module.exports = cds.service.impl(async function () {
   
       poItems.forEach(item => {
         const key = `${item.PurchaseOrder}-${item.PurchaseOrderItem}`;
+        const netPrice = item.NetPriceAmount || 0;
+        const quantity = item.NetPriceQuantity || 0;
+
         item.SupplierInvoiceItemAmount = amountMap[key] || 0;
+        item.UnitPrice = quantity !== 0 ? netPrice / quantity : 0;
       });
   
       return req.params?.length === 1 ? poItems[0] : poItems;
@@ -71,24 +75,24 @@ module.exports = cds.service.impl(async function () {
   });  
 
   this.on('READ', 'PurchaseOrderExt', async (req) => {
-    const fallback = ['31300001', '31300002', '31300003', '31300006'];
+    /*const fallback = ['31300001', '31300002', '31300003', '31300006'];
 
     const userSupplierIDs =
       Array.isArray(req.user?.attr?.supplierID) && req.user.attr.supplierID.length
         ? req.user.attr.supplierID
-        : fallback;
+        : fallback;*/
+    const userSupplierIDs = req.user?.attr?.supplierID;
 
-  
     if (!Array.isArray(userSupplierIDs) || userSupplierIDs.length === 0) {
       return req.reject(403, 'El usuario no cuenta con roles de proveedor (supplierID).');
     }
-  
+
     try {
       let poHeaders = [];
-  
+
       if (req.params?.length) {
         const poNumber = req.params[0].PurchaseOrder;
-  
+
         poHeaders = await s4Purchase.run(
           SELECT.from('PurchaseOrder')
             .where({ PurchaseOrder: poNumber })
@@ -96,46 +100,46 @@ module.exports = cds.service.impl(async function () {
         );
       } else {
         const query = { ...req.query };
-  
+
         query.where = query.where
           ? ['(', query.where, ')', 'and', { ref: ['Supplier'] }, 'in', { val: userSupplierIDs }]
           : [{ ref: ['Supplier'] }, 'in', { val: userSupplierIDs }];
-  
+
         poHeaders = await s4Purchase.run(query);
       }
-  
+
       const poIds = poHeaders.map(po => po.PurchaseOrder);
-  
+
       const poItems = await s4Purchase.run(
         SELECT.from('PurchaseOrderItem').where({ PurchaseOrder: { in: poIds } }),
       );
-  
+
       const netAmounts = await handleNetAmountRead(poIds);
-      const supplierInvoiceAmounts = await handleSupplierInvoiceAmountRead(poIds); 
-      const supplierInvoiceAmount = await handleItemSupplierInvoiceAmountRead(poIds); 
-  
-      const itemsByPO = poItems.reduce((acc, item) => {
-        const key = item.PurchaseOrder;
-        acc[key] = acc[key] || [];
-        acc[key].push(item);
-        return acc;
-      }, {});
-      
+      const supplierInvoiceAmounts = await handleSupplierInvoiceAmountRead(poIds);
+      const supplierInvoiceAmount = await handleItemSupplierInvoiceAmountRead(poIds);
+
       // Crear índice por orden + posición
       const amountMap = supplierInvoiceAmount.reduce((acc, row) => {
         const key = `${row.PurchaseOrder}-${row.PurchaseOrderItem}`;
         acc[key] = row.SupplierInvoiceItemAmount;
         return acc;
       }, {});
-      
-      // Asignar el monto correcto por ítem
-      Object.entries(itemsByPO).forEach(([po, items]) => {
-        items.forEach(item => {
-          const key = `${item.PurchaseOrder}-${item.PurchaseOrderItem}`;
-          item.SupplierInvoiceItemAmount = amountMap[key] || 0;
-        });
-      });  
-  
+
+      const itemsByPO = poItems.reduce((acc, item) => {
+        const key = item.PurchaseOrder;
+
+        const poItemKey = `${item.PurchaseOrder}-${item.PurchaseOrderItem}`;
+        item.SupplierInvoiceItemAmount = amountMap[poItemKey] || 0;
+
+        // Calculamos UnitPrice por ítem
+        const netPrice = item.NetPriceAmount || 0;
+        const quantity = item.NetPriceQuantity || 0;
+        item.UnitPrice = quantity !== 0 ? parseFloat((netPrice / quantity).toFixed(2)) : 0;
+
+        (acc[key] = acc[key] || []).push(item);
+        return acc;
+      }, {});
+
       const netAmountByPO = netAmounts.reduce((acc, row) => {
         acc[row.PurchaseOrder] = row.NetAmount;
         return acc;
@@ -145,35 +149,37 @@ module.exports = cds.service.impl(async function () {
         acc[row.PurchaseOrder] = row.SupplierInvoiceAmount;
         return acc;
       }, {});
-  
+
       poHeaders.forEach(po => {
-        po._PurchaseOrderItem = itemsByPO[po.PurchaseOrder] || [];
-        po.NetAmountTotal = netAmountByPO[po.PurchaseOrder] || 0;
-        po.SupplierInvoiceAmountTotal = supplierInvoiceAmountByPO[po.PurchaseOrder] || 0;
-      
+        const items = itemsByPO[po.PurchaseOrder] || [];
+        po._PurchaseOrderItem = items;
+
+        /* Totales de importes */
+        po.NetAmountTotal            = netAmountByPO[po.PurchaseOrder]            || 0;
+        po.SupplierInvoiceAmountTotal= supplierInvoiceAmountByPO[po.PurchaseOrder]|| 0;
+
+        /* UnitPrice a nivel CABECERA  = ΣNetPriceAmount / ΣNetPriceQuantity */
+        const totalNetAmt = items.reduce((a,i)=>a + (i.NetPriceAmount  ||0),0);
+        const totalQty    = items.reduce((a,i)=>a + (i.NetPriceQuantity||0),0);
+        po.UnitPrice      = totalQty !== 0 ? parseFloat((totalNetAmt / totalQty).toFixed(2)) : 0;
+
+        /* % de cobertura de factura y color */
         if (po.NetAmountTotal > 0) {
           po.InvoicePercent = Math.round((po.SupplierInvoiceAmountTotal / po.NetAmountTotal) * 100);
-        
-          if (po.InvoicePercent < 25) {
-            po.InvoiceStatusColor = 1;
-          } else if (po.InvoicePercent <= 75) {
-            po.InvoiceStatusColor = 2;
-          } else {
-            po.InvoiceStatusColor = 3;
-          }
+          po.InvoiceStatusColor = po.InvoicePercent < 25 ? 1 : (po.InvoicePercent <= 75 ? 2 : 3);
         } else {
           po.InvoicePercent = 0;
           po.InvoiceStatusColor = 1;
         }
-        
       });
-      
+
       return poHeaders.length === 1 ? poHeaders[0] : poHeaders;
     } catch (err) {
       console.error('Error al leer órdenes de compra:', err);
       return req.reject(500, 'Error al leer órdenes de compra');
     }
   });
+
   
   this.on('READ', 'PurchaseOrderExt._SupplierAddress', async (req) => {
     try {
