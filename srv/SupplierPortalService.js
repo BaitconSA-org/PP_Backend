@@ -30,49 +30,79 @@ module.exports = cds.service.impl(async function () {
   const s4bp = await cds.connect.to('A_BusinessPartner');
 
   /**************** 1 ****************/
-  this.on('READ', 'PurchaseOrderItemExt', async (req) => {
-  // const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
-  
+  this.on('READ', 'PurchaseOrderItemExt', async req => {
     try {
-      const query = SELECT.from('PurchaseOrderItem');
-  
+      /* ------------------------------------------------------------------ */
+      /* 1. Construir CQN base                                              */
+      /* ------------------------------------------------------------------ */
+      const q = SELECT.from('PurchaseOrderItem');
+
+      let onlyOneItem = false;      // ← para saber qué devolver al final
+
       if (req.params?.length) {
-        const { PurchaseOrder, PurchaseOrderItem } = req.params[0];
-        query.where({ PurchaseOrder, PurchaseOrderItem });
+        const { PurchaseOrder, PurchaseOrderItem } = req.params[0] || {};
+
+        if (PurchaseOrder && PurchaseOrderItem) {
+          // Navegación directa a un ítem concreto …/_PurchaseOrderItem(PurchaseOrder=...,PurchaseOrderItem=...)
+          q.where({ PurchaseOrder, PurchaseOrderItem });
+          onlyOneItem = true;
+        } else if (PurchaseOrder) {
+          // Navegación …/PurchaseOrderExt('4500000008')/_PurchaseOrderItem
+          q.where({ PurchaseOrder });
+        }
       }
-  
-      // Delegar $select, $top, etc.
-      Object.assign(query, req.query);
-  
-      const poItemsRaw = await s4Purchase.run(query);
+
+      /* Delegar $select, $top, $skip, etc. que vengan en la llamada       */
+      Object.assign(q, req.query);
+
+      /* ------------------------------------------------------------------ */
+      /* 2. Leer ítems de la orden (o el ítem único)                        */
+      /* ------------------------------------------------------------------ */
+      const poItemsRaw = await s4Purchase.run(q);
       const poItems = Array.isArray(poItemsRaw) ? poItemsRaw : [poItemsRaw];
-  
-      const poIds = [...new Set(poItems.map(i => i.PurchaseOrder))];
-  
-      const invoiceAmounts = await handleItemSupplierInvoiceAmountRead(poIds);
-  
-      const amountMap = invoiceAmounts.reduce((acc, row) => {
-        const key = `${row.PurchaseOrder}-${row.PurchaseOrderItem}`;
-        acc[key] = row.SupplierInvoiceItemAmount;
-        return acc;
+
+      if (!poItems.length) return [];
+
+      /* ------------------------------------------------------------------ */
+      /* 3. Calcular importes de factura por línea                          */
+      /* handleItemSupplierInvoiceAmountRead debe aceptar array de claves   */
+      /* ------------------------------------------------------------------ */
+      const poLineKeys = poItems.map(i => ({
+        PurchaseOrder     : i.PurchaseOrder,
+        PurchaseOrderItem : i.PurchaseOrderItem,
+      }));
+
+      const invoiceAmounts = await handleItemSupplierInvoiceAmountRead(poLineKeys);
+
+      /* Índice PO-Item  →  importe facturado */
+      const amountMap = invoiceAmounts.reduce((m, row) => {
+        m[`${row.PurchaseOrder}-${row.PurchaseOrderItem}`] = row.SupplierInvoiceItemAmount;
+        return m;
       }, {});
-  
+
+      /* ------------------------------------------------------------------ */
+      /* 4. Enriquecer líneas con importe facturado y UnitPrice             */
+      /* ------------------------------------------------------------------ */
       poItems.forEach(item => {
         const key = `${item.PurchaseOrder}-${item.PurchaseOrderItem}`;
-        const netPrice = item.NetPriceAmount || 0;
+        const netPrice = item.NetPriceAmount   || 0;
         const quantity = item.NetPriceQuantity || 0;
 
         item.SupplierInvoiceItemAmount = amountMap[key] || 0;
-        item.UnitPrice = quantity !== 0 ? netPrice / quantity : 0;
+        item.UnitPrice = quantity !== 0 ? parseFloat((netPrice / quantity).toFixed(2)) : 0;
       });
-  
-      return req.params?.length === 1 ? poItems[0] : poItems;
-  
+
+      /* ------------------------------------------------------------------ */
+      /* 5. Respuesta                                                       */
+      /* ------------------------------------------------------------------ */
+      return onlyOneItem ? poItems[0] : poItems;
+
     } catch (err) {
       console.error('Error en PurchaseOrderItemExt:', err);
       return req.reject(500, 'Error al leer ítems de órdenes');
     }
-  });  
+  });
+
 
   this.on('READ', 'PurchaseOrderExt', async (req) => {
     //const userSupplierIDs = ['31300001'];
