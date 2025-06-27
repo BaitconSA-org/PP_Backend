@@ -51,8 +51,11 @@ async function handleSupplierInvoiceRead (req, s4Inv) {
 async function handleSupplierInvoiceItemRead(req, s4Inv) {
   if (!s4Inv) s4Inv = await cds.connect.to('A_SupplierInvoice_edmx');
 
-  const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
+  //const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
+  const userSupplierIDs = req.user?.attr?.supplierID;
   const poNumber = req.params?.[0]?.PurchaseOrder;
+  const poItem   = req.params?.[0]?.PurchaseOrderItem;
+
 
   try {
     const q = cds.clone(req.query);
@@ -93,7 +96,16 @@ async function handleSupplierInvoiceItemRead(req, s4Inv) {
 
     // Inyectar filtro por PurchaseOrder si vino por navegación
     if (poNumber) {
-      const poFilter = [{ ref: ['PurchaseOrder'] }, '=', { val: poNumber }];
+      const poFilter = poItem
+        ? [                                           // pedido + posición
+          { ref: ['PurchaseOrder'] }, '=', { val: poNumber },
+          'and',
+          { ref: ['PurchaseOrderItem'] }, '=', { val: poItem },
+        ]
+        : [                                           // solo pedido
+          { ref: ['PurchaseOrder'] }, '=', { val: poNumber },
+        ];
+
       if (q.SELECT.where?.length) {
         q.SELECT.where = ['(', ...q.SELECT.where, ')', 'and', ...poFilter];
       } else {
