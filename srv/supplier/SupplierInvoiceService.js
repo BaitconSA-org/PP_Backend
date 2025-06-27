@@ -1,62 +1,129 @@
-// handlers/SupplierInvoiceItemRead.js
-const cds = require('@sap/cds');
+const cds  = require('@sap/cds');
+const { SELECT } = cds.ql;
 
-/**
- * READ  SupplierInvoiceItemExt  ─ navegación desde _InvoiceItems
- * Corrige SELECT * y re-inyecta filtros de PurchaseOrder + PurchaseOrderItem.
- */
-async function handleSupplierInvoiceItemRead (req) {
+// 1) Cabecera -------------------------------------------------
+async function handleSupplierInvoiceRead (req, s4Inv) {
   try {
-    const s4Inv = await cds.connect.to('A_SupplierInvoice_edmx');
-
-    /** 1. Clonar y limpiar COUNT */
-    const q = JSON.parse(JSON.stringify(req.query));
+    const q = cds.clone(req.query);
     delete q.SELECT?.count;
 
-    /** 2. Detectar navegación _InvoiceItems y redirigir */
-    const path = q?.SELECT?.from?.ref;
-    const last = path?.at(-1);
+    const wantsExpand = q.SELECT?.expand?.some(e => e.ref?.[0] === '_InvoiceItem');
+    if (!wantsExpand) return s4Inv.run(q);
 
-    if (last === '_InvoiceItems' || last === 'SupplierInvoiceItemExt') {
-      // --- (a) sustituir FROM por entidad remota real
-      q.SELECT.from = { ref: ['A_SuplrInvcItemPurOrdRef'] };
-      // --- (b) quitar joins heredados
-      delete q.SELECT.joins;
-    }
+    q.SELECT.expand = q.SELECT.expand.filter(e => e.ref?.[0] !== '_InvoiceItem');
+    if (!q.SELECT.expand.length) delete q.SELECT.expand;
 
-    /** 3. Si no hay columnas explícitas → forzar SELECT mínimo */
-    const cols = q.SELECT?.columns;
-    if (!cols || (cols.length === 1 && cols[0].ref?.[0] === '*')) {
-      q.SELECT.columns = [
-        { ref: ['SupplierInvoice'] },
-        { ref: ['FiscalYear'] },
-        { ref: ['SupplierInvoiceItem'] },
-        { ref: ['PurchaseOrder'] },
-        { ref: ['PurchaseOrderItem'] },
-        { ref: ['SupplierInvoiceItemAmount'] },
-      ];
-    }
+    const headers   = await s4Inv.run(q);
+    if (!headers.length) return headers;
 
-    /** 4. Extraer claves de la URL y re-inyectar WHERE */
-    // ─ req.params[0] ⇒ PO header  / req.params[1] ⇒ PO Item
-    if (req.params?.length >= 2) {
-      const { PurchaseOrder } = req.params[0];          // '4500000008'
-      const { PurchaseOrderItem } = req.params[1];      // '10' o '00010'
+    const ids = [...new Set(headers.map(h => h.SupplierInvoice))];
+    const items = await s4Inv.run(
+      SELECT.from('A_SuplrInvcItemPurOrdRef').where({ SupplierInvoice: { in: ids } }),
+    );
 
-      q.SELECT.where = [
-        { ref: ['PurchaseOrder'] },     '=', { val: PurchaseOrder },
-        'and',
-        { ref: ['PurchaseOrderItem'] }, '=', { val: PurchaseOrderItem.padStart(5,'0') },
-      ];
-    }
+    const map = items.reduce((acc, it) => {
+      (acc[it.SupplierInvoice] ??= []).push(it);
+      return acc;
+    }, {});
 
-    /** 5. Delegar a S/4 */
-    return await s4Inv.run(q);
-
+    headers.forEach(h => { h._InvoiceItem = map[h.SupplierInvoice] || []; });
+    return headers;                                // <-- siempre array
   } catch (err) {
-    console.error('[ERROR] SupplierInvoiceItemExt:', err);
-    return req.reject(500, 'Error delegando a servicio remoto de facturas');
+    console.error('[ERROR] SupplierInvoiceExt:', err);
+    return req.reject(500, 'Error al obtener facturas con líneas');
   }
 }
 
-module.exports = { handleSupplierInvoiceItemRead };
+// 2) Líneas ---------------------------------------------------
+async function handleSupplierInvoiceItemRead(req, s4Inv) {
+
+  if (!s4Inv) s4Inv = await cds.connect.to('A_SupplierInvoice_edmx');
+
+  try {
+    const q = cds.clone(req.query);
+    delete q.SELECT?.count;
+
+    /* ---------- 2. Detectar columnas solicitadas de _SupplierInvoice ---------- */
+    const headerCols = new Set();          // campos pedidas al expand
+    const keepCols   = [];                
+
+    (q.SELECT.columns || []).forEach(col => {
+      if (col.ref?.[0] === '_SupplierInvoice') {
+        if (col.ref.length > 1) headerCols.add(col.ref[col.ref.length - 1]);
+        if (Array.isArray(col.expand)) {
+          col.expand.forEach(e => headerCols.add(e.ref?.[0]));
+        }
+      } else {
+        keepCols.push(col);                // no pertenece a la cabecera, lo conservamos
+      }
+    });
+
+    // También puede venir como SELECT.expand
+    const inExpand = q.SELECT.expand?.find(
+      e => e.ref?.[e.ref.length - 1] === '_SupplierInvoice',
+    );
+    if (inExpand?.expand) {
+      inExpand.expand.forEach(e => headerCols.add(e.ref?.[0]));
+    }
+
+    const wantsExpand = headerCols.size > 0;
+
+    if (wantsExpand) {
+      q.SELECT.columns = keepCols.length ? keepCols : ['*'];
+      if (q.SELECT.expand)
+        q.SELECT.expand = q.SELECT.expand.filter(
+          e => e.ref?.[e.ref.length - 1] !== '_SupplierInvoice',
+        );
+      if (q.SELECT.expand?.length === 0) delete q.SELECT.expand;
+    }
+
+    /* ---------- 4. Ajustar FROM si vino por navegación ---------- */
+    const fromRef = q.SELECT?.from?.ref?.at(-1);
+    if (['_InvoiceItems', 'SupplierInvoiceItemExt'].includes(fromRef)) {
+      q.SELECT.from = { ref: ['A_SuplrInvcItemPurOrdRef'] };
+      delete q.SELECT.joins;
+      delete q.SELECT.orderBy;
+    }
+
+    /* ---------- 5. Ejecutar líneas ---------- */
+    const items = await s4Inv.run(q);
+    if (!wantsExpand || !items.length) return items;
+
+    /* ---------- 6. Traer cabeceras con los campos detectados ---------- */
+    headerCols.add('SupplierInvoice').add('FiscalYear'); // claves mínimas
+
+    const uniq = [...new Set(items.map(i => `${i.SupplierInvoice}-${i.FiscalYear}`))]
+      .map(k => {
+        const [SupplierInvoice, FiscalYear] = k.split('-');
+        return { SupplierInvoice, FiscalYear };
+      });
+
+    const headers = await s4Inv.run(
+      SELECT.from('A_SupplierInvoice')
+        .columns(...headerCols)
+        .where(uniq),
+    );
+
+    /* ---------- 7. Map y merge ---------- */
+    const map = headers.reduce((m, h) => {
+      m[`${h.SupplierInvoice}-${h.FiscalYear}`] = h;
+      return m;
+    }, {});
+
+    items.forEach(it => {
+      it._SupplierInvoice = map[`${it.SupplierInvoice}-${it.FiscalYear}`] || null;
+    });
+
+    return items;
+
+  } catch (err) {
+    console.error('[ERROR] SupplierInvoiceItemExt:', err);
+    return req.reject(
+      500,
+      `Error delegando a servicio remoto de facturas: ${err.message || err}`,
+    );
+  }
+}
+
+
+module.exports = { handleSupplierInvoiceRead, handleSupplierInvoiceItemRead };

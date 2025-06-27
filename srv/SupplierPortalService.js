@@ -81,6 +81,7 @@ module.exports = cds.service.impl(async function () {
       Array.isArray(req.user?.attr?.supplierID) && req.user.attr.supplierID.length
         ? req.user.attr.supplierID
         : fallback;*/
+      
     const userSupplierIDs = req.user?.attr?.supplierID;
 
     if (!Array.isArray(userSupplierIDs) || userSupplierIDs.length === 0) {
@@ -215,7 +216,7 @@ module.exports = cds.service.impl(async function () {
    * GET SupplierInvoiceItemExt
    * Devuelve los ítems (líneas) de factura de forma directa
    */
-  this.on('READ', 'SupplierInvoiceItemExt', handleSupplierInvoiceItemRead);
+  this.on('READ', 'SupplierInvoiceItemExt', (req) => handleSupplierInvoiceItemRead(req, s4Invoices));
   /**************** FIN 2 **************/
 
   /**************** 3 ****************/

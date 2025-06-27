@@ -382,7 +382,6 @@ service SupplierPortalService
     }
 
 
-
     @readonly
     entity BusinessPartnerExt as select from prt.A_BusinessPartner as bp {
     key bp.BusinessPartner,
