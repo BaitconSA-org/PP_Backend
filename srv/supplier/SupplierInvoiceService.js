@@ -116,14 +116,14 @@ async function handleSupplierInvoiceItemRead(req, s4Inv) {
     const headers = await s4Inv.run(
       SELECT.from('A_SupplierInvoice')
         .columns(...headerCols)
-        .where(invoiceKeys)
+        .where(invoiceKeys),
     );
 
     // Filtrar solo cabeceras válidas por Supplier autorizado
     const validHeaderSet = new Set(
       headers
         .filter(h => userSupplierIDs.includes(h.InvoicingParty))
-        .map(h => `${h.SupplierInvoice}-${h.FiscalYear}`)
+        .map(h => `${h.SupplierInvoice}-${h.FiscalYear}`),
     );
 
     // Filtrar líneas por facturas autorizadas
@@ -132,7 +132,7 @@ async function handleSupplierInvoiceItemRead(req, s4Inv) {
     // Inyectar cabeceras si aplica
     if (items.length) {
       const headerMap = Object.fromEntries(
-        headers.map(h => [`${h.SupplierInvoice}-${h.FiscalYear}`, h])
+        headers.map(h => [`${h.SupplierInvoice}-${h.FiscalYear}`, h]),
       );
       items.forEach(i => {
         i._SupplierInvoice = headerMap[`${i.SupplierInvoice}-${i.FiscalYear}`] || null;
@@ -144,7 +144,7 @@ async function handleSupplierInvoiceItemRead(req, s4Inv) {
     console.error('[ERROR] SupplierInvoiceItemExt:', err);
     return req.reject(
       500,
-      `Error delegando a servicio remoto de facturas: ${err.message || err}`
+      `Error delegando a servicio remoto de facturas: ${err.message || err}`,
     );
   }
 }
