@@ -51,7 +51,8 @@ async function handleSupplierInvoiceRead (req, s4Inv) {
 async function handleSupplierInvoiceItemRead(req, s4Inv) {
 
   if (!s4Inv) s4Inv = await cds.connect.to('A_SupplierInvoice_edmx');
-  const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
+  // const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
+  const userSupplierIDs = req.user?.attr?.supplierID;
   try {
     const q = cds.clone(req.query);
     delete q.SELECT?.count;
@@ -92,7 +93,7 @@ async function handleSupplierInvoiceItemRead(req, s4Inv) {
 
     /* ---------- 4. Ajustar FROM si vino por navegación ---------- */
     const fromRef = q.SELECT?.from?.ref?.at(-1);
-    
+
     if (['_InvoiceItems', 'SupplierInvoiceItemExt'].includes(fromRef)) {
 
       // 1. Cambiar el FROM
