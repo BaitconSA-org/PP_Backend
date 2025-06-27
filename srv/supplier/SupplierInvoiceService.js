@@ -3,9 +3,22 @@ const { SELECT } = cds.ql;
 
 // 1) Cabecera -------------------------------------------------
 async function handleSupplierInvoiceRead (req, s4Inv) {
+  const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
+
   try {
     const q = cds.clone(req.query);
     delete q.SELECT?.count;
+
+    /* -------- 2. Inyectar filtro por Supplier ------ */
+    const supplierFilter = [
+      { ref: ['Supplier'] }, 'in', { val: userSupplierIDs },
+    ];
+
+    if (q.SELECT.where && q.SELECT.where.length) {
+      q.SELECT.where = ['(', q.SELECT.where, ')', 'and', ...supplierFilter];
+    } else {
+      q.SELECT.where = supplierFilter;
+    }
 
     const wantsExpand = q.SELECT?.expand?.some(e => e.ref?.[0] === '_InvoiceItem');
     if (!wantsExpand) return s4Inv.run(q);
@@ -38,7 +51,7 @@ async function handleSupplierInvoiceRead (req, s4Inv) {
 async function handleSupplierInvoiceItemRead(req, s4Inv) {
 
   if (!s4Inv) s4Inv = await cds.connect.to('A_SupplierInvoice_edmx');
-
+  const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
   try {
     const q = cds.clone(req.query);
     delete q.SELECT?.count;
@@ -79,11 +92,38 @@ async function handleSupplierInvoiceItemRead(req, s4Inv) {
 
     /* ---------- 4. Ajustar FROM si vino por navegación ---------- */
     const fromRef = q.SELECT?.from?.ref?.at(-1);
+    
     if (['_InvoiceItems', 'SupplierInvoiceItemExt'].includes(fromRef)) {
+
+      // 1. Cambiar el FROM
       q.SELECT.from = { ref: ['A_SuplrInvcItemPurOrdRef'] };
       delete q.SELECT.joins;
       delete q.SELECT.orderBy;
+
+      // 2. Traer facturas válidas del backend por Supplier
+      const validHeaders = await s4Inv.run(
+        SELECT.from('A_SupplierInvoice')
+          .columns('SupplierInvoice', 'FiscalYear')
+          .where({ InvoicingParty: { in: userSupplierIDs } })
+      );
+
+      const allowed = validHeaders.map(h => ({
+        SupplierInvoice: h.SupplierInvoice,
+        FiscalYear: h.FiscalYear,
+      }));
+
+      // 3. Inyectar WHERE a la query
+      if (allowed.length > 0) {
+        q.SELECT.where = q.SELECT.where?.length
+          ? ['(', ...q.SELECT.where, ')', 'and', { ref: ['(', 'SupplierInvoice', '-', 'FiscalYear', ')'] }, 'in', allowed]
+          : [{ ref: ['(', 'SupplierInvoice', '-', 'FiscalYear', ')'] }, 'in', allowed];
+      } else {
+        // Si no hay ninguno válido, retornar vacío
+        return [];
+      }
     }
+
+
 
     /* ---------- 5. Ejecutar líneas ---------- */
     const items = await s4Inv.run(q);
