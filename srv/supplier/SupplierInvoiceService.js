@@ -54,7 +54,7 @@ async function handleSupplierInvoiceItemRead(req, s4Inv) {
   //const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
   const userSupplierIDs = req.user?.attr?.supplierID;
   const poNumber = req.params?.[0]?.PurchaseOrder;
-  const poItem   = req.params?.[0]?.PurchaseOrderItem;
+  const poItem   = req.params?.[1]?.PurchaseOrderItem;
 
 
   try {
