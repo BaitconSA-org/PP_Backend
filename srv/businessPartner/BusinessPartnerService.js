@@ -11,14 +11,14 @@ const buildOrFilter = (field, values) =>
 async function handleBusinessPartnerRead(req) {
   const s4bp = await cds.connect.to('A_BusinessPartner');
 
-  /*const fallback = ['31300001', '31300002', '31300003', '31300006'];
+  const fallback = ['31300001'];
 
   const userSupplierIDs =
     Array.isArray(req.user?.attr?.supplierID) && req.user.attr.supplierID.length
       ? req.user.attr.supplierID
-      : fallback;*/
+      : fallback;
 
-  const userSupplierIDs = req.user?.attr?.supplierID;
+  //const userSupplierIDs = req.user?.attr?.supplierID;
 
   if (!Array.isArray(userSupplierIDs) || !userSupplierIDs.length) {
     return req.reject(403, 'El usuario no cuenta con roles de proveedor (supplierID).');
