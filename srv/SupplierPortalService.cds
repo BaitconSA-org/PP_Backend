@@ -49,7 +49,9 @@ service SupplierPortalService
         { grant: ['READ'], to: ['authenticated-user'] }
     ];
 
-
+    entity Invoices     as projection on supplierPortalGD.Invoices;
+    entity InvoiceAttachments     as projection on supplierPortalGD.InvoiceAttachments;
+    entity InvoiceAttachmentItems as projection on supplierPortalGD.InvoiceAttachmentItems;
 
     @cds.redirection.target
     @readonly

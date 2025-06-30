@@ -79,12 +79,55 @@ entity Invoices : cuid {
 }
 
 entity InvoiceAttachments : cuid {
-  invoice: Association to Invoices;
-  fileName: String(255);
-  mimeType: String(100);
-  url: String(500);
-  uploadedAt: Timestamp;
+  invoice       : Association to Invoices;               // Cabecera de la factura
+  supplier      : Association to Suppliers;              // CUIT proveedor (validación contra usuario)
+  purchaseOrder : Association to PurchaseOrders;         // OC origen para sociedad, etc.
+  companyCode   : Association to CompanyCodes;           // Derivado de OC
+
+  fileName      : String(255);                           // Nombre del archivo
+  mimeType      : String(100);                           // Tipo MIME (application/pdf)
+  url           : String(500);                           // Ruta al archivo en repositorio (S3, BTP Storage, etc.)
+
+  uploadedAt    : Timestamp @readonly;                   // Fecha de carga automática
+  uploadedBy    : String @readonly;                      // Usuario autenticado que realizó la carga
+
+  invoiceDate   : Date @readonly;                        // Fecha de ingreso (fecha actual)
+  invoiceNumber : String(20);                            // Código de factura (ej: 0001A00000001)
+
+  currency      : String(3);                             // Moneda (extraída o ingresada)
+  netAmount     : Decimal(15,2);                         // Importe sin impuestos (validado contra OC)
+  totalAmount   : Decimal(15,2);                         // Importe total (campo informativo)
+  quantity      : Decimal(13,3);                         // Unidades facturadas (validación contra OC)
+  caeNumber     : String(14);                            // Número de CAE (obligatorio)
+  caeDate       : Date;                                  // Fecha de CAE
+
+  invoiceLetter : String(1);                             // Letra del comprobante (validar A, C, M, X)
+
+  extractionStatus : String(50);                         // Estado de procesamiento del DOX (OK, ERROR, etc.)
+  extractionMessage: String(500);                        // Mensaje del DOX si hubo error
+  extractionJobId  : String(50);                         // Job ID de DOX (trazabilidad)
+
+  items : Composition of many InvoiceAttachmentItems
+    on items.parent = $self;                             // Ítems extraídos de la factura (coincidencias con OC)
 }
+
+entity InvoiceAttachmentItems : cuid {
+  parent        : Association to InvoiceAttachments;
+  poItem        : String(5);                             // Ítem de la OC a la que coincide
+  description   : String(255);                           // Descripción del ítem facturado
+  quantity      : Decimal(13,3);                         // Cantidad facturada (validar contra pendiente)
+  unitPrice     : Decimal(15,5);                         // Precio unitario extraído
+  netAmount     : Decimal(15,2);                         // Subtotal sin impuestos
+  vatAmount     : Decimal(15,2);                         // IVA extraído si lo hubiera
+  matchedStatus : String(20);                            // Estado de emparejamiento con OC (match, warning, error)
+}
+
+entity CompanyCodes {
+  key CompanyCode : String(4);
+      Name        : String(100);
+      Country     : String(3);
+}
+
 
 entity Contracts : cuid {
   supplier: Association to Suppliers;
