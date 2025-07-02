@@ -1,5 +1,4 @@
 using supplierPortalGD from '../db/schema';
-
 // Órdenes de compra
 using { purchaseorder_edmx as ext } from './external/purchaseorder_edmx.csn';
 // Facturación Proveedor
@@ -398,6 +397,8 @@ service SupplierPortalService
     _SupplierInvoices: Composition of many PO_SI
       on _SupplierInvoices.PurchaseOrder = $self.PurchaseOrder
   }
-}
 
+  action uploadPdf(file: LargeBinary, filename: String) returns String;
+  action checkJob(documentId: String) returns String;
+}
 //annotate SupplierPortalService with @requires : ['Supplier'];
