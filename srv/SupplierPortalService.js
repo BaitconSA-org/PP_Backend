@@ -244,56 +244,53 @@ module.exports = cds.service.impl(async function () {
         ];
 
         poHeaders = poHeaders.filter(po => {
-          let include = true;
+          const include = true;
 
-          for (let i = 0; i < originalWhere.length; i++) {
-            const cond = originalWhere[i];
+          for (const clause of originalWhere) {
+            if (clause?.xpr && Array.isArray(clause.xpr)) {
+              for (let i = 0; i < clause.xpr.length; i += 4) {
+                const left = clause.xpr[i];
+                const op = clause.xpr[i + 1];
+                const right = clause.xpr[i + 2];
 
-            // condición como objeto xpr (ej: { xpr: [...] })
-            if (cond?.xpr && Array.isArray(cond.xpr)) {
-              const [left, op, right] = cond.xpr;
+                if (left?.ref && calculatedFields.includes(left.ref[0])) {
+                  const field = left.ref[0];
+                  const value = right?.val;
+                  const fieldVal = po[field];
 
-              if (left?.ref && calculatedFields.includes(left.ref[0])) {
-                const field = left.ref[0];
-                const value = right?.val;
-                const fieldVal = po[field];
-
-                switch (op) {
-                case '=':  if (fieldVal !== value) include = false; break;
-                case '!=': if (fieldVal === value) include = false; break;
-                case '>':  if (!(fieldVal > value)) include = false; break;
-                case '>=': if (!(fieldVal >= value)) include = false; break;
-                case '<':  if (!(fieldVal < value)) include = false; break;
-                case '<=': if (!(fieldVal <= value)) include = false; break;
+                  switch (op) {
+                  case '=':  if (fieldVal !== value) return false; break;
+                  case '!=': if (fieldVal === value) return false; break;
+                  case '>':  if (!(fieldVal > value)) return false; break;
+                  case '>=': if (!(fieldVal >= value)) return false; break;
+                  case '<':  if (!(fieldVal < value)) return false; break;
+                  case '<=': if (!(fieldVal <= value)) return false; break;
+                  }
                 }
               }
             }
 
-            // Caso 2: directa: { ref }, '=', { val }
-            else if (cond?.ref && calculatedFields.includes(cond.ref[0])) {
-              const field = cond.ref[0];
-              const operator = originalWhere[i + 1];
-              const value = originalWhere[i + 2]?.val;
+            else if (clause?.ref && calculatedFields.includes(clause.ref[0])) {
+              const field = clause.ref[0];
+              const operator = originalWhere[originalWhere.indexOf(clause) + 1];
+              const value = originalWhere[originalWhere.indexOf(clause) + 2]?.val;
               const fieldVal = po[field];
 
               switch (operator) {
-              case '=':  if (fieldVal !== value) include = false; break;
-              case '!=': if (fieldVal === value) include = false; break;
-              case '>':  if (!(fieldVal > value)) include = false; break;
-              case '>=': if (!(fieldVal >= value)) include = false; break;
-              case '<':  if (!(fieldVal < value)) include = false; break;
-              case '<=': if (!(fieldVal <= value)) include = false; break;
+              case '=':  if (fieldVal !== value) return false; break;
+              case '!=': if (fieldVal === value) return false; break;
+              case '>':  if (!(fieldVal > value)) return false; break;
+              case '>=': if (!(fieldVal >= value)) return false; break;
+              case '<':  if (!(fieldVal < value)) return false; break;
+              case '<=': if (!(fieldVal <= value)) return false; break;
               }
-
-              i += 2;
             }
-
-            if (!include) break;
           }
 
           return include;
         });
       }
+
 
 
       return poHeaders.length === 1 ? poHeaders[0] : poHeaders;
