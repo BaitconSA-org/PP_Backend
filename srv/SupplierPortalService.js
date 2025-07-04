@@ -229,7 +229,11 @@ module.exports = cds.service.impl(async function () {
           }
         }
 
-        filteredPOs = poFromParsed.length ? poFromParsed : poFromRaw;
+        // ← aseguro que siempre sea array
+        filteredPOs = Array.isArray(poFromParsed) && poFromParsed.length > 0
+          ? poFromParsed
+          : poFromRaw;
+
 
         /* ---------- 1.4  Inyectar filtros finales al SELECT -------------------- */
         const supplierClause = [{ ref: ['Supplier'] }, 'in', { val: userSupplierIDs }];
@@ -244,9 +248,10 @@ module.exports = cds.service.impl(async function () {
       if (!poHeaders.length) return poHeaders;
 
       // --- si vienen POs específicos, filtramos localmente
-      if (filteredPOs.length > 0) {
+      if (Array.isArray(filteredPOs) && filteredPOs.length > 0) {
         poHeaders = poHeaders.filter(po => filteredPOs.includes(po.PurchaseOrder));
       }
+
 
       /* ------------------------------------------------------------------
      * 3. Enriquecer cabeceras (items, montos, campos calculados)

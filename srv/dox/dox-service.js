@@ -1,7 +1,7 @@
 // srv/dox-service.js
 
 const cds = require('@sap/cds');
-const { uploadPdf, getJobStatus } = require('./dox-client');
+const { uploadPdf, getJobStatus } = require('./dox/dox-client');
 
 module.exports = cds.service.impl(function () {
   /**
@@ -51,8 +51,4 @@ module.exports = cds.service.impl(function () {
       return req.reject(500, 'Error checking DOX job status');
     }
   });
-
-
-
-  
 });
