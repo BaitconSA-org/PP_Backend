@@ -47,7 +47,6 @@ async function handleSupplierInvoiceRead (req, s4Inv) {
   }
 }
 
-// 2) Líneas ---------------------------------------------------
 async function handleSupplierInvoiceItemRead(req, s4Inv) {
   if (!s4Inv) s4Inv = await cds.connect.to('A_SupplierInvoice_edmx');
 

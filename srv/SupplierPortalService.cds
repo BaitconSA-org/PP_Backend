@@ -125,10 +125,15 @@ service SupplierPortalService
         po.SAP__Messages,
         po._SupplierAddress,
         // ✅ Campos agregados
+        @cds.persistence.skip
         cast(null as Decimal(15,2)) as NetAmountTotal,
+        @cds.persistence.skip
         cast(null as Decimal(15,2)) as SupplierInvoiceAmountTotal,
+        @cds.persistence.skip
         cast(null as Decimal(15,2)) as UnitPrice,
+        @cds.persistence.skip
         cast(null as Integer) as InvoicePercent,
+        @cds.persistence.skip
         cast(null as Integer) as InvoiceStatusColor,
         _PurchaseOrderItem : Composition of many PurchaseOrderItemExt
              on _PurchaseOrderItem.PurchaseOrder = PurchaseOrder

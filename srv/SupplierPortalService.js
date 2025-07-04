@@ -106,199 +106,232 @@ module.exports = cds.service.impl(async function () {
   });
 
 
-  this.on('READ', 'PurchaseOrderExt', async (req) => {
-    //const userSupplierIDs = ['31300001'];
-    const userSupplierIDs = req.user?.attr?.supplierID;
+  /**
+ * READ - PurchaseOrderExt
+ * - Soporta filtros mixtos (reales + calculados)
+ * - Soporta $count
+ * - Enriquecer con montos, % facturación y UnitPrice
+ */
+  /** Campos que se calculan en memoria */
+  const CALC_FIELDS = [
+    'InvoicePercent',
+    'InvoiceStatusColor',
+    'NetAmountTotal',
+    'SupplierInvoiceAmountTotal',
+    'UnitPrice',
+  ];
 
-    if (!Array.isArray(userSupplierIDs) || userSupplierIDs.length === 0) {
-      return req.reject(403, 'El usuario no cuenta con roles de proveedor (supplierID).');
-    }
+  // ---------- utilidades ------------------------------------------
+  /** Clona un CQN sin referencias circulares */
+  const cloneCQN = q => JSON.parse(JSON.stringify(q));
 
-    try {
-      let poHeaders = [];
 
-      if (req.params?.length) {
-        const poNumber = req.params[0].PurchaseOrder;
+  function applyCalculatedFilters(poHeaders, whereCQN) {
+    if (!Array.isArray(whereCQN) || !whereCQN.length) return poHeaders;
 
-        poHeaders = await s4Purchase.run(
-          SELECT.from('PurchaseOrder')
-            .where({ PurchaseOrder: poNumber })
-            .and({ Supplier: { in: userSupplierIDs } }),
-        );
-      } else {
-        //LOGICA PARA OMITIR FILTROS CALCULADOS
-        const query = JSON.parse(JSON.stringify(req.query)); // clonado profundo para evitar mutaciones peligrosas
+    const CALC_FIELDS = [
+      'InvoicePercent',
+      'InvoiceStatusColor',
+      'NetAmountTotal',
+      'SupplierInvoiceAmountTotal',
+      'UnitPrice',
+    ];
 
-        // --- Limpiar filtros con campos calculados
-        const calculatedFields = [
-          'InvoicePercent',
-          'InvoiceStatusColor',
-          'NetAmountTotal',
-          'SupplierInvoiceAmountTotal',
-          'UnitPrice',
-        ];
+    const keep = [];
 
-        if (query.SELECT?.where) {
-          query.SELECT.where = query.SELECT.where.filter((clause) => {
-            // Caso simple: { ref: [...] }
-            if (clause?.ref && calculatedFields.includes(clause.ref[0])) return false;
+    for (const po of poHeaders) {
+      let include = true;
 
-            // Caso complejo: { xpr: [...] }
-            if (clause?.xpr) {
-              return !clause.xpr.some(
-                part => part?.ref && calculatedFields.includes(part.ref[0]),
-              );
-            }
+      for (let i = 0; i < whereCQN.length; i++) {
+        const clause = whereCQN[i];
 
-            return true;
-          });
+        /* Casos “campo op valor” directamente en el array ------------------- */
+        if (clause?.ref && CALC_FIELDS.includes(clause.ref[0])) {
+          const field = clause.ref[0];
+          const op    = whereCQN[i + 1];
+          const value = whereCQN[i + 2]?.val;
+          include = evaluate(po[field], op, value);
+          if (!include) break;
+          i += 2;          
         }
 
-        // Asegurar que query.where no exista a nivel raíz
-        delete query.where;
-
-        // --- Agregar filtro por proveedor
-        const supplierFilter = [
-          { ref: ['Supplier'] }, 'in', { val: userSupplierIDs },
-        ];
-
-        if (query.SELECT?.where) {
-          query.SELECT.where = ['(', ...query.SELECT.where, ')', 'and', ...supplierFilter];
-        } else {
-          query.SELECT.where = supplierFilter;
-        }
-
-
-        poHeaders = await s4Purchase.run(query);
-      }
-
-      const poIds = poHeaders.map(po => po.PurchaseOrder);
-
-      const poItems = await s4Purchase.run(
-        SELECT.from('PurchaseOrderItem').where({ PurchaseOrder: { in: poIds } }),
-      );
-
-      const netAmounts = await handleNetAmountRead(poIds);
-      const supplierInvoiceAmounts = await handleSupplierInvoiceAmountRead(poIds);
-      const supplierInvoiceAmount = await handleItemSupplierInvoiceAmountRead(poIds);
-
-      const amountMap = supplierInvoiceAmount.reduce((acc, row) => {
-        const key = `${row.PurchaseOrder}-${row.PurchaseOrderItem}`;
-        acc[key] = row.SupplierInvoiceItemAmount;
-        return acc;
-      }, {});
-
-      const itemsByPO = poItems.reduce((acc, item) => {
-        const key = item.PurchaseOrder;
-        const poItemKey = `${item.PurchaseOrder}-${item.PurchaseOrderItem}`;
-        item.SupplierInvoiceItemAmount = amountMap[poItemKey] || 0;
-
-        const netPrice = item.NetPriceAmount || 0;
-        const quantity = item.NetPriceQuantity || 0;
-        item.UnitPrice = quantity !== 0 ? parseFloat((netPrice / quantity).toFixed(2)) : 0;
-
-        (acc[key] = acc[key] || []).push(item);
-        return acc;
-      }, {});
-
-      const netAmountByPO = netAmounts.reduce((acc, row) => {
-        acc[row.PurchaseOrder] = row.NetAmount;
-        return acc;
-      }, {});
-
-      const supplierInvoiceAmountByPO = supplierInvoiceAmounts.reduce((acc, row) => {
-        acc[row.PurchaseOrder] = row.SupplierInvoiceAmount;
-        return acc;
-      }, {});
-
-      poHeaders.forEach(po => {
-        const items = itemsByPO[po.PurchaseOrder] || [];
-        po._PurchaseOrderItem = items;
-
-        po.NetAmountTotal = netAmountByPO[po.PurchaseOrder] || 0;
-        po.SupplierInvoiceAmountTotal = supplierInvoiceAmountByPO[po.PurchaseOrder] || 0;
-
-        const totalNetAmt = items.reduce((a, i) => a + (i.NetPriceAmount || 0), 0);
-        const totalQty = items.reduce((a, i) => a + (i.NetPriceQuantity || 0), 0);
-        po.UnitPrice = totalQty !== 0 ? parseFloat((totalNetAmt / totalQty).toFixed(2)) : 0;
-
-        if (po.NetAmountTotal > 0) {
-          po.InvoicePercent = Math.round((po.SupplierInvoiceAmountTotal / po.NetAmountTotal) * 100);
-          po.InvoiceStatusColor = po.InvoicePercent < 25 ? 1 : (po.InvoicePercent <= 75 ? 2 : 3);
-        } else {
-          po.InvoicePercent = 0;
-          po.InvoiceStatusColor = 1;
-        }
-      });
-
-      // APLICAR FILTROS LOCALES
-      const originalWhere = req.query?.SELECT?.where;
-
-      if (originalWhere) {
-        const calculatedFields = [
-          'InvoicePercent',
-          'InvoiceStatusColor',
-          'NetAmountTotal',
-          'SupplierInvoiceAmountTotal',
-          'UnitPrice',
-        ];
-
-        poHeaders = poHeaders.filter(po => {
-          const include = true;
-
-          for (const clause of originalWhere) {
-            if (clause?.xpr && Array.isArray(clause.xpr)) {
-              for (let i = 0; i < clause.xpr.length; i += 4) {
-                const left = clause.xpr[i];
-                const op = clause.xpr[i + 1];
-                const right = clause.xpr[i + 2];
-
-                if (left?.ref && calculatedFields.includes(left.ref[0])) {
-                  const field = left.ref[0];
-                  const value = right?.val;
-                  const fieldVal = po[field];
-
-                  switch (op) {
-                  case '=':  if (fieldVal !== value) return false; break;
-                  case '!=': if (fieldVal === value) return false; break;
-                  case '>':  if (!(fieldVal > value)) return false; break;
-                  case '>=': if (!(fieldVal >= value)) return false; break;
-                  case '<':  if (!(fieldVal < value)) return false; break;
-                  case '<=': if (!(fieldVal <= value)) return false; break;
-                  }
-                }
-              }
-            }
-
-            else if (clause?.ref && calculatedFields.includes(clause.ref[0])) {
-              const field = clause.ref[0];
-              const operator = originalWhere[originalWhere.indexOf(clause) + 1];
-              const value = originalWhere[originalWhere.indexOf(clause) + 2]?.val;
-              const fieldVal = po[field];
-
-              switch (operator) {
-              case '=':  if (fieldVal !== value) return false; break;
-              case '!=': if (fieldVal === value) return false; break;
-              case '>':  if (!(fieldVal > value)) return false; break;
-              case '>=': if (!(fieldVal >= value)) return false; break;
-              case '<':  if (!(fieldVal < value)) return false; break;
-              case '<=': if (!(fieldVal <= value)) return false; break;
-              }
+        /* Casos con xpr (UI5 suele enviar así cuando hay OR/AND) ------------ */
+        if (clause?.xpr) {
+          for (let j = 0; j < clause.xpr.length; j++) {
+            const x = clause.xpr;
+            if (x[j]?.ref && CALC_FIELDS.includes(x[j].ref[0])) {
+              const field = x[j].ref[0];
+              const op    = x[j + 1];
+              const value = x[j + 2]?.val;
+              include = evaluate(po[field], op, value);
+              if (!include) break;
+              j += 2;
             }
           }
-
-          return include;
-        });
+          if (!include) break;
+        }
       }
 
+      if (include) keep.push(po);
+    }
 
+    return keep;
+
+    function evaluate(lhs, op, rhs) {
+      switch (op) {
+      case '='  : return lhs === rhs;
+      case '!=' : return lhs !== rhs;
+      case '>'  : return lhs >  rhs;
+      case '>=' : return lhs >= rhs;
+      case '<'  : return lhs <  rhs;
+      case '<=' : return lhs <= rhs;
+      default   : return true;  
+      }
+    }
+  }
+
+
+  this.on('READ', 'PurchaseOrderExt', async (req) => {
+    const s4Purchase = await cds.connect.to('purchaseorder_edmx');
+    const userSupplierIDs = req.user?.attr?.supplierID ?? [];   // prod
+    //const userSupplierIDs = ['31300001'];                          // tests
+
+    if (!userSupplierIDs.length)
+      return req.reject(403, 'El usuario no cuenta con roles de proveedor (supplierID).');
+
+    try {
+      let query;
+      let filteredPOs;
+      const originalWhere = req.query?.SELECT?.where || [];   // ← lo usaremos al final
+
+   
+      if (req.params?.length) {
+        const poNumber = req.params[0].PurchaseOrder;
+        query = SELECT.from('PurchaseOrder')
+          .where({ PurchaseOrder: poNumber }).and({ Supplier: { in: userSupplierIDs } });
+
+      } else {
+
+        // Clonar para no tocar req.query
+        query = cloneCQN(req.query);
+
+        /* ---------- 1.1 Extraer PurchaseOrder desde el WHERE parseado ---------- */
+        const parsedWhere = query.SELECT?.where || [];
+        const poFromParsed = extractPOsFromCQN(parsedWhere);  // helper (ver más abajo)
+
+        /* ---------- 1.2 si CAP no parseó el $filter ------------------ */
+        const poFromRaw = [];
+        if (!poFromParsed.length) {
+          const rawFilter = req.http?.req?.query?.$filter;   // Express query string
+          if (typeof rawFilter === 'string' && rawFilter.includes('PurchaseOrder eq')) {
+            const regex = /PurchaseOrder\s+eq\s+'([^']+)'/g;
+            let m; while ((m = regex.exec(rawFilter)) !== null) poFromRaw.push(m[1]);
+          }
+        }
+
+        filteredPOs = poFromParsed.length ? poFromParsed : poFromRaw;
+
+        /* ---------- 1.4  Inyectar filtros finales al SELECT -------------------- */
+        const supplierClause = [{ ref: ['Supplier'] }, 'in', { val: userSupplierIDs }];
+        query.SELECT.where = supplierClause;
+        
+      }
+
+      /* ------------------------------------------------------------------
+     * 2. Ejecutar en S/4
+     * ------------------------------------------------------------------ */
+      let poHeaders = await s4Purchase.run(query);
+      if (!poHeaders.length) return poHeaders;
+
+      // --- si vienen POs específicos, filtramos localmente
+      if (filteredPOs.length > 0) {
+        poHeaders = poHeaders.filter(po => filteredPOs.includes(po.PurchaseOrder));
+      }
+
+      /* ------------------------------------------------------------------
+     * 3. Enriquecer cabeceras (items, montos, campos calculados)
+     * ------------------------------------------------------------------ */
+      const poIds = poHeaders.map(p => p.PurchaseOrder);
+
+      const [poItems, net, invHdr, invItem] = await Promise.all([
+        s4Purchase.run(SELECT.from('PurchaseOrderItem').where({ PurchaseOrder: { in: poIds } })),
+        handleNetAmountRead(poIds),
+        handleSupplierInvoiceAmountRead(poIds),
+        handleItemSupplierInvoiceAmountRead(poIds),
+      ]);
+
+      const netByPO  = Object.fromEntries(net.map(r => [r.PurchaseOrder, r.NetAmount]));
+      const invByPO  = Object.fromEntries(invHdr.map(r => [r.PurchaseOrder, r.SupplierInvoiceAmount]));
+      const invByKey = Object.fromEntries(
+        invItem.map(r => [`${r.PurchaseOrder}-${r.PurchaseOrderItem}`, r.SupplierInvoiceItemAmount]),
+      );
+
+      const itemsByPO = {};
+      for (const it of poItems) {
+        it.SupplierInvoiceItemAmount = invByKey[`${it.PurchaseOrder}-${it.PurchaseOrderItem}`] || 0;
+        it.UnitPrice = it.NetPriceQuantity
+          ? Number((it.NetPriceAmount / it.NetPriceQuantity).toFixed(2))
+          : 0;
+        (itemsByPO[it.PurchaseOrder] ||= []).push(it);
+      }
+
+      for (const po of poHeaders) {
+        const items = itemsByPO[po.PurchaseOrder] || [];
+        po._PurchaseOrderItem         = items;
+        po.NetAmountTotal             = netByPO[po.PurchaseOrder] || 0;
+        po.SupplierInvoiceAmountTotal = invByPO[po.PurchaseOrder] || 0;
+
+        const ttlNet = items.reduce((a,i)=>a + (i.NetPriceAmount  ||0),0);
+        const ttlQty = items.reduce((a,i)=>a + (i.NetPriceQuantity||0),0);
+        po.UnitPrice = ttlQty ? Number((ttlNet/ttlQty).toFixed(2)) : 0;
+
+        if (po.NetAmountTotal) {
+          po.InvoicePercent     = Math.round(po.SupplierInvoiceAmountTotal / po.NetAmountTotal * 100);
+          po.InvoiceStatusColor = po.InvoicePercent < 25 ? 1
+            : (po.InvoicePercent <= 75 ? 2 : 3);
+        } else {
+          po.InvoicePercent     = 0;
+          po.InvoiceStatusColor = 1;
+        }
+      }
+
+      /* ------------------------------------------------------------------
+     * 4. Aplicar filtros locales (calculados)
+     * ------------------------------------------------------------------ */
+      // poHeaders(items, montos, etc.)
+      poHeaders = applyCalculatedFilters(poHeaders, originalWhere);
 
       return poHeaders.length === 1 ? poHeaders[0] : poHeaders;
+
+
     } catch (err) {
-      console.error('Error al leer órdenes de compra:', err);
+      console.error('[ERROR] PurchaseOrderExt:', err);
       return req.reject(500, 'Error al leer órdenes de compra');
     }
   });
+
+  /* ------------------------------------------------------------------ */
+  /* Helpers                                                             */
+  /* ------------------------------------------------------------------ */
+  function extractPOsFromCQN(where = []) {
+    const out = [];
+
+    for (let i = 0; i < where.length; i++) {
+      const cl = where[i];
+      if (cl?.ref?.[0] === 'PurchaseOrder' && where[i+1] === 'eq' && where[i+2]?.val) {
+        out.push(where[i+2].val);
+      }
+      if (cl?.xpr) {
+        const x = cl.xpr;
+        for (let j = 0; j < x.length; j++) {
+          if (x[j]?.ref?.[0] === 'PurchaseOrder' && x[j+1] === 'eq' && x[j+2]?.val)
+            out.push(x[j+2].val);
+        }
+      }
+    }
+    return out;
+  }
+
 
 
   

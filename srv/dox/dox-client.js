@@ -38,7 +38,8 @@ async function getJobStatus(documentId) {
     { destinationName: DESTINATION_NAME },
     {
       method: 'GET',
-      url: `/document-information-extraction/v1/document/jobs/${documentId}`,
+      //url: `/document-information-extraction/v1/document/jobs/${documentId}`,
+      url: '/document-information-extraction/v1/document/jobs',
     },
   );
 
