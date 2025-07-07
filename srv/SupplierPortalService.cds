@@ -48,7 +48,18 @@ service SupplierPortalService
         { grant: ['READ'], to: ['authenticated-user'] }
     ];
 
-    entity Invoices     as projection on supplierPortalGD.Invoices;
+    entity Invoices as projection on supplierPortalGD.Invoices{
+      *,   // incluye invoiceNumber, supplier, purchaseOrderID, documentDate, …, files
+
+      // asociación a PurchaseOrderExt
+      toPurchaseOrder : Association to PurchaseOrderExt
+        on toPurchaseOrder.PurchaseOrder = purchaseOrderID,
+
+      // asociación a SupplierInvoiceExt (tiene dos claves)
+      toSupplierInvoice : Association to SupplierInvoiceExt
+        on toSupplierInvoice.SupplierInvoiceIDByInvcgParty = supplierInvoiceIDByInvcgParty
+      and toSupplierInvoice.FiscalYear = fiscalYear
+    }
     entity InvoiceAttachments     as projection on supplierPortalGD.InvoiceAttachments;
     entity InvoiceAttachmentItems as projection on supplierPortalGD.InvoiceAttachmentItems;
 
