@@ -223,166 +223,182 @@ module.exports = cds.service.impl(async function () {
   }
 
 
-  this.on('READ', 'PurchaseOrderExt', async (req) => {
-    const s4Purchase = await cds.connect.to('purchaseorder_edmx');
-    const userSupplierIDs = req.user?.attr?.supplierID ?? [];   // prod
-    //const userSupplierIDs = ['31300001'];                          // tests
-
-    if (!userSupplierIDs.length)
-      return req.reject(403, 'El usuario no cuenta con roles de proveedor (supplierID).');
-
-    try {
-      let query;
-      let filteredPOs;
-      const originalWhere = req.query?.SELECT?.where || [];   // ← lo usaremos al final
-      const rawFilter = req.http?.req?.query?.$filter || '';  // ← lo usaremos al final
-
-      const isCount = req.query?.SELECT?.columns?.some(c => c.func === 'count');
-
-    
-
-      if (req.params?.length) {
-        const poNumber = req.params[0].PurchaseOrder;
-        query = SELECT.from('PurchaseOrder')
-          .where({ PurchaseOrder: poNumber }).and({ Supplier: { in: userSupplierIDs } });
-
-      } else {
-
-        // Clonar para no tocar req.query
-        query = cloneCQN(req.query);
-
-        const isCount = query?.SELECT?.columns?.some(c => c.func === 'count');
-
-        if (isCount) {
-          delete query.SELECT.count;
-          delete query.SELECT.columns;
-        }
-
-        /* ---------- 1.1 Extraer PurchaseOrder desde el WHERE parseado ---------- */
-        const parsedWhere = query.SELECT?.where || [];
-        const poFromParsed = extractPOsFromCQN(parsedWhere);  // helper (ver más abajo)
-
-        /* ---------- 1.2 si CAP no parseó el $filter ------------------ */
-        const poFromRaw = [];
-        if (!poFromParsed.length) {
-          if (typeof rawFilter === 'string' && rawFilter.includes('PurchaseOrder eq')) {
-            const regex = /PurchaseOrder\s+eq\s+'([^']+)'/g;
-            let m; while ((m = regex.exec(rawFilter)) !== null) poFromRaw.push(m[1]);
-          }
-        }
-
-        // ← aseguro que siempre sea array
-        filteredPOs = Array.isArray(poFromParsed) && poFromParsed.length > 0
-          ? poFromParsed
-          : poFromRaw;
-
-        /* ---------- 1.4  Inyectar filtros finales al SELECT -------------------- */
-        const supplierClause = [{ ref: ['Supplier'] }, 'in', { val: userSupplierIDs }];
-        query.SELECT.where = supplierClause;
-      }
-
-      /* ------------------------------------------------------------------
-    * 2. Ejecutar en S/4
-    * ------------------------------------------------------------------ */
-      let poHeaders = await s4Purchase.run(query);
-      if (!poHeaders.length) return poHeaders;
-
-      // --- si vienen POs específicos, filtramos localmente
-      if (Array.isArray(filteredPOs) && filteredPOs.length > 0) {
-        poHeaders = poHeaders.filter(po => filteredPOs.includes(po.PurchaseOrder));
-      }
-
-      /* ------------------------------------------------------------------
-    * 3. Enriquecer cabeceras (items, montos, campos calculados)
-    * ------------------------------------------------------------------ */
-      const poIds = poHeaders.map(p => p.PurchaseOrder);
-
-      const [poItems, net, invHdr, invItem] = await Promise.all([
-        s4Purchase.run(SELECT.from('PurchaseOrderItem').where({ PurchaseOrder: { in: poIds } })),
-        handleNetAmountRead(poIds),
-        handleSupplierInvoiceAmountRead(poIds),
-        handleItemSupplierInvoiceAmountRead(poIds),
-      ]);
-
-      const netByPO  = Object.fromEntries(net.map(r => [r.PurchaseOrder, r.NetAmount]));
-      const invByPO  = Object.fromEntries(invHdr.map(r => [r.PurchaseOrder, r.SupplierInvoiceAmount]));
-      const invByKey = Object.fromEntries(
-        invItem.map(r => [`${r.PurchaseOrder}-${r.PurchaseOrderItem}`, r.SupplierInvoiceItemAmount]),
-      );
-
-      const itemsByPO = {};
-      for (const it of poItems) {
-        it.SupplierInvoiceItemAmount = invByKey[`${it.PurchaseOrder}-${it.PurchaseOrderItem}`] || 0;
-        it.UnitPrice = it.NetPriceQuantity
-          ? Number((it.NetPriceAmount / it.NetPriceQuantity).toFixed(2))
-          : 0;
-        (itemsByPO[it.PurchaseOrder] ||= []).push(it);
-      }
-
-      for (const po of poHeaders) {
-        const items = itemsByPO[po.PurchaseOrder] || [];
-        po._PurchaseOrderItem         = items;
-        po.NetAmountTotal             = netByPO[po.PurchaseOrder] || 0;
-        po.SupplierInvoiceAmountTotal = invByPO[po.PurchaseOrder] || 0;
-
-        const ttlNet = items.reduce((a,i)=>a + (i.NetPriceAmount  ||0),0);
-        const ttlQty = items.reduce((a,i)=>a + (i.NetPriceQuantity||0),0);
-        po.UnitPrice = ttlQty ? Number((ttlNet/ttlQty).toFixed(2)) : 0;
-
-        if (po.NetAmountTotal) {
-          po.InvoicePercent     = Math.round(po.SupplierInvoiceAmountTotal / po.NetAmountTotal * 100);
-          po.InvoiceStatusColor = po.InvoicePercent < 25 ? 1
-            : (po.InvoicePercent <= 75 ? 2 : 3);
-        } else {
-          po.InvoicePercent     = 0;
-          po.InvoiceStatusColor = 1;
-        }
-      }
-
-      /* ------------------------------------------------------------------
-    * 4. Aplicar filtros locales (calculados)
-    * ------------------------------------------------------------------ */
-      poHeaders = applyCalculatedFilters(poHeaders, originalWhere, rawFilter);
-
+  function applyPostFilters(poHeaders, originalWhere) {
+    if (!Array.isArray(originalWhere) || originalWhere.length === 0)
       return poHeaders;
 
-    } catch (err) {
-      console.error('[ERROR] PurchaseOrderExt:', err);
-      return req.reject(500, 'Error al leer órdenes de compra');
-    }
-  });
+    return poHeaders.filter(po => {
+      let include = true;
 
+      for (let i = 0; i < originalWhere.length; i++) {
+        const token = originalWhere[i];
+
+        if (token?.ref && Array.isArray(token.ref)) {
+          const field = token.ref[0];               // Ej: 'Supplier'
+          const operator = originalWhere[i + 1];    // Ej: '='
+          const value = originalWhere[i + 2]?.val;  // Ej: '31300003'
+
+          if (!evaluate(po[field], operator, value)) {
+            include = false;
+            break;
+          }
+
+          i += 2; // Saltar al próximo grupo
+        }
+
+        // Saltar conectores ('and', 'or')
+        if (typeof token === 'string' && ['and', 'or'].includes(token.toLowerCase())) {
+          continue;
+        }
+      }
+
+      return include;
+    });
+
+    function evaluate(lhs, op, rhs) {
+      switch (op) {
+      case '='  : return lhs === rhs;
+      case '!=' : return lhs !== rhs;
+      case '>'  : return lhs >  rhs;
+      case '>=' : return lhs >= rhs;
+      case '<'  : return lhs <  rhs;
+      case '<=' : return lhs <= rhs;
+      default   : return true;
+      }
+    }
+  }
+
+
+  this.on('READ', 'PurchaseOrderExt', async (req) => {
+    const s4Purchase = await cds.connect.to('purchaseorder_edmx');
+    //const userSupplierIDs = ['31300001'];
+    const userSupplierIDs = req.user?.attr?.supplierID;
+
+    if (!userSupplierIDs.length)
+      return req.reject(403, 'El usuario no cuenta con roles de proveedor');
+
+    req._batchCache = req._batchCache || {};
+    const isCountEndpoint = req.http?.req?.originalUrl?.includes('/$count');
+
+    // Si ya se procesó antes en el batch
+    if (isCountEndpoint && req._batchCache.poHeaders) {
+      return req._batchCache.poHeaders.length;
+    }
+
+    let query;
+    let filteredPOs;
+    const originalWhere = req.query?.SELECT?.where || [];
+    const rawFilter = req.http?.req?.query?.$filter || '';
+
+    if (req.params?.length) {
+      const poNumber = req.params[0].PurchaseOrder;
+      query = SELECT.from('PurchaseOrder')
+        .where({ PurchaseOrder: poNumber }).and({ Supplier: { in: userSupplierIDs } });
+
+    } else {
+      query = cloneCQN(req.query);
+      const parsedWhere = query.SELECT?.where || [];
+      const poFromParsed = extractPOsFromCQN(parsedWhere);
+      const poFromRaw = !poFromParsed.length && rawFilter.includes('PurchaseOrder')
+        ? [...rawFilter.matchAll(/PurchaseOrder\s+eq\s+'([^']+)'/g)].map(m => m[1])
+        : [];
+
+      filteredPOs = poFromParsed.length ? poFromParsed : poFromRaw;
+      query.SELECT.where = [{ ref: ['Supplier'] }, 'in', { val: userSupplierIDs }];
+
+      // Eliminar count/columns si es $count=true
+      if (req.query?.SELECT?.count) delete query.SELECT.count;
+      if (query.SELECT?.columns?.some(c => c.func === 'count')) delete query.SELECT.columns;
+    }
+
+    let poHeaders = await s4Purchase.run(query);
+    if (!poHeaders.length) return [];
+
+    poHeaders = applyPostFilters(poHeaders, originalWhere);
+    if (filteredPOs?.length)
+      poHeaders = poHeaders.filter(po => filteredPOs.includes(po.PurchaseOrder));
+
+    /* ------------------------------------------------------------------
+     * 3. Enriquecer cabeceras (items, montos, campos calculados)
+     * ------------------------------------------------------------------ */
+    const poIds = poHeaders.map(p => p.PurchaseOrder);
+
+    const [poItems, net, invHdr, invItem] = await Promise.all([
+      s4Purchase.run(SELECT.from('PurchaseOrderItem').where({ PurchaseOrder: { in: poIds } })),
+      handleNetAmountRead(poIds),
+      handleSupplierInvoiceAmountRead(poIds),
+      handleItemSupplierInvoiceAmountRead(poIds),
+    ]);
+
+    const netByPO  = Object.fromEntries(net.map(r => [r.PurchaseOrder, r.NetAmount]));
+    const invByPO  = Object.fromEntries(invHdr.map(r => [r.PurchaseOrder, r.SupplierInvoiceAmount]));
+    const invByKey = Object.fromEntries(
+      invItem.map(r => [`${r.PurchaseOrder}-${r.PurchaseOrderItem}`, r.SupplierInvoiceItemAmount]),
+    );
+
+    const itemsByPO = {};
+    for (const it of poItems) {
+      it.SupplierInvoiceItemAmount = invByKey[`${it.PurchaseOrder}-${it.PurchaseOrderItem}`] || 0;
+      it.UnitPrice = it.NetPriceQuantity
+        ? Number((it.NetPriceAmount / it.NetPriceQuantity).toFixed(2))
+        : 0;
+      (itemsByPO[it.PurchaseOrder] ||= []).push(it);
+    }
+
+    for (const po of poHeaders) {
+      const items = itemsByPO[po.PurchaseOrder] || [];
+      po._PurchaseOrderItem         = items;
+      po.NetAmountTotal             = netByPO[po.PurchaseOrder] || 0;
+      po.SupplierInvoiceAmountTotal = invByPO[po.PurchaseOrder] || 0;
+
+      const ttlNet = items.reduce((a,i)=>a + (i.NetPriceAmount  ||0),0);
+      const ttlQty = items.reduce((a,i)=>a + (i.NetPriceQuantity||0),0);
+      po.UnitPrice = ttlQty ? Number((ttlNet/ttlQty).toFixed(2)) : 0;
+
+      if (po.NetAmountTotal) {
+        po.InvoicePercent     = Math.round(po.SupplierInvoiceAmountTotal / po.NetAmountTotal * 100);
+        po.InvoiceStatusColor = po.InvoicePercent < 25 ? 1
+          : (po.InvoicePercent <= 75 ? 2 : 3);
+      } else {
+        po.InvoicePercent     = 0;
+        po.InvoiceStatusColor = 1;
+      }
+    }
+
+    poHeaders = applyCalculatedFilters(poHeaders, originalWhere, rawFilter);
+
+    // Guardar en cache por si en este mismo batch viene /$count
+    req._batchCache.poHeaders = poHeaders;
+
+    // Si justo era $count → devolver la cantidad
+    if (isCountEndpoint) {
+      return poHeaders.length;
+    }
+
+    return poHeaders;
+  });
 
   /* ------------------------------------------------------------------ */
   /* Helpers                                                             */
   /* ------------------------------------------------------------------ */
-  function extractPOsFromCQN(where = [], acc = []) {
-    if (!Array.isArray(where)) return acc;
+  function extractPOsFromCQN(where = []) {
+    const out = [];
 
-    for (let i = 0; i < where.length - 2; i++) {
-      const a = where[i];          // { ref: ['PurchaseOrder'] }
-      const op = where[i + 1];     // '='  | 'eq' | 'in'
-      const b = where[i + 2];      // { val: … } | { list: … }
-
-      /* patrón  PurchaseOrder {=|eq} '123' */
-      if (a?.ref?.[0] === 'PurchaseOrder' &&
-        (op === '=' || op === 'eq') &&
-        b?.val !== undefined) {
-        acc.push(b.val);
+    for (let i = 0; i < where.length; i++) {
+      const cl = where[i];
+      if (cl?.ref?.[0] === 'PurchaseOrder' && where[i+1] === 'eq' && where[i+2]?.val) {
+        out.push(where[i+2].val);
       }
-
-      /* patrón  PurchaseOrder in (…) --------------------------------------- */
-      if (a?.ref?.[0] === 'PurchaseOrder' && op === 'in' && Array.isArray(b?.list)) {
-        acc.push(...b.list.map(v => v.val));
+      if (cl?.xpr) {
+        const x = cl.xpr;
+        for (let j = 0; j < x.length; j++) {
+          if (x[j]?.ref?.[0] === 'PurchaseOrder' && x[j+1] === 'eq' && x[j+2]?.val)
+            out.push(x[j+2].val);
+        }
       }
-
-      /* recorrer sub-estructuras ------------------------------------------- */
-      if (Array.isArray(a))           extractPOsFromCQN(a, acc);
-      if (a?.xpr)                     extractPOsFromCQN(a.xpr, acc);
     }
-    return acc;
+    return out;
   }
-
 
 
 
@@ -483,7 +499,6 @@ module.exports = cds.service.impl(async function () {
       const { file, filename } = req.data;
 
       if (!file) return req.reject(400, 'Missing file');
-
       const buf = Buffer.from(file, 'base64');
 
       const result = await doxClient.uploadPdf(buf, filename || 'invoice.pdf');
