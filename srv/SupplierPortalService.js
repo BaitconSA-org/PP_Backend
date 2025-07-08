@@ -126,9 +126,7 @@ module.exports = cds.service.impl(async function () {
   const cloneCQN = q => JSON.parse(JSON.stringify(q));
 
 
-  function applyCalculatedFilters(poHeaders, whereCQN) {
-    if (!Array.isArray(whereCQN) || !whereCQN.length) return poHeaders;
-
+  function applyCalculatedFilters(poHeaders, whereCQN, rawFilter = '') {
     const CALC_FIELDS = [
       'InvoicePercent',
       'InvoiceStatusColor',
@@ -137,35 +135,57 @@ module.exports = cds.service.impl(async function () {
       'UnitPrice',
     ];
 
+    if ((!Array.isArray(whereCQN) || !whereCQN.length) && !rawFilter) return poHeaders;
+
     const keep = [];
 
     for (const po of poHeaders) {
       let include = true;
 
-      for (let i = 0; i < whereCQN.length; i++) {
-        const clause = whereCQN[i];
+      /* ----------- A. Filtrado por whereCQN parseado ---------------------- */
+      if (Array.isArray(whereCQN) && whereCQN.length) {
+        for (let i = 0; i < whereCQN.length; i++) {
+          const clause = whereCQN[i];
 
-        /* Casos “campo op valor” directamente en el array ------------------- */
-        if (clause?.ref && CALC_FIELDS.includes(clause.ref[0])) {
-          const field = clause.ref[0];
-          const op    = whereCQN[i + 1];
-          const value = whereCQN[i + 2]?.val;
-          include = evaluate(po[field], op, value);
-          if (!include) break;
-          i += 2;          
+          if (clause?.ref && CALC_FIELDS.includes(clause.ref[0])) {
+            const field = clause.ref[0];
+            const op    = whereCQN[i + 1];
+            const value = whereCQN[i + 2]?.val;
+            include = evaluate(po[field], op, value);
+            if (!include) break;
+            i += 2;
+          }
+
+          if (clause?.xpr) {
+            for (let j = 0; j < clause.xpr.length; j++) {
+              const x = clause.xpr;
+              if (x[j]?.ref && CALC_FIELDS.includes(x[j].ref[0])) {
+                const field = x[j].ref[0];
+                const op    = x[j + 1];
+                const value = x[j + 2]?.val;
+                include = evaluate(po[field], op, value);
+                if (!include) break;
+                j += 2;
+              }
+            }
+            if (!include) break;
+          }
         }
+      }
 
-        /* Casos con xpr (UI5 suele enviar así cuando hay OR/AND) ------------ */
-        if (clause?.xpr) {
-          for (let j = 0; j < clause.xpr.length; j++) {
-            const x = clause.xpr;
-            if (x[j]?.ref && CALC_FIELDS.includes(x[j].ref[0])) {
-              const field = x[j].ref[0];
-              const op    = x[j + 1];
-              const value = x[j + 2]?.val;
-              include = evaluate(po[field], op, value);
-              if (!include) break;
-              j += 2;
+      /* ----------- B. Si no vino whereCQN usable, usar rawFilter ----------- */
+      if (include && rawFilter && CALC_FIELDS.some(f => rawFilter.includes(f))) {
+        for (const field of CALC_FIELDS) {
+          const regex = new RegExp(`${field}\\s+(eq|ne|gt|ge|lt|le)\\s+(\\d+(\\.\\d+)?)`, 'gi');
+          let match;
+          while ((match = regex.exec(rawFilter)) !== null) {
+            const [, opStr, numStr] = match;
+            const rhs = Number(numStr);
+            const lhs = po[field];
+            const op = operatorMap(opStr);
+            if (!evaluate(lhs, op, rhs)) {
+              include = false;
+              break;
             }
           }
           if (!include) break;
@@ -185,7 +205,19 @@ module.exports = cds.service.impl(async function () {
       case '>=' : return lhs >= rhs;
       case '<'  : return lhs <  rhs;
       case '<=' : return lhs <= rhs;
-      default   : return true;  
+      default   : return true;
+      }
+    }
+
+    function operatorMap(opStr) {
+      switch (opStr.toLowerCase()) {
+      case 'eq': return '=';
+      case 'ne': return '!=';
+      case 'gt': return '>';
+      case 'ge': return '>=';
+      case 'lt': return '<';
+      case 'le': return '<=';
+      default: return '=';
       }
     }
   }
@@ -193,8 +225,8 @@ module.exports = cds.service.impl(async function () {
 
   this.on('READ', 'PurchaseOrderExt', async (req) => {
     const s4Purchase = await cds.connect.to('purchaseorder_edmx');
-    const userSupplierIDs = req.user?.attr?.supplierID ?? [];   // prod
-    //const userSupplierIDs = ['31300001'];                          // tests
+    //const userSupplierIDs = req.user?.attr?.supplierID ?? [];   // prod
+    const userSupplierIDs = ['31300001'];                          // tests
 
     if (!userSupplierIDs.length)
       return req.reject(403, 'El usuario no cuenta con roles de proveedor (supplierID).');
@@ -203,8 +235,12 @@ module.exports = cds.service.impl(async function () {
       let query;
       let filteredPOs;
       const originalWhere = req.query?.SELECT?.where || [];   // ← lo usaremos al final
+      const rawFilter = req.http?.req?.query?.$filter || '';  // ← lo usaremos al final
 
-   
+      const isCount = req.query?.SELECT?.columns?.some(c => c.func === 'count');
+
+    
+
       if (req.params?.length) {
         const poNumber = req.params[0].PurchaseOrder;
         query = SELECT.from('PurchaseOrder')
@@ -215,6 +251,13 @@ module.exports = cds.service.impl(async function () {
         // Clonar para no tocar req.query
         query = cloneCQN(req.query);
 
+        const isCount = query?.SELECT?.columns?.some(c => c.func === 'count');
+
+        if (isCount) {
+          delete query.SELECT.count;
+          delete query.SELECT.columns;
+        }
+
         /* ---------- 1.1 Extraer PurchaseOrder desde el WHERE parseado ---------- */
         const parsedWhere = query.SELECT?.where || [];
         const poFromParsed = extractPOsFromCQN(parsedWhere);  // helper (ver más abajo)
@@ -222,7 +265,6 @@ module.exports = cds.service.impl(async function () {
         /* ---------- 1.2 si CAP no parseó el $filter ------------------ */
         const poFromRaw = [];
         if (!poFromParsed.length) {
-          const rawFilter = req.http?.req?.query?.$filter;   // Express query string
           if (typeof rawFilter === 'string' && rawFilter.includes('PurchaseOrder eq')) {
             const regex = /PurchaseOrder\s+eq\s+'([^']+)'/g;
             let m; while ((m = regex.exec(rawFilter)) !== null) poFromRaw.push(m[1]);
@@ -234,16 +276,14 @@ module.exports = cds.service.impl(async function () {
           ? poFromParsed
           : poFromRaw;
 
-
         /* ---------- 1.4  Inyectar filtros finales al SELECT -------------------- */
         const supplierClause = [{ ref: ['Supplier'] }, 'in', { val: userSupplierIDs }];
         query.SELECT.where = supplierClause;
-        
       }
 
       /* ------------------------------------------------------------------
-     * 2. Ejecutar en S/4
-     * ------------------------------------------------------------------ */
+    * 2. Ejecutar en S/4
+    * ------------------------------------------------------------------ */
       let poHeaders = await s4Purchase.run(query);
       if (!poHeaders.length) return poHeaders;
 
@@ -252,10 +292,9 @@ module.exports = cds.service.impl(async function () {
         poHeaders = poHeaders.filter(po => filteredPOs.includes(po.PurchaseOrder));
       }
 
-
       /* ------------------------------------------------------------------
-     * 3. Enriquecer cabeceras (items, montos, campos calculados)
-     * ------------------------------------------------------------------ */
+    * 3. Enriquecer cabeceras (items, montos, campos calculados)
+    * ------------------------------------------------------------------ */
       const poIds = poHeaders.map(p => p.PurchaseOrder);
 
       const [poItems, net, invHdr, invItem] = await Promise.all([
@@ -301,13 +340,11 @@ module.exports = cds.service.impl(async function () {
       }
 
       /* ------------------------------------------------------------------
-     * 4. Aplicar filtros locales (calculados)
-     * ------------------------------------------------------------------ */
-      // poHeaders(items, montos, etc.)
-      poHeaders = applyCalculatedFilters(poHeaders, originalWhere);
+    * 4. Aplicar filtros locales (calculados)
+    * ------------------------------------------------------------------ */
+      poHeaders = applyCalculatedFilters(poHeaders, originalWhere, rawFilter);
 
-      return poHeaders.length === 1 ? poHeaders[0] : poHeaders;
-
+      return poHeaders;
 
     } catch (err) {
       console.error('[ERROR] PurchaseOrderExt:', err);
@@ -315,27 +352,37 @@ module.exports = cds.service.impl(async function () {
     }
   });
 
+
   /* ------------------------------------------------------------------ */
   /* Helpers                                                             */
   /* ------------------------------------------------------------------ */
-  function extractPOsFromCQN(where = []) {
-    const out = [];
+  function extractPOsFromCQN(where = [], acc = []) {
+    if (!Array.isArray(where)) return acc;
 
-    for (let i = 0; i < where.length; i++) {
-      const cl = where[i];
-      if (cl?.ref?.[0] === 'PurchaseOrder' && where[i+1] === 'eq' && where[i+2]?.val) {
-        out.push(where[i+2].val);
+    for (let i = 0; i < where.length - 2; i++) {
+      const a = where[i];          // { ref: ['PurchaseOrder'] }
+      const op = where[i + 1];     // '='  | 'eq' | 'in'
+      const b = where[i + 2];      // { val: … } | { list: … }
+
+      /* patrón  PurchaseOrder {=|eq} '123' */
+      if (a?.ref?.[0] === 'PurchaseOrder' &&
+        (op === '=' || op === 'eq') &&
+        b?.val !== undefined) {
+        acc.push(b.val);
       }
-      if (cl?.xpr) {
-        const x = cl.xpr;
-        for (let j = 0; j < x.length; j++) {
-          if (x[j]?.ref?.[0] === 'PurchaseOrder' && x[j+1] === 'eq' && x[j+2]?.val)
-            out.push(x[j+2].val);
-        }
+
+      /* patrón  PurchaseOrder in (…) --------------------------------------- */
+      if (a?.ref?.[0] === 'PurchaseOrder' && op === 'in' && Array.isArray(b?.list)) {
+        acc.push(...b.list.map(v => v.val));
       }
+
+      /* recorrer sub-estructuras ------------------------------------------- */
+      if (Array.isArray(a))           extractPOsFromCQN(a, acc);
+      if (a?.xpr)                     extractPOsFromCQN(a.xpr, acc);
     }
-    return out;
+    return acc;
   }
+
 
 
 
@@ -436,6 +483,7 @@ module.exports = cds.service.impl(async function () {
       const { file, filename } = req.data;
 
       if (!file) return req.reject(400, 'Missing file');
+
       const buf = Buffer.from(file, 'base64');
 
       const result = await doxClient.uploadPdf(buf, filename || 'invoice.pdf');
