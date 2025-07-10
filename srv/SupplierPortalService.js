@@ -27,6 +27,8 @@ const handlePOWithInvoicesRead = require('./aggregates/PurchaseOrderWithInvoices
 
 const doxClient = require('./dox/dox-client');
 
+const dmsClient = require('./dms/dms-client');
+
 
 module.exports = cds.service.impl(async function () {
   // Conexiones
@@ -531,7 +533,7 @@ module.exports = cds.service.impl(async function () {
 
       return {
         status: result.status,
-        fields: result.extractedFields || null,
+        fields: result.extraction || null,
         documentId: result.documentId,
       };
     } catch (err) {
@@ -540,6 +542,30 @@ module.exports = cds.service.impl(async function () {
     }
   });
   /**************** FIN DOX **************/
+
+  /**************** DMS  *****************/
+  this.on('createFolderService', async (req) => {
+    const folderName = req.data.folderName;
+    return dmsClient.createFolder(folderName);
+  });
+  
+  this.on('uploadDocumentService', async (req) => {
+    const { folderName, name } = req.data;
+    const fileData = req.data.file;
+    return dmsClient.uploadDocument(folderName, name, fileData);
+  });
+  
+  this.on('deleteFolderService', async (req) => {
+    const { folderId } = req.data;
+    return dmsClient.deleteFolder(folderId);   
+  });
+  
+  this.on('deleteDocumentService', async (req) => {
+    const { documentId, folderName } = req.data;
+    return dmsClient.deleteDocument(documentId, folderName);
+  });
+
+  /**************** FIN DMS **************/
   
   
 });

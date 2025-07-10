@@ -403,7 +403,23 @@ service SupplierPortalService
       on _SupplierInvoices.PurchaseOrder = $self.PurchaseOrder
   }
 
+  // ----> DOX
   action uploadPdf(file: LargeBinary, filename: String) returns String;
   action checkJob(documentId: String) returns String;
+
+  // ----> DMS
+  action createFolderService(folderName: String) returns String;
+  action uploadDocumentService(folderName: String, name: String, file: LargeBinary) returns String;
+  action deleteDocumentService(documentId: String, folderName: String);
+  action deleteFolderService(folderId: String);
+  action listDocumentsService(folderId: String) returns array of AttachmentData;
+
+  type AttachmentData : {
+    objectId: String;
+    name: String;
+    contentType: String;
+    size: Integer;
+};
+
 }
 //annotate SupplierPortalService with @requires : ['Supplier'];

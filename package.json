@@ -17,7 +17,8 @@
     "@sap/cf-tools": "^3.2.2",
     "@sap/xsenv": "^3.2.0",
     "@sap/xssec": "^3.6.2",
-    "express": "^4"
+    "express": "^4",
+    "sap-cf-axios": "^1.0.2"
   },
   "devDependencies": {
     "@cap-js/cds-types": "^0.10.0",
