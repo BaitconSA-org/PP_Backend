@@ -7,106 +7,90 @@ const DESTINATION_NAME = 'DOX';
 /**
  * Sube un archivo PDF al servicio DOX.
  * @param {Buffer} buffer - Contenido del PDF como buffer.
- * @param {String} filename - Nombre del archivo (opcional).
  * @returns {Promise<Object>} - Respuesta con documentId, jobId y status.
  */
-async function uploadPdf(buffer, filename = 'invoice.pdf') {
-  const form = new FormData();
 
-  // Agregamos el archivo PDF
-  form.append('files', buffer, {
-    filename,
-    contentType: 'application/pdf',
-  });
+const _schemaCache = new Map();
+async function _getSchemaId({ baseURL, token, clientId, documentType, schemaName }) {
+  const cacheKey = `${clientId}|${documentType}|${schemaName}`;
+  if (_schemaCache.has(cacheKey)) return _schemaCache.get(cacheKey);
 
-  // Agregamos las opciones
-  form.append('options', JSON.stringify({
-    clientId: 'default',
-    documentType: 'invoice',
-    schemaId: 'c0b723c4-f54d-4bf4-b4df-b5853bfb817f',
-    schemaVersion: '1',
-  }));
+  const { data } = await axios.get(
+    `${baseURL}/document-information-extraction/v1/schemas`,
+    {
+      params  : { clientId },
+      headers : { Authorization: `Bearer ${token}` },
+      maxBodyLength: Infinity,
+    },
+  );
 
-  // Obtenemos destination desde BTP
+  const match = data.schemas?.find(
+    s => s.name === schemaName && s.documentType === documentType,
+  );
+  if (!match) throw new Error(`Schema "${schemaName}" no encontrado para ${documentType}`);
+
+  _schemaCache.set(cacheKey, match.id);
+  return match.id;
+}
+
+async function uploadPdf(
+  buffer,
+  filename,
+  {
+    clientId      = 'default',
+    documentType  = 'invoice',
+    schemaName    = 'invoice_portal',
+  } = {},
+) {
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0)
+    throw new Error('El parámetro "buffer" debe contener un PDF');
+
+  /* 1. Destination de BTP ------------------------------------------------ */
   const destination = await getDestination({ destinationName: DESTINATION_NAME });
-
-  const baseURL =
+  const baseURL     =
     destination.url !== 'https://sap.com/DUMMY_URL'
       ? destination.url
       : destination.originalProperties?.destinationConfiguration?.url;
 
-  const token = destination.authTokens?.[0]?.value;
-  const tenantId = destination.originalProperties?.uaa?.tenantid || '21d57874-d2fa-4b40-a5c3-b88d8faa197f';
+  const token     = destination.authTokens?.[0]?.value;
+  const tenantId  = destination.originalProperties?.uaa?.tenantid || '21d57874-d2fa-4b40-a5c3-b88d8faa197f';
 
-  if (!token || !baseURL) {
+  if (!token || !baseURL)
     throw new Error('No se pudo obtener token o URL del destination DOX');
-  }
 
-  // Obtenemos la longitud del form para el header Content-Length
-  const contentLength = await new Promise((resolve, reject) => {
-    form.getLength((err, length) => {
-      if (err) reject(err);
-      else resolve(length);
-    });
+  const schemaId = await _getSchemaId({
+    baseURL,
+    token,
+    clientId,
+    documentType,
+    schemaName,
   });
 
-  // Configuración del request HTTPS
-  const requestOptions = {
-    method: 'POST',
-    headers: {
-      ...form.getHeaders(),
-      'Authorization': `Bearer ${token}`,
-      'x-tenant': tenantId,
-      'Content-Length': contentLength,
-    },
-  };
+  /* 3. Construimos el multipart/form-data -------------------------------- */
+  const form = new FormData();
+  form.append('file', buffer, { filename, contentType: 'application/pdf' });
+  form.append(
+    'options',
+    JSON.stringify({ clientId, documentType, schemaId }, null, 2),
+  );
 
-  console.log(Buffer.isBuffer(buffer));             // debe ser true
-  console.log(buffer.length);                       // debe ser > 0
-  console.log(buffer.toString('utf8', 0, 4));       // debe ser '%PDF'
-  console.log('Form keys:', form.getBuffer().toString('utf8').slice(0, 500));
-
-
-
-  // Promesa para enviar el request
-  const response = await new Promise((resolve, reject) => {
-    const req = https.request(
-      `${baseURL}/document-information-extraction/v1/document/jobs`,
-      requestOptions,
-      (res) => {
-        let data = '';
-
-        res.on('data', (chunk) => {
-          data += chunk;
-        });
-
-        res.on('end', () => {
-          try {
-            const json = JSON.parse(data);
-            if (res.statusCode >= 200 && res.statusCode < 300) {
-              resolve(json);
-            } else {
-              console.error('DOX error:', res.statusCode, json);
-              reject(new Error(`DOX error ${res.statusCode}: ${json.error?.message || 'Unknown error'}`));
-            }
-          } catch (e) {
-            reject(new Error('Error parsing DOX response'));
-          }
-        });
+  /* 4. Enviamos ----------------------------------------------------------- */
+  const { data } = await axios.post(
+    `${baseURL}/document-information-extraction/v1/document/jobs`,
+    form,
+    {
+      headers: {
+        ...form.getHeaders(),
+        Authorization: `Bearer ${token}`,
+        'x-tenant': tenantId,
       },
-    );
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+    },
+  );
 
-    req.on('error', (err) => {
-      reject(err);
-    });
-
-    // Enviamos el contenido del form
-    form.pipe(req);
-  });
-
-  return response;
+  return data; // -> { id, status:'PENDING' | 'DONE', ... }
 }
-
 
 /**
  * Consulta el estado del procesamiento DOX.
@@ -115,7 +99,6 @@ async function uploadPdf(buffer, filename = 'invoice.pdf') {
  */
 async function getJobStatus(documentId) {
   const destination = await getDestination({ destinationName: DESTINATION_NAME });
-  
   const baseURL =
   destination.url !== 'https://sap.com/DUMMY_URL'
     ? destination.url
@@ -126,7 +109,6 @@ async function getJobStatus(documentId) {
   }
 
   const token = destination.authTokens[0].value;
-
   const response = await axios.get(
     `${baseURL}/document-information-extraction/v1/document/jobs/${documentId}`,
     {
@@ -135,7 +117,6 @@ async function getJobStatus(documentId) {
       },
     },
   );
-
   return response.data;
 }
 

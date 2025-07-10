@@ -1,4 +1,7 @@
 const cds = require('@sap/cds');
+const fs = require('fs');
+
+const path = require('path');
 
 
 const {
@@ -500,13 +503,12 @@ module.exports = cds.service.impl(async function () {
 
       if (!file) return req.reject(400, 'Missing file');
       const buf = Buffer.from(file, 'base64');
-
       const result = await doxClient.uploadPdf(buf, filename || 'invoice.pdf');
 
       // Opcional: guardar documentId/jobId en una tabla local si querés
       return {
-        documentId: result.documentId,
-        jobId: result.jobId,
+        processedTime: result.processedTime,
+        documentId: result.id,
         status: result.status,
       };
     } catch (err) {
