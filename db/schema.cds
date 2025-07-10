@@ -13,7 +13,7 @@ entity Suppliers : cuid {
   users           : Association to many SupplierUsers on users.supplier = $self;
   products        : Association to many Products on products.supplier = $self;
   //purchaseOrders  : Association to many PurchaseOrders on purchaseOrders.supplier = $self;
-  invoices        : Association to many Invoices on invoices.supplier = $self;
+  //invoices        : Association to many Invoices on invoices.supplier = $self;
   contracts       : Association to many Contracts on contracts.supplier = $self;
   evaluations     : Association to many SupplierEvaluations on evaluations.supplier = $self;
   documents       : Association to many SupplierDocuments on documents.supplier = $self;
@@ -50,41 +50,48 @@ entity Products : cuid {
 }
 
 entity Invoices : cuid {
-  invoiceNumber                 : String(50);
-  supplier                      : Association to Suppliers;
-  purchaseOrderID               : String(10);         // FK a PurchaseOrderExt
   documentDate                  : Date;               // tu invoiceDate
   postingDate                   : Date;               // PostingDate
   supplierInvoiceIDByInvcgParty : String(50);         // ID de factura S/4
   totalAmount                   : Decimal(15,2);      // InvoiceGrossAmount
   supplierInvoiceStatus         : String(1);          // E, A, A, R…
   taxIsCalculatedAutomatically  : Boolean;
-  invoiceReceiptDate            : Date;
-  fiscalYear                    : String(4);          // Año fiscal
-  currency                      : Currency;
-  files                         : Association to many InvoiceAttachments on files.invoice = $self;
+  InvoiceReceiptDate            : Date;               // Fecha de recepción de la factura
+  purchaseOrderID               : String(10);         // FK a PurchaseOrderExt
+  supplierInvoice               : String(20);         // FK a SupplierInvoiceExt
+  fiscalYear                    : String(4);          // FK a SupplierInvoiceExt
+  status                        : Association to InvoiceStatus;
+  invoiceItems                  : Composition of many InvoiceItems on invoiceItems.invoice = $self;                // Ítems de la factura
+  invoiceTaxes                  : Composition of many InvoiceTaxes on invoiceTaxes.invoice = $self;                // Impuestos de la factura
+  // files                         : Association to many InvoiceAttachments on files.invoice = $self;
+}
+
+entity InvoiceStatus : cuid {
+  key statusCode  : String(1);                 // Código del estado: B-Borrador, E-Enviada, A-Aprobada, R-Rechazada
+  description     : String(100);               // Descripción del estado
+  color           : String(20);
 }
 
 entity InvoiceItems : cuid {
-  invoice                     : Association to Invoices;
-  invoiceItem                 : String(10);       // Identificador del ítem de la factura
-  PurchaseOrder               : String(20);       // guarda PurchaseOrdersExt
-  PurchaseOrderItem           : String(20);       // guarda PurchaseOrderItemExt
-  TaxCode                     : String(10);       // Código del impuesto (ej: IVA)
-  SupplierInvoiceItemAmmount  : Decimal(15,2);    // Importe del ítem de la factura
-  SupplierInvoiceItemQuantity : Decimal(13,3);    // Cantidad del ítem de
+  key invoice                 : Association to Invoices;
+  key invoiceItem             : String(10);       // Identificador del ítem de la factura
+  purchaseOrder               : String(20);       // FK a PurchaseOrderItemExt
+  purchaseOrderItem           : String(20);       // FK a PurchaseOrderItemExt
+  taxCode                     : String(10);       // Código del impuesto (ej: IVA)
+  supplierInvoiceItemQuantity : Decimal(13,3);    // Cantidad del ítem de
+  supplierInvoiceItemAmmount  : Decimal(15,2);    // Importe del ítem de la factura
   inventoryValuationType      : String(20);       // Tipo de valoración de inventario (ej: FIFO, LIFO)
-  TaxAmount                   : Decimal(15,2);    // Importe del impuesto aplicado
-  TaxBaseAmountInTransCrcy    : Decimal(15,2);    // Base imponible del impuesto en la moneda de transacción
-  TaxCountry                  : String(3);        // País del impuesto (ej: ARG)
+  taxAmount                   : Decimal(15,2);    // Importe del impuesto aplicado
+  taxBaseAmountInTransCrcy    : Decimal(15,2);    // Base imponible del impuesto en la moneda de transacción
+  taxCountry                  : String(3);        // País del impuesto (ej: ARG)
 }
 
-entity invoiceTaxes : cuid {
-  Invoice                     : Association to Invoices;
-  TaxCode                     : String(10);        // Código del impuesto (ej: IVA)
-  TaxAmount                   : Decimal(15,2);     // Importe del impuesto aplicado
-  TaxBaseAmountInTransCrcy    : Decimal(15,2);     // Base imponible del impuesto en la moneda de transacción
-  TaxCountry                  : String(3);         // País del impuesto (ej: ARG)
+entity InvoiceTaxes : cuid {
+  invoice                     : Association to Invoices;
+  taxCode                     : String(10);        // Código del impuesto (ej: IVA)
+  taxAmount                   : Decimal(15,2);     // Importe del impuesto aplicado
+  taxBaseAmountInTransCrcy    : Decimal(15,2);     // Base imponible del impuesto en la moneda de transacción
+  taxCountry                  : String(3);         // País del impuesto (ej: ARG)
 }
 
 entity InvoiceAttachments : cuid {
