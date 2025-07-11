@@ -1,10 +1,11 @@
+/* eslint-disable no-console */
 const SapCfAxios = require('sap-cf-axios').default;
 const FormData = require('form-data');
-const destinationName = 'baitcon-exia-dms-repo';
+const destinationName = 'DMS_PP';
 const dmsDestination = SapCfAxios(destinationName);
 const axios = require('axios');
 
-const createFolder = async (folderName) => {
+const createFolder = async (folderName, relativePath = '') => {
   const oForm = new FormData();
 
   oForm.append('cmisaction', 'createFolder');
@@ -15,10 +16,11 @@ const createFolder = async (folderName) => {
   oForm.append('succinct', 'true'); 
 
   try {
+    const targetPath = relativePath ? `/root/${relativePath}` : '/root';
     const config = {
       method: 'post',
       maxBodyLength: Infinity,
-      url: '/root',
+      url: targetPath,
       headers: {
         ...oForm.getHeaders(),
       },
@@ -27,10 +29,11 @@ const createFolder = async (folderName) => {
     const response = await dmsDestination(config);
     return response.data; 
   } catch (error) {
-    console.error('Error al crear la carpeta:', error);
+    console.error(`Error al crear la carpeta '${folderName}' en '${relativePath}':`, error.message);
     throw error;
   }
 };
+
 
 const uploadDocument = async (folderName, name, fileData) => {
   const oForm = new FormData();
@@ -131,4 +134,32 @@ const getDocument = async (folderName, documentName) => {
   }
 };
 
-module.exports = { createFolder, uploadDocument, deleteFolder, deleteDocument, getDocument };
+const listarDocumentosEnCarpeta = async (relativePath = '') => {
+  try {
+    const response = await dmsDestination.get(`/root/${relativePath}?succinct=true`);
+    const objetos = response.data.objects ?? [];
+
+    const documentos = objetos
+      .filter(obj =>
+        obj?.object?.succinctProperties?.['cmis:baseTypeId'] === 'cmis:document',
+      )
+      .map(obj => {
+        const props = obj.object.succinctProperties;
+        return {
+          name         : props['cmis:name'] || '',
+          objectId     : props['cmis:objectId'] || '',
+          mimeType     : props['cmis:contentStreamMimeType'] || '',
+          createdBy    : props['cmis:createdBy'] || '',
+          creationDate : props['cmis:creationDate'] || '',
+        };
+      });
+
+    return documentos;
+  } catch (error) {
+    console.error(`[listarDocumentosEnCarpeta] ${error.message}`);
+    throw error;
+  }
+};
+
+
+module.exports = { createFolder, uploadDocument, deleteFolder, deleteDocument, getDocument, listarDocumentosEnCarpeta };

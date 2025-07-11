@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 const cds = require('@sap/cds');
 const fs = require('fs');
 
@@ -28,6 +29,9 @@ const handlePOWithInvoicesRead = require('./aggregates/PurchaseOrderWithInvoices
 const doxClient = require('./dox/dox-client');
 
 const dmsClient = require('./dms/dms-client');
+
+const { handleUploadPdf } = require('./dox/dox-functions');
+
 
 
 module.exports = cds.service.impl(async function () {
@@ -276,8 +280,8 @@ module.exports = cds.service.impl(async function () {
 
   this.on('READ', 'PurchaseOrderExt', async (req) => {
     const s4Purchase = await cds.connect.to('purchaseorder_edmx');
-    //const userSupplierIDs = ['31300001'];
-    const userSupplierIDs = req.user?.attr?.supplierID;
+    const userSupplierIDs = ['31300001'];
+    //const userSupplierIDs = req.user?.attr?.supplierID;
 
     if (!userSupplierIDs.length)
       return req.reject(403, 'El usuario no cuenta con roles de proveedor');
@@ -324,51 +328,72 @@ module.exports = cds.service.impl(async function () {
       poHeaders = poHeaders.filter(po => filteredPOs.includes(po.PurchaseOrder));
 
     /* ------------------------------------------------------------------
-     * 3. Enriquecer cabeceras (items, montos, campos calculados)
-     * ------------------------------------------------------------------ */
+ * 3. Enriquecer cabeceras (items, montos, campos calculados)
+ * ------------------------------------------------------------------ */
     const poIds = poHeaders.map(p => p.PurchaseOrder);
 
-    const [poItems, net, invHdr, invItem] = await Promise.all([
+    // 1. Obtener datos en paralelo
+    const [poItems, invoiceItemsRef, netAmounts, invoiceHeaders, invoiceItems] = await Promise.all([
       s4Purchase.run(SELECT.from('PurchaseOrderItem').where({ PurchaseOrder: { in: poIds } })),
+      s4Invoices.run(SELECT.from('A_SuplrInvcItemPurOrdRef').where({ PurchaseOrder: { in: poIds } })),
       handleNetAmountRead(poIds),
       handleSupplierInvoiceAmountRead(poIds),
       handleItemSupplierInvoiceAmountRead(poIds),
     ]);
 
-    const netByPO  = Object.fromEntries(net.map(r => [r.PurchaseOrder, r.NetAmount]));
-    const invByPO  = Object.fromEntries(invHdr.map(r => [r.PurchaseOrder, r.SupplierInvoiceAmount]));
-    const invByKey = Object.fromEntries(
-      invItem.map(r => [`${r.PurchaseOrder}-${r.PurchaseOrderItem}`, r.SupplierInvoiceItemAmount]),
-    );
+    // 2. Mapear datos por clave
+    const netByPO  = Object.fromEntries(netAmounts.map(r => [r.PurchaseOrder, r.NetAmount]));
+    const invByPO  = Object.fromEntries(invoiceHeaders.map(r => [r.PurchaseOrder, r.SupplierInvoiceAmount]));
+    const invByKey = Object.fromEntries(invoiceItems.map(r =>
+      [`${r.PurchaseOrder}-${r.PurchaseOrderItem}`, r.SupplierInvoiceItemAmount],
+    ));
 
-    const itemsByPO = {};
-    for (const it of poItems) {
-      it.SupplierInvoiceItemAmount = invByKey[`${it.PurchaseOrder}-${it.PurchaseOrderItem}`] || 0;
-      it.UnitPrice = it.NetPriceQuantity
-        ? Number((it.NetPriceAmount / it.NetPriceQuantity).toFixed(2))
-        : 0;
-      (itemsByPO[it.PurchaseOrder] ||= []).push(it);
+    // 3. Mapear cantidad facturada por ítem
+    const invQtyByKey = {};
+    for (const item of invoiceItemsRef) {
+      const key = `${item.PurchaseOrder}-${item.PurchaseOrderItem}`;
+      const qty = item.QuantityInPurchaseOrderUnit;
+      invQtyByKey[key] = (invQtyByKey[key] || 0) + (qty ? parseFloat(qty) : 0);
     }
 
-    for (const po of poHeaders) {
-      const items = itemsByPO[po.PurchaseOrder] || [];
-      po._PurchaseOrderItem         = items;
-      po.NetAmountTotal             = netByPO[po.PurchaseOrder] || 0;
-      po.SupplierInvoiceAmountTotal = invByPO[po.PurchaseOrder] || 0;
+    // 4. Agrupar ítems por orden y enriquecer
+    const itemsByPO = {};
+    for (const item of poItems) {
+      const key = `${item.PurchaseOrder}-${item.PurchaseOrderItem}`;
+      item.SupplierInvoiceItemAmount = invByKey[key] || 0;
+      item.QuantityInPurchaseOrderUnit = invQtyByKey[key] || 0;
 
-      const ttlNet = items.reduce((a,i)=>a + (i.NetPriceAmount  ||0),0);
-      const ttlQty = items.reduce((a,i)=>a + (i.NetPriceQuantity||0),0);
-      po.UnitPrice = ttlQty ? Number((ttlNet/ttlQty).toFixed(2)) : 0;
+      item.UnitPrice = item.NetPriceQuantity
+        ? Number((item.NetPriceAmount / item.NetPriceQuantity).toFixed(2))
+        : 0;
 
-      if (po.NetAmountTotal) {
-        po.InvoicePercent     = Math.round(po.SupplierInvoiceAmountTotal / po.NetAmountTotal * 100);
-        po.InvoiceStatusColor = po.InvoicePercent < 25 ? 1
-          : (po.InvoicePercent <= 75 ? 2 : 3);
+      (itemsByPO[item.PurchaseOrder] ||= []).push(item);
+    }
+
+    // 5. Enriquecer cabeceras
+    for (const header of poHeaders) {
+      const items = itemsByPO[header.PurchaseOrder] || [];
+      header._PurchaseOrderItem         = items;
+      header.NetAmountTotal             = netByPO[header.PurchaseOrder] || 0;
+      header.SupplierInvoiceAmountTotal = invByPO[header.PurchaseOrder] || 0;
+
+      const totalNet = items.reduce((sum, i) => sum + (i.NetPriceAmount || 0), 0);
+      const totalQty = items.reduce((sum, i) => sum + (i.NetPriceQuantity || 0), 0);
+
+      header.UnitPrice = totalQty ? Number((totalNet / totalQty).toFixed(2)) : 0;
+
+      if (header.NetAmountTotal) {
+        header.InvoicePercent = Math.round(
+          (header.SupplierInvoiceAmountTotal / header.NetAmountTotal) * 100,
+        );
+        header.InvoiceStatusColor = header.InvoicePercent < 25 ? 1
+          : (header.InvoicePercent <= 75 ? 2 : 3);
       } else {
-        po.InvoicePercent     = 0;
-        po.InvoiceStatusColor = 1;
+        header.InvoicePercent = 0;
+        header.InvoiceStatusColor = 1;
       }
     }
+
 
     poHeaders = applyCalculatedFilters(poHeaders, originalWhere, rawFilter);
 
@@ -499,25 +524,8 @@ module.exports = cds.service.impl(async function () {
    * Acción: uploadPdf
    * Recibe el archivo PDF como base64 y lo sube al servicio DOX
    */
-  this.on('uploadPdf', async (req) => {
-    try {
-      const { file, filename } = req.data;
+  this.on('uploadPdf', handleUploadPdf);
 
-      if (!file) return req.reject(400, 'Missing file');
-      const buf = Buffer.from(file, 'base64');
-      const result = await doxClient.uploadPdf(buf, filename || 'invoice.pdf');
-
-      // Opcional: guardar documentId/jobId en una tabla local si querés
-      return {
-        processedTime: result.processedTime,
-        documentId: result.id,
-        status: result.status,
-      };
-    } catch (err) {
-      console.error('[uploadPdf] Error:', err.message);
-      return req.reject(500, 'Error uploading PDF to DOX');
-    }
-  });
 
   /**
    * Acción: checkJob
@@ -544,11 +552,6 @@ module.exports = cds.service.impl(async function () {
   /**************** FIN DOX **************/
 
   /**************** DMS  *****************/
-  this.on('createFolderService', async (req) => {
-    const folderName = req.data.folderName;
-    return dmsClient.createFolder(folderName);
-  });
-  
   this.on('uploadDocumentService', async (req) => {
     const { folderName, name } = req.data;
     const fileData = req.data.file;
@@ -564,6 +567,12 @@ module.exports = cds.service.impl(async function () {
     const { documentId, folderName } = req.data;
     return dmsClient.deleteDocument(documentId, folderName);
   });
+
+  this.on('getFoldersService', async (req) => {
+    const { relativePath } = req.data || {};
+    return dmsClient.listarDocumentosEnCarpeta(relativePath);
+  });
+
 
   /**************** FIN DMS **************/
   

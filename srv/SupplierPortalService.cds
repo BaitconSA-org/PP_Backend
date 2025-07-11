@@ -317,6 +317,7 @@ service SupplierPortalService
         poi.StockSegment,
         poi.SAP__Messages,
         cast(null as Decimal(15,2)) as SupplierInvoiceItemAmount,
+        cast(null as Decimal(15,2)) as QuantityInPurchaseOrderUnit,
         cast(null as Decimal(15,2)) as UnitPrice,
 
         _InvoiceItems: Association to many SupplierInvoiceItemExt
@@ -404,7 +405,12 @@ service SupplierPortalService
   }
 
   // ----> DOX
-  action uploadPdf(file: LargeBinary, filename: String) returns String;
+  action uploadPdf(
+    supplierId       : String(20),
+    purchaseOrderId  : String(20),
+    file             : LargeBinary,
+    filename         : String) returns String;
+    
   action checkJob(documentId: String) returns String;
 
   // ----> DMS
@@ -413,6 +419,14 @@ service SupplierPortalService
   action deleteDocumentService(documentId: String, folderName: String);
   action deleteFolderService(folderId: String);
   action listDocumentsService(folderId: String) returns array of AttachmentData;
+  action getFoldersService(relativePath: String) returns array of Folders;
+
+  type Folders : {
+    name         : String;
+    objectId     : String;
+    createdBy    : String;
+    creationDate : String;
+  };
 
   type AttachmentData : {
     objectId: String;
