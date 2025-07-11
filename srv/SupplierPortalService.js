@@ -280,8 +280,8 @@ module.exports = cds.service.impl(async function () {
 
   this.on('READ', 'PurchaseOrderExt', async (req) => {
     const s4Purchase = await cds.connect.to('purchaseorder_edmx');
-    const userSupplierIDs = ['31300001'];
-    //const userSupplierIDs = req.user?.attr?.supplierID;
+    //const userSupplierIDs = ['31300001'];
+    const userSupplierIDs = req.user?.attr?.supplierID;
 
     if (!userSupplierIDs.length)
       return req.reject(403, 'El usuario no cuenta con roles de proveedor');
