@@ -61,8 +61,8 @@ entity Invoices : cuid {
   supplierInvoice               : String(20);         // FK a SupplierInvoiceExt
   fiscalYear                    : String(4);          // FK a SupplierInvoiceExt
   status                        : Association to InvoiceStatus;
-  invoiceItems                  : Composition of many InvoiceItems on invoiceItems.invoice = $self;                // Ítems de la factura
-  invoiceTaxes                  : Composition of many InvoiceTaxes on invoiceTaxes.invoice = $self;                // Impuestos de la factura
+  invoiceItems                  : Composition of many InvoiceItems on invoiceItems.invoice = $self; // Ítems de la factura
+  invoiceTaxes                  : Composition of many InvoiceTaxes on invoiceTaxes.invoice = $self; // Impuestos de la factura
   // files                         : Association to many InvoiceAttachments on files.invoice = $self;
 }
 
