@@ -1,7 +1,6 @@
+const cds = require('@sap/cds');
 const { getDestination } = require('@sap-cloud-sdk/connectivity');
-
 const axios = require('axios');
-
 const DESTINATION_NAME = 'SBPA';
 
 /**
@@ -24,7 +23,7 @@ async function triggerWorkflowInstance(req, context, definitionId) {
 
   const payload = {
     definitionId,    // ID del workflow definido en SBPA
-    context,         // Contexto que se pasará al workflow como input
+    context,         
   };
 
   const response = await axios.post(
@@ -37,6 +36,20 @@ async function triggerWorkflowInstance(req, context, definitionId) {
         'irpa-api-key': 'f3HRS8Si3htALNDeLenGytvfsEtLd2on',
       },
     },
+  );
+
+  const workflowInstanceId = response.data?.instanceId;
+
+  const invoiceId = null;
+  // Persistir en CAP
+  const db = cds.transaction(req); // Asegura la transacción dentro del contexto CAP
+  await db.run(
+    UPDATE('Invoices')
+      .set({
+        status: 'E',
+        workflowInstanceId: workflowInstanceId,
+      })
+      .where({ ID: invoiceId }), // Usa tu clave primaria real
   );
 
   return response.data; // Retorna info de la instancia creada

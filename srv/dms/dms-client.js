@@ -9,14 +9,15 @@ const createFolder = async (folderName, relativePath = '') => {
   const oForm = new FormData();
 
   oForm.append('cmisaction', 'createFolder');
-  oForm.append('propertyId[0]', 'cmis:name'); 
-  oForm.append('propertyValue[0]', folderName); 
+  oForm.append('propertyId[0]', 'cmis:name');
+  oForm.append('propertyValue[0]', folderName);
   oForm.append('propertyId[1]', 'cmis:objectTypeId');
-  oForm.append('propertyValue[1]', 'cmis:folder'); 
-  oForm.append('succinct', 'true'); 
+  oForm.append('propertyValue[1]', 'cmis:folder');
+  oForm.append('succinct', 'true');
 
   try {
     const targetPath = relativePath ? `/root/${relativePath}` : '/root';
+
     const config = {
       method: 'post',
       maxBodyLength: Infinity,
@@ -26,30 +27,39 @@ const createFolder = async (folderName, relativePath = '') => {
       },
       data: oForm,
     };
+
     const response = await dmsDestination(config);
-    return response.data; 
+    return response.data;
+
   } catch (error) {
+    // Manejar caso cuando ya existe (409)
+    if (error.response?.status === 409) {
+      console.warn(`La carpeta '${folderName}' ya existe en '${relativePath}', se continúa.`);
+      return; // continuar sin lanzar el error
+    }
+
     console.error(`Error al crear la carpeta '${folderName}' en '${relativePath}':`, error.message);
     throw error;
   }
 };
 
 
-const uploadDocument = async (folderName, name, fileData) => {
+
+const uploadDocument = async (relativePath, name, fileData) => {
   const oForm = new FormData();
 
   oForm.append('cmisaction', 'createDocument');
-  oForm.append('propertyId[0]', 'cmis:name'); 
+  oForm.append('propertyId[0]', 'cmis:name');
   oForm.append('propertyId[1]', 'cmis:objectTypeId');
-  oForm.append('propertyValue[1]', 'cmis:document'); 
+  oForm.append('propertyValue[1]', 'cmis:document');
   oForm.append('succinct', 'true');
 
   const CRLF = '\r\n';
   const formOptions = {
     header:
-                '--' + oForm.getBoundary() + CRLF +
-                'Content-Disposition: form-data; name="propertyValue[0]"' + CRLF +
-                'Content-Type: text/plain;charset=UTF-8' + CRLF + CRLF,
+      '--' + oForm.getBoundary() + CRLF +
+      'Content-Disposition: form-data; name="propertyValue[0]"' + CRLF +
+      'Content-Type: text/plain;charset=UTF-8' + CRLF + CRLF,
   };
   oForm.append('propertyValue[0]', name, formOptions);
 
@@ -57,30 +67,55 @@ const uploadDocument = async (folderName, name, fileData) => {
 
   const fileOptions = {
     header:
-                '--' + oForm.getBoundary() + CRLF +
-                'Content-Disposition: form-data; name="file"; filename*=UTF-8' + CRLF +
-                'Content-Type: Binary' + CRLF + CRLF,
+      '--' + oForm.getBoundary() + CRLF +
+      'Content-Disposition: form-data; name="file"; filename*=UTF-8' + CRLF +
+      'Content-Type: Binary' + CRLF + CRLF,
   };
   oForm.append('file', buffer, fileOptions);
 
   const data = oForm.getBuffer();
+  const fullPath = relativePath ? `/root/${relativePath}/` : '/root/';
 
   try {
+    //Buscar si ya existe un documento con el mismo nombre
+    const existing = await dmsDestination({
+      method: 'get',
+      url: fullPath,
+      headers: { Accept: 'application/json' },
+    });
+
+    const existingDoc = (existing.data?.objects || []).find(
+      entry => entry.object?.properties?.['cmis:name'].value === name,
+    );
+    if (existingDoc) {
+      const fullObjectId = existingDoc.object.properties['cmis:objectId'].value;
+      const objectId = fullObjectId.split('@')[0]; // ⚠️ Eliminar versión si es necesario
+
+      console.warn(`[uploadDocument] Documento ya existe en '${relativePath}'. Eliminando: ${objectId}`);
+
+      await deleteObject(objectId, 'delete', relativePath);
+    }
+
+    // ② Subir nuevo documento
     const config = {
       method: 'post',
-      url: `/root/${folderName}/`,
+      url: fullPath,
       headers: {
         ...oForm.getHeaders(),
       },
-      data: data,
+      data,
     };
+
     const response = await dmsDestination(config);
-    return response.data; 
+    return response.data;
+
   } catch (error) {
-    console.error('Error al subir el Documento:', error);
+    console.error('Error al subir el Documento:', error.message);
     throw error;
   }
 };
+
+
 
 const deleteObject = async (objectId, type, relativePath = '') => {
   const oForm = new FormData();
