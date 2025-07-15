@@ -1,10 +1,8 @@
 const cds = require('@sap/cds');
 const { SELECT } = cds.ql; 
 
-async function handleInvoiceRead(req, s4Purchase) {
+async function handleInvoiceRead(req, srv) {
   //const s4Purchase = await cds.connect.to('purchaseorder_edmx');
-  // Implementar POST a la entidad Invoices y despues ir armando de a poco la navegacion
-  //    hacia purchaseOrdersExt.
   // aca va la validacion de roles
   try {
     const tx        = cds.transaction(req);
@@ -12,8 +10,8 @@ async function handleInvoiceRead(req, s4Purchase) {
     if (!invoices.length) return invoices;
 
     const poIds     = invoices.map(inv => inv.purchaseOrderID);
-    const poHeaders = await s4Purchase.run(
-      SELECT.from('PurchaseOrder')
+    const poHeaders = await srv.run(
+      SELECT.from('PurchaseOrderExt')
         .where({ PurchaseOrder: { in: poIds } }),
     );
 
@@ -30,40 +28,82 @@ async function handleInvoiceRead(req, s4Purchase) {
 
     return req.params?.length === 1 ? invoices[0] : invoices;
 
-  } catch {
+  } catch (err) {
+    console.error('[ERROR] handleInvoiceRead:', err);
     return req.reject(500, 'Error al leer órdenes de compra');
   }
 }
 
-async function handleInvoiceItemsRead(req, s4Purchase) {
-  const tx     = cds.transaction(req);
-  const items  = await tx.run(req.query);
-  if (!items.length) return items;
+async function handleInvoiceItemsRead(req, srv) {
+  try {
+    const tx     = cds.transaction(req);
+    const items  = await tx.run(req.query);
+    if (!items.length) return items;
 
-  // Claves compuestas
-  const keys  = items.map(i => ({
-    PurchaseOrder:     i.purchaseOrder,
-    PurchaseOrderItem: i.purchaseOrderItem,
-  }));
+    const unique = new Map();
+    for (const { purchaseOrder, purchaseOrderItem } of items) {
+      if (purchaseOrder && purchaseOrderItem) {
+        const key = `${purchaseOrder}-${purchaseOrderItem}`;
+        if (!unique.has(key)) {
+          unique.set(key, { 
+            PurchaseOrder: purchaseOrder, 
+            PurchaseOrderItem: purchaseOrderItem, 
+          });
+        }
+      }
+    }
+    const keys = Array.from(unique.values());
+    if (!keys.length) return items;
 
-  // PO items
-  const poItems = await s4Purchase.run(
-    SELECT.from('PurchaseOrderItem')
-      .where({ or: keys }),
-  );
+    // 3) Hago una sola llamada remota con un OR filter
+    const poItems = await srv.run(
+      SELECT
+        .from('PurchaseOrderItemExt')
+        .where(keys),
+    );
 
-  // mapeo { "PO-Item" → registro PO item }
-  const poItemMap = poItems.reduce((m, pi) => {
-    m[`${pi.PurchaseOrder}-${pi.PurchaseOrderItem}`] = pi;
-    return m;
-  }, {});
+    // 4) Mapeo y enriquezco
+    const poMap = poItems.reduce((m, pi) => {
+      m[`${pi.PurchaseOrder}-${pi.PurchaseOrderItem}`] = pi;
+      return m;
+    }, {});
+    items.forEach(i => {
+      const key = `${i.purchaseOrder}-${i.purchaseOrderItem}`;
+      i.toPurchaseOrderItem = poMap[key] || null;
+    });
 
-  items.forEach(i => {
-    const mapKey = `${i.purchaseOrder}-${i.purchaseOrderItem}`;
-    i.toPurchaseOrderItem = poItemMap[mapKey] || null;
-  });
+    return req.params?.length === 1 ? items[0] : items;
+    
+  } catch (err) {
+    console.error('[ERROR] handleInvoiceItemsRead:', err);
+    return req.reject(500, 'Error al leer items de órdenes de compra');
+  }
 
-  return req.params?.length === 1 ? items[0] : items;
 }
+
+/**
+ * 
+ * @param {*} invoices 
+ * @param {*} req 
+ * @param {*} srv 
+ * @returns 
+async function handleInvoiceAfterRead(invoices, req, srv) {
+  if (!invoices) return invoices;
+  const list = Array.isArray(invoices) ? invoices : [invoices];
+  const tx   = cds.transaction(req);
+
+  const poIds = list.map(inv => inv.purchaseOrderID).filter(x=>x);
+  if (poIds.length) {
+    const poHeaders = await srv.run(
+      SELECT.from('PurchaseOrderExt').where({ PurchaseOrder:{ in: poIds } }),
+    );
+    const poMap = Object.fromEntries(poHeaders.map(po => [po.PurchaseOrder,po]));
+    list.forEach(inv => {
+      inv.toPurchaseOrder = poMap[inv.purchaseOrderID] || null;
+    });
+  }
+  return invoices;
+}
+ */
 
 module.exports = { handleInvoiceRead, handleInvoiceItemsRead };

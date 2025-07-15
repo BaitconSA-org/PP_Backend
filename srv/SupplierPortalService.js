@@ -430,9 +430,9 @@ module.exports = cds.service.impl(async function () {
   this.on('READ', 'PurchaseOrderSupplierInvoices', req => handlePurchaseOrderSupplierInvRead(req, s4Invoices));
 
   /********************************************/
-  this.on('READ', 'Invoices', (req) => handleInvoiceRead(req, s4Purchase));
+  this.on('READ', 'Invoices', (req) => handleInvoiceRead(req, this));
 
-  this.on('READ', 'InvoiceItems', (req) => handleInvoiceItemsRead(req, s4Purchase));
+  this.on('READ', 'InvoiceItems', (req) => handleInvoiceItemsRead(req, this));
 
   /**
    * DOX
