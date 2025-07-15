@@ -435,5 +435,20 @@ service SupplierPortalService
     size: Integer;
 };
 
+// --> WORKFLOW
+action startWorkflow(
+    context: LargeString,
+    definitionId: String
+  ) returns WorkflowResponse;
+
+
+type WorkflowResponse {
+  status: String;
+  instanceId: String;
+  workflowDefinitionId: String;
+}
+// FIN --> WORKFLOW
+
+
 }
 //annotate SupplierPortalService with @requires : ['Supplier'];

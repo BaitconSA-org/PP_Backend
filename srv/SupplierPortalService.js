@@ -32,6 +32,9 @@ const dmsClient = require('./dms/dms-client');
 
 const { handleUploadPdf } = require('./dox/dox-functions');
 
+const { handleStartWorkflow } = require('./workflow/workflow-functions');
+
+
 
 
 module.exports = cds.service.impl(async function () {
@@ -572,9 +575,16 @@ module.exports = cds.service.impl(async function () {
     const { relativePath } = req.data || {};
     return dmsClient.listarDocumentosEnCarpeta(relativePath);
   });
+  /**************** FIN DMS ****************/
 
 
-  /**************** FIN DMS **************/
-  
+  /**
+   * WORKFLOW
+   * Acción: startWorkflow
+   * Recibe el contexto y definitionID
+   */
+  this.on('startWorkflow', req => handleStartWorkflow(req));
+
+  /**************** FIN WORKFLOW ***********/
   
 });
