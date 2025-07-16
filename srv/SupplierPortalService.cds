@@ -61,7 +61,7 @@ service SupplierPortalService
       and toSupplierInvoice.FiscalYear = fiscalYear
     }
 
-    entity InvoiceItems         as projection on supplierPortalGD.InvoiceItems {
+    entity InvoiceItems           as projection on supplierPortalGD.InvoiceItems {
         *,
         // asociación a PurchaseOrderItemExt
         toPurchaseOrderItem : Association to PurchaseOrderItemExt
@@ -75,7 +75,7 @@ service SupplierPortalService
 
     @cds.redirection.target
     @readonly
-        entity PurchaseOrderExt as select from ext.PurchaseOrder as po {
+        entity PurchaseOrderExt   as select from ext.PurchaseOrder as po {
         key po.PurchaseOrder,
         po.PurchaseOrderType,
         po.PurchaseOrderSubtype,

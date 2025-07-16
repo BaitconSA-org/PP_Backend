@@ -1,30 +1,42 @@
 const cds = require('@sap/cds');
 const { SELECT } = cds.ql; 
 
-async function handleInvoiceRead(req, srv) {
-  //const s4Purchase = await cds.connect.to('purchaseorder_edmx');
-  // aca va la validacion de roles
+async function handleInvoiceRead(req) {
   try {
     const tx        = cds.transaction(req);
-    const invoices  = await tx.run(req.query);
-    if (!invoices.length) return invoices;
+    let invoices  = await tx.run(req.query);
+    
+    if (!invoices) return null;
 
-    const poIds     = invoices.map(inv => inv.purchaseOrderID);
-    const poHeaders = await srv.run(
-      SELECT.from('PurchaseOrderExt')
+    const isArray = Array.isArray(invoices);
+    if (!isArray) invoices = [invoices];
+
+    if (!invoices.length) return isArray ? [] : null;
+
+    const poIds = invoices.map(inv => inv.purchaseOrderID);
+
+    const s4 = await cds.connect.to('purchaseorder_edmx');
+
+    const poHeaders = await s4.run(
+      SELECT.from('ext.PurchaseOrder')
         .where({ PurchaseOrder: { in: poIds } }),
     );
 
-    // mapeo { PO_ID → encabezado }
     const poMap = poHeaders.reduce((m, po) => {
-      m[po.PurchaseOrder] = po;
+      const key = `${po.PurchaseOrder}`;
+      m[key] = po;
       return m;
     }, {});
 
-    // Navegacion
-    invoices.forEach(inv => {
-      inv.toPurchaseOrder = poMap[ inv.purchaseOrderID ] || null;
+    invoices.forEach(i => {
+      if (Array.isArray(i.invoiceItems) && i.invoiceItems.length > 0) {
+        i.invoiceItems.forEach(invItem => {
+          const key = `${invItem.purchaseOrder}`;
+          invItem.toPurchaseOrderItem = poMap[key] || null;
+        });
+      }
     });
+
 
     return req.params?.length === 1 ? invoices[0] : invoices;
 
@@ -34,7 +46,7 @@ async function handleInvoiceRead(req, srv) {
   }
 }
 
-async function handleInvoiceItemsRead(req, srv) {
+async function handleInvoiceItemsRead(req) {
   try {
     const tx     = cds.transaction(req);
     const items  = await tx.run(req.query);
@@ -55,12 +67,28 @@ async function handleInvoiceItemsRead(req, srv) {
     const keys = Array.from(unique.values());
     if (!keys.length) return items;
 
-    // 3) Hago una sola llamada remota con un OR filter
-    const poItems = await srv.run(
-      SELECT
-        .from('PurchaseOrderItemExt')
-        .where(keys),
+    // ARMO CONSULTA GUSTAVO
+
+    const whereConditions = keys.map(k => [
+      { ref: ['PurchaseOrder'] }, '=', { val: k.PurchaseOrder },
+      'and',
+      { ref: ['PurchaseOrderItem'] }, '=', { val: k.PurchaseOrderItem },
+    ]);
+
+    // Combinar con OR si hay más de uno
+    const finalWhere = whereConditions.length === 1
+      ? whereConditions[0]
+      : whereConditions.reduce((acc, cond, idx) => {
+        if (idx === 0) return ['(', ...cond, ')'];
+        return [...acc, 'or', '(', ...cond, ')'];
+      }, []);
+
+    const s4 = await cds.connect.to('purchaseorder_edmx'); // Ajusta al nombre real del servicio externo
+
+    const poItems = await s4.run(
+      SELECT.from('ext.PurchaseOrderItem').where(finalWhere),
     );
+    // fin GUS
 
     // 4) Mapeo y enriquezco
     const poMap = poItems.reduce((m, pi) => {

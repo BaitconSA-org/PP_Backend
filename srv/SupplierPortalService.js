@@ -39,7 +39,9 @@ const { handleUploadPdf } = require('./dox/dox-functions');
 const { handleStartWorkflow } = require('./workflow/workflow-functions');
 
 
-
+/* const {
+  PurchaseOrderItemExt,
+} = cds.entities('SupplierPortalService'); */
 
 module.exports = cds.service.impl(async function () {
   // Conexiones
@@ -538,7 +540,7 @@ module.exports = cds.service.impl(async function () {
   /********************************************/
   this.on('READ', 'Invoices', (req) => handleInvoiceRead(req, this));
 
-  this.on('READ', 'InvoiceItems', (req) => handleInvoiceItemsRead(req, this));
+  this.on('READ', 'InvoiceItems', (req) => handleInvoiceItemsRead(req));
 
   /**
    * DOX
