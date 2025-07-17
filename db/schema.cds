@@ -178,3 +178,8 @@ entity Notifications : cuid {
   createdAt       : Timestamp;
 }
 
+entity TaxCodes {
+  key code        : String(2);
+      description : String(50);
+}
+
