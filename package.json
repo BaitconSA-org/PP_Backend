@@ -13,7 +13,6 @@
     "@sap-cloud-sdk/connectivity": "^3",
     "@sap-cloud-sdk/http-client": "^3",
     "@sap-cloud-sdk/resilience": "^3",
-    "@sap/cds": "^8",
     "@sap/cf-tools": "^3.2.2",
     "@sap/xsenv": "^3.2.0",
     "@sap/xssec": "^3.6.2",
@@ -23,6 +22,7 @@
   "devDependencies": {
     "@cap-js/cds-types": "^0.10.0",
     "@cap-js/sqlite": "^1",
+    "@sap/cds": "^8.9.4",
     "@sap/cds-dk": "^8",
     "eslint": "^9.27.0"
   },

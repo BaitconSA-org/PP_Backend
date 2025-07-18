@@ -1,4 +1,7 @@
 using supplierPortalGD from '../db/schema';
+
+using { supplierPortalGD.TaxCodes as TaxCodes_ } from '../db/schema';
+
 // Órdenes de compra
 using { purchaseorder_edmx as ext } from './external/purchaseorder_edmx.csn';
 // Facturación Proveedor
@@ -47,6 +50,10 @@ service SupplierPortalService
         { grant: ['READ'], to: ['Supplier'] },
         { grant: ['READ'], to: ['authenticated-user'] }
     ];
+
+    // Tablas Locales (CSV)
+    entity TaxCodes as projection on TaxCodes_;
+
 
     entity Invoices             as projection on supplierPortalGD.Invoices{
       *,   // incluye invoiceNumber, supplier, purchaseOrderID, documentDate, …, files

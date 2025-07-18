@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "command": "cds run --with-mocks",
+      "command": "node -v && cds run --with-mocks",
       "name": "cds run",
       "request": "launch",
       "type": "node-terminal",
