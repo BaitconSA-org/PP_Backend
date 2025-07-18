@@ -427,7 +427,6 @@ module.exports = cds.service.impl(async function () {
       }
     }
 
-
     poHeaders = applyCalculatedFilters(poHeaders, originalWhere, rawFilter);
 
     // Guardar en cache por si en este mismo batch viene /$count
