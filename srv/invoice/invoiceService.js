@@ -2,10 +2,20 @@ const cds = require('@sap/cds');
 const { SELECT } = cds.ql; 
 
 async function handleInvoiceRead(req, srv) {
-  //const userSupplierIDs = ['31300001']; // For testing purposes
-  const userSupplierIDs = req.user?.attr?.supplierID; // for production
-  if (!Array.isArray(userSupplierIDs) || !userSupplierIDs.length) {
-    return req.reject(403, 'El usuario no cuenta con roles de proveedor (supplierID).');
+  let userSupplierIDs = req.user?.attr?.supplierID;
+  
+  const isLocal =
+    req.user?.id === 'system' ||
+    req.user?.id === 'anonymous' ||
+    cds.env.profile?.includes?.('development');
+  
+  if (!Array.isArray(userSupplierIDs) || userSupplierIDs.length === 0) {
+    if (isLocal) {
+      console.warn('⚠️ Ejecutando en modo local o sin token. Usando proveedor mock.');
+      userSupplierIDs = ['31300001']; // ← mock
+    } else {
+      return req.reject(403, 'El usuario no cuenta con roles de proveedor');
+    }
   }
 
   try {
