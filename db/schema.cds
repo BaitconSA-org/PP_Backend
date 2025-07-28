@@ -54,7 +54,6 @@ entity Invoices : cuid {
   postingDate                   : Date;               // PostingDate
   supplierInvoiceIDByInvcgParty : String(50);         // ID de factura S/4
   totalAmount                   : Decimal(15,2);      // InvoiceGrossAmount
-  supplierInvoiceStatus         : String(1);          // E, A, A, R…
   taxIsCalculatedAutomatically  : Boolean;
   InvoiceReceiptDate            : Date;               // Fecha de recepción de la factura
   purchaseOrderID               : String(10);         // FK a PurchaseOrderExt

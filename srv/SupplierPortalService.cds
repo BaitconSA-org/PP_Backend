@@ -79,6 +79,7 @@ service SupplierPortalService
     entity InvoiceTaxes           as projection on supplierPortalGD.InvoiceTaxes; 
     entity InvoiceAttachments     as projection on supplierPortalGD.InvoiceAttachments;
     entity InvoiceAttachmentItems as projection on supplierPortalGD.InvoiceAttachmentItems;
+    entity InvoiceStatus          as projection on supplierPortalGD.InvoiceStatus;
 
     @cds.redirection.target
     @readonly
