@@ -1,4 +1,5 @@
 const { getDestination } = require('@sap-cloud-sdk/connectivity');
+const cds = require('@sap/cds');
 const FormData = require('form-data');
 const axios = require('axios');
 const https = require('https');
@@ -117,6 +118,32 @@ async function getJobStatus(documentId) {
       },
     },
   );
+
+  const { data } = response;
+
+  // Enriquecer cada lineItem con TaxCode si existe taxRate
+  const db = await cds.connect.to('db'); // o cds.transaction(req) si estás en un handler
+
+  const lineItems = data?.extraction?.lineItems || [];
+
+  for (const item of lineItems) {
+    const taxRateField = item.find(f => f.name === 'taxRate');
+
+    if (taxRateField && taxRateField.value) {
+      const taxRate = parseInt(taxRateField.value);
+
+      const result = await db.run(
+        SELECT.one.from('TaxCodes').where({ porcentege: taxRate }),
+      );
+
+      if (result) {
+        taxRateField.TaxCode = result.code; // Por ejemplo "C1"
+      } else {
+        taxRateField.TaxCode = 'NO_ENCONTRADO';
+      }
+    }
+  }
+
   return response.data;
 }
 

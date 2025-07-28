@@ -180,6 +180,6 @@ entity Notifications : cuid {
 
 entity TaxCodes {
   key code        : String(2);
-      description : String(50);
+      porcentege  : Integer;
 }
 
