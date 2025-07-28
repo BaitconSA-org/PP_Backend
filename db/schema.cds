@@ -65,7 +65,7 @@ entity Invoices : cuid {
   // files                         : Association to many InvoiceAttachments on files.invoice = $self;
 }
 
-entity InvoiceStatus : cuid {
+entity InvoiceStatus {
   key statusCode  : String(1);                 // Código del estado: B-Borrador, E-Enviada, A-Aprobada, R-Rechazada
   description     : String(100);               // Descripción del estado
   color           : String(20);

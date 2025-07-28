@@ -1,0 +1,5 @@
+statusCode;description;color
+B;Borrador;#F0F0F0
+E;Enviada;#FFFF00
+A;Aprobada;#00FF00
+R;Rechazada;#FF0000
