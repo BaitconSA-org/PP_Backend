@@ -9,6 +9,9 @@ const {
   handleInvoiceItemsRead,
 } = require('./invoice/invoiceService');
 
+const handleSyncInvoices = require('./invoice/syncInvoices');
+
+
 const {
   handleSupplierInvoiceRead,
   handleSupplierInvoiceItemRead,
@@ -37,6 +40,7 @@ const dmsClient = require('./dms/dms-client');
 const { handleUploadPdf } = require('./dox/dox-functions');
 
 const { handleStartWorkflow } = require('./workflow/workflow-functions');
+
 
 
 const {
@@ -544,16 +548,18 @@ module.exports = cds.service.impl(async function () {
  * Devuelve las facturas asociadas a las posiciones de la OC,
  */
 
-  this.on('READ', 'PurchaseOrderWithInvoices', (req) => handlePOWithInvoicesRead(req, s4Purchase, s4Invoices));
+  this.on('READ', 'PurchaseOrderWithInvoices', (req) => handlePOWithInvoicesRead( req, s4Purchase, s4Invoices));
 
   /**************** FIN 5 **************/
 
-  this.on('READ', 'PurchaseOrderSupplierInvoices', req => handlePurchaseOrderSupplierInvRead(req, s4Invoices));
+  this.on('READ', 'PurchaseOrderSupplierInvoices', req => handlePurchaseOrderSupplierInvRead( req, s4Invoices));
 
   /********************************************/
-  this.on('READ', 'Invoices', (req) => handleInvoiceRead(req, this));
+  this.on('READ', 'Invoices', (req) => handleInvoiceRead( req, this));
 
-  this.on('READ', 'InvoiceItems', (req) => handleInvoiceItemsRead(req, this));
+  this.on('READ', 'InvoiceItems', (req) => handleInvoiceItemsRead( req, this));
+
+  this.on('SyncInvoiceStatuses', (req) => handleSyncInvoices( req, this));
 
   /**
    * DOX
@@ -619,5 +625,8 @@ module.exports = cds.service.impl(async function () {
   this.on('startWorkflow', req => handleStartWorkflow(req));
 
   /**************** FIN WORKFLOW ***********/
+
+
+
   
 });

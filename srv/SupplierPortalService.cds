@@ -478,6 +478,14 @@ type WorkflowResponse {
 }
 // FIN --> WORKFLOW
 
+// --> JOB SINCRONIZACIÓN INVOICES
+action SyncInvoiceStatuses() returns array of SyncResult;
+
+type SyncResult {
+  invoiceID: String;
+  result: String;
+}
+
 
 }
 //annotate SupplierPortalService with @requires : ['Supplier'];

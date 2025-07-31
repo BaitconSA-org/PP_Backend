@@ -41,6 +41,7 @@ async function uploadPdf(
     clientId      = 'default',
     documentType  = 'invoice',
     schemaName    = 'invoice_portal',
+    templateId    = '042dbc84-44c1-45b7-a7a6-0f6e0951708e',
   } = {},
 ) {
   if (!Buffer.isBuffer(buffer) || buffer.length === 0)
@@ -72,7 +73,7 @@ async function uploadPdf(
   form.append('file', buffer, { filename, contentType: 'application/pdf' });
   form.append(
     'options',
-    JSON.stringify({ clientId, documentType, schemaId }, null, 2),
+    JSON.stringify({ clientId, documentType, schemaId, templateId }, null, 2),
   );
 
   /* 4. Enviamos ----------------------------------------------------------- */

@@ -3,8 +3,22 @@ const { SELECT } = cds.ql;
 
 // 1) Cabecera -------------------------------------------------
 async function handleSupplierInvoiceRead (req, s4Inv) {
-  const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
-
+  let userSupplierIDs = req.user?.attr?.supplierID;
+   
+  const isLocal =
+     req.user?.id === 'system' ||
+     req.user?.id === 'anonymous' ||
+     cds.env.profile?.includes?.('development');
+   
+  if (!Array.isArray(userSupplierIDs) || userSupplierIDs.length === 0) {
+    if (isLocal) {
+      console.warn('⚠️ Ejecutando en modo local o sin token. Usando proveedor mock.');
+      userSupplierIDs = ['31300001']; // ← mock
+    } else {
+      return req.reject(403, 'El usuario no cuenta con roles de proveedor');
+    }
+  }
+ 
   try {
     const q = cds.clone(req.query);
     delete q.SELECT?.count;
