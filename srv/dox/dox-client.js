@@ -41,7 +41,7 @@ async function uploadPdf(
     clientId      = 'default',
     documentType  = 'invoice',
     schemaName    = 'invoice_portal',
-    templateId    = '042dbc84-44c1-45b7-a7a6-0f6e0951708e',
+    templateId    = 'c54b624a-343f-4251-bed9-4c70e2300b45',
   } = {},
 ) {
   if (!Buffer.isBuffer(buffer) || buffer.length === 0)
