@@ -10,6 +10,17 @@ const DESTINATION_NAME = 'SBPA';
  * @returns {Promise<Object>} - Respuesta del workflow (instancia creada).
  */
 async function triggerWorkflowInstance(req, context, definitionId) {
+  const db = cds.transaction(req); // Asegura la transacción dentro del contexto CAP
+
+  const inserted = await db.run(
+    INSERT.into('Invoices').entries({
+      status_statusCode: 'B',
+    }),
+  );
+
+  const generatedId = inserted[0]?.ID; 
+
+
   if (!definitionId) throw new Error('Se requiere el "definitionId" del workflow');
   if (!context || typeof context !== 'object') throw new Error('El parámetro "context" debe ser un objeto válido');
 
@@ -38,15 +49,15 @@ async function triggerWorkflowInstance(req, context, definitionId) {
     },
   );
 
-  const workflowInstanceId = response.data?.instanceId;
+  const workflowInstanceId = response.data?.instanceId || response.data?.id;
 
-  const invoiceId = null;
+
+  const invoiceId = generatedId;
   // Persistir en CAP
-  const db = cds.transaction(req); // Asegura la transacción dentro del contexto CAP
   await db.run(
     UPDATE('Invoices')
       .set({
-        status: 'E',
+        status_statusCode: 'E',
         workflowInstanceId: workflowInstanceId,
       })
       .where({ ID: invoiceId }), // Usa tu clave primaria real
