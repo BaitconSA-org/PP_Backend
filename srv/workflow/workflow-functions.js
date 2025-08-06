@@ -14,7 +14,16 @@ async function handleStartWorkflow(req) {
     // Si viene como { entry: {...} }, tomamos sólo el contenido real
     const data = context?.entry || context;
 
+
+
     const result = await triggerWorkflowInstance(req, data, definitionId);
+
+    if (!result.id) {
+      // Opcional: log extra
+      console.warn('[handleStartWorkflow] Resultado sin ID:', result);
+      return req.reject(500, 'No se pudo obtener instancia del workflow');
+    }
+
     return {
       status: 'SUCCESS',
       instanceId: result.id,
