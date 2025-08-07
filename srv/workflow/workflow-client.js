@@ -28,14 +28,17 @@ async function triggerWorkflowInstance(req, context, definitionId) {
     }),
   );
 
-
   const generated = await db.run(
     SELECT.one.from('Invoices').orderBy('postingDate desc'),
   );
 
-  const generatedId = generated.ID;
+  const generatedId = generated?.ID;
 
-
+  if (context?.patch && typeof context.patch === 'object') {
+    context.patch.fiscalYear = '';
+    context.patch.supplierInvoice = '';
+    context.patch.Invoice_ID = generatedId || '';
+  }
 
   if (!definitionId) throw new Error('Se requiere el "definitionId" del workflow');
   if (!context || typeof context !== 'object') throw new Error('El parámetro "context" debe ser un objeto válido');

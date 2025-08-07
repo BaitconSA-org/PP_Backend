@@ -14,7 +14,10 @@ async function handleStartWorkflow(req) {
     // Si viene como { entry: {...} }, tomamos sólo el contenido real
     const data = context?.entry || context;
 
+    if (!data.patch)
+      data.patch = {};
 
+    
 
     const result = await triggerWorkflowInstance(req, data, definitionId);
 
