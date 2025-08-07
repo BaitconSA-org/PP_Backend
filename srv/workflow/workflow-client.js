@@ -14,12 +14,24 @@ function formatDateToYYYYMMDD(date) {
   return date.toISOString().split('T')[0]; // Ej: "2025-08-04"
 }
 
+function formatDateToSAP(date) {
+  return `/Date(${date.getTime()})/`;
+}
+
 
 async function triggerWorkflowInstance(req, context, definitionId) {
   const db = cds.transaction(req); // Asegura la transacción dentro del contexto CAP
 
   const today = new Date();
   const formattedDate = formatDateToYYYYMMDD(today);
+
+  if (context.DocumentDate) {
+    context.DocumentDate = formatDateToSAP(new Date(context.DocumentDate));
+  }
+
+  if (context.PostingDate) {
+    context.PostingDate = formatDateToSAP(new Date(context.PostingDate));
+  }
 
   const inserted = await db.run(
     INSERT.into('Invoices').entries({
@@ -34,10 +46,23 @@ async function triggerWorkflowInstance(req, context, definitionId) {
 
   const generatedId = generated?.ID;
 
-  if (context?.patch && typeof context.patch === 'object') {
-    context.patch.fiscalYear = '';
-    context.patch.supplierInvoice = '';
-    context.patch.Invoice_ID = generatedId || '';
+  if (!context.entry) {
+    context = { entry: context };
+  }
+
+  // Asegurar que "patch" esté presente dentro de "entry"
+  if (!context.entry.patch || typeof context.entry.patch !== 'object') {
+    context.entry.patch = {};
+  }
+
+  // Setear valores en patch
+  context.entry.patch.fiscalYear = '';
+  context.entry.patch.supplierInvoice = '';
+  context.entry.patch.Invoice_ID = generatedId || '';
+
+  // Validación del workflow definitionId
+  if (!definitionId) {
+    throw new Error('Se requiere el "definitionId" del workflow');
   }
 
   if (!definitionId) throw new Error('Se requiere el "definitionId" del workflow');
