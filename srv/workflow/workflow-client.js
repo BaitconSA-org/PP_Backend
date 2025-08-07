@@ -33,6 +33,10 @@ async function triggerWorkflowInstance(req, context, definitionId) {
     context.PostingDate = formatDateToSAP(new Date(context.PostingDate));
   }
 
+  if (context.TaxDeterminationDate) {
+    context.TaxDeterminationDate = formatDateToSAP(new Date(context.TaxDeterminationDate));
+  }
+
   const inserted = await db.run(
     INSERT.into('Invoices').entries({
       status_statusCode: 'B',
