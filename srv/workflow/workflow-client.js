@@ -27,15 +27,15 @@ async function triggerWorkflowInstance(req, context, definitionId) {
 
   /*if (context.DocumentDate) {
     context.DocumentDate = formatDateToSAP(new Date(context.DocumentDate));
-  }
+  } */
 
   if (context.PostingDate) {
     context.PostingDate = formatDateToSAP(new Date(context.PostingDate));
   }
 
-  if (context.TaxDeterminationDate) {
+  /* if (context.TaxDeterminationDate) {
     context.TaxDeterminationDate = formatDateToSAP(new Date(context.TaxDeterminationDate));
-  }*/
+  }*/ 
 
   const inserted = await db.run(
     INSERT.into('Invoices').entries({
