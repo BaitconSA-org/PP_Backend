@@ -50,10 +50,10 @@ entity Products : cuid {
 }
 
 entity Invoices : cuid {
-  documentDate                  : Date;               // tu invoiceDate
-  postingDate                   : Date;               // PostingDate
-  supplierInvoiceIDByInvcgParty : String(50);         // ID de factura S/4
-  totalAmount                   : Decimal(15,2);      // InvoiceGrossAmount
+  documentDate                  : Date;               // Fecha de la factura
+  postingDate                   : Date;               // Fecha de carga de la factura
+  supplierInvoiceIDByInvcgParty : String(50);         // ID de factura PDF
+  totalAmount                   : Decimal(15,2);      // Importe total de la factura
   taxIsCalculatedAutomatically  : Boolean;
   InvoiceReceiptDate            : Date;               // Fecha de recepción de la factura
   purchaseOrderID               : String(10);         // FK a PurchaseOrderExt
@@ -63,6 +63,7 @@ entity Invoices : cuid {
   workflowInstanceId            : String(100);        // ID de la instancia del workflow
   invoiceItems                  : Composition of many InvoiceItems on invoiceItems.invoice = $self; // Ítems de la factura
   invoiceTaxes                  : Composition of many InvoiceTaxes on invoiceTaxes.invoice = $self; // Impuestos de la factura
+  currency                      : String(3);         // Moneda de la factura
   // files                         : Association to many InvoiceAttachments on files.invoice = $self;
 }
 
