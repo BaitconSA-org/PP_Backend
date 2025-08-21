@@ -498,4 +498,4 @@ type SyncResult {
 
 
 }
-annotate SupplierPortalService with @requires : ['Supplier'];
+//annotate SupplierPortalService with @requires : ['Supplier'];
