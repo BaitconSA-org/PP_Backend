@@ -481,6 +481,16 @@ type WorkflowResponse {
 // --> JOB SINCRONIZACIÓN INVOICES
 action SyncInvoiceStatuses() returns array of SyncResult;
 
+ // Acción que llamará el Workflow para actualizar la factura
+  action UpdateInvoiceWorkflow(
+    Invoice_ID      : UUID,
+    supplierInvoice : String(20),
+    fiscalYear      : String(4)
+  ) returns {
+    ID              : UUID;
+    affectedRows    : Integer;
+  };
+
 type SyncResult {
   invoiceID: String;
   result: String;

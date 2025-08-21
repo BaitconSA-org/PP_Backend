@@ -10,6 +10,7 @@ const {
 } = require('./invoice/invoiceService');
 
 const handleSyncInvoices = require('./invoice/syncInvoices');
+const { updateInvoiceFromWorkflow } = require('./workflow/UpdateInvoiceFromWorkflow');
 
 
 const {
@@ -625,6 +626,7 @@ module.exports = cds.service.impl(async function () {
   this.on('startWorkflow', req => handleStartWorkflow(req));
 
   /**************** FIN WORKFLOW ***********/
+  this.on('UpdateInvoiceWorkflow', (req) => updateInvoiceFromWorkflow( req, this));
 
 
 
