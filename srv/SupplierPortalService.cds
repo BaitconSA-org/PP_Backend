@@ -1,6 +1,6 @@
 using supplierPortalGD from '../db/schema';
 
-using { supplierPortalGD.TaxCodes as TaxCodes_ } from '../db/schema';
+using { supplierPortalGD.TaxCodes as TaxCodes_, supplierPortalGD.TaxCodesFooter as TaxCodesFooter_ } from '../db/schema';
 
 // Órdenes de compra
 using { purchaseorder_edmx as ext } from './external/purchaseorder_edmx.csn';
@@ -52,7 +52,8 @@ service SupplierPortalService
     ];
 
     // Tablas Locales (CSV)
-    entity TaxCodes as projection on TaxCodes_;
+    entity TaxCodes             as projection on TaxCodes_;
+    entity TaxCodesFooter       as projection on TaxCodesFooter_;
 
 
     entity Invoices             as projection on supplierPortalGD.Invoices{
