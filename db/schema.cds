@@ -183,3 +183,8 @@ entity TaxCodes {
       porcentege  : Integer;
 }
 
+entity TaxCodesFooter {
+  key code        : String(2);
+      porcentege  : Integer;
+}
+
