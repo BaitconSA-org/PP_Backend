@@ -180,6 +180,11 @@ entity Notifications : cuid {
 
 entity TaxCodes {
   key code        : String(2);
-      porcentege  : Integer;
+      porcentege  : Decimal(5,2);
+}
+
+entity TaxCodesFooter {
+  key code        : String(2);
+      porcentege  : Decimal(5,2);
 }
 
