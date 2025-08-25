@@ -55,14 +55,14 @@ async function triggerWorkflowInstance(req, context, definitionId) {
   }
 
   // Asegurar que "patch" esté presente dentro de "entry"
-  if (!context.entry.patch || typeof context.entry.patch !== 'object') {
-    context.entry.patch = {};
+  if (!context.entry.postact || typeof context.entry.postact !== 'object') {
+    context.entry.postact = {};
   }
 
   // Setear valores en patch
-  context.entry.patch.fiscalYear = '';
-  context.entry.patch.supplierInvoice = '';
-  context.entry.patch.Invoice_ID = generatedId || '';
+  context.entry.postact.fiscalYear = '';
+  context.entry.postact.supplierInvoice = '';
+  context.entry.postact.Invoice_ID = generatedId || '';
 
   // Validación del workflow definitionId
   if (!definitionId) {
