@@ -88,11 +88,13 @@ modules:
           destinations:
             - Name: PP_Backend
               Authentication: OAuth2UserTokenExchange
+              URL: ~{srv-api/srv-url}
               ServiceInstanceName: pp-backend-uaa
               ServiceKeyName: pp-backend-uaa-key
 
             - Name: PP_Backend_CC
               Authentication: OAuth2ClientCredentials
+              URL: ~{srv-api/srv-url}
               TokenServiceInstanceName: pp-backend-uaa
               TokenServiceKeyName: pp-backend-uaa-key
 
