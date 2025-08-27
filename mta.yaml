@@ -69,6 +69,42 @@ modules:
           app-protocol: ${protocol}
           app-uri: ${default-uri}
 
+  - name: pp-backend-destination-content
+    type: com.sap.application.content
+    build-parameters:
+      no-source: true
+    requires:
+      - name: pp-backend-destination
+        parameters:
+          content-target: true
+      - name: pp-backend-uaa
+        parameters:
+          service-key:
+            name: pp-backend-uaa-key
+      - name: srv-api
+    parameters:
+      content:
+        subaccount:
+          destinations:
+            - Name: PP_Backend
+              Type: HTTP
+              ProxyType: Internet
+              URL: ~{srv-api/srv-url}
+              Authentication: OAuth2UserTokenExchange
+              audience: uaa
+              forwardAuthToken: true
+
+            - Name: PP_Backend_CC
+              Type: HTTP
+              ProxyType: Internet
+              URL: ~{srv-api/srv-url}
+              Authentication: OAuth2ClientCredentials
+              tokenServiceURL: ~{pp-backend-uaa-key/url}/oauth/token
+              clientId: ~{pp-backend-uaa-key/clientid}
+              clientSecret: ~{pp-backend-uaa-key/clientsecret}
+
+          existing_destinations_policy: update
+
 resources:
   - name: pp-backend-db
     type: com.sap.xs.hdi-container
@@ -99,10 +135,15 @@ resources:
     parameters:
       service: html5-apps-repo
       service-plan: app-runtime
+
   - name: pp-backend-uaa
-    type: com.sap.xs.uaa
+    type: org.cloudfoundry.managed-service
     parameters:
+      service: xsuaa
+      service-plan: application
       path: ./xs-security.json
+      service-keys:
+        - name: pp-backend-uaa-key
 
 
 
