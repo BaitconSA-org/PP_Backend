@@ -91,12 +91,20 @@ modules:
               URL: ~{srv-api/srv-url}
               ServiceInstanceName: pp-backend-uaa
               ServiceKeyName: pp-backend-uaa-key
+              HTML5.DynamicDestination: "true"
+              WebIDEEnabled: "true"
+              WebIDEUsage: "odata_gen"
+              TrustAll: "true"
 
             - Name: PP_Backend_CC
               Authentication: OAuth2ClientCredentials
               URL: ~{srv-api/srv-url}
               TokenServiceInstanceName: pp-backend-uaa
               TokenServiceKeyName: pp-backend-uaa-key
+              HTML5.DynamicDestination: "true"
+              WebIDEEnabled: "true"
+              WebIDEUsage: "odata_gen"
+              TrustAll: "true"
 
           existing_destinations_policy: update
 
