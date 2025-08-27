@@ -91,17 +91,14 @@ modules:
               ProxyType: Internet
               URL: ~{srv-api/srv-url}
               Authentication: OAuth2UserTokenExchange
-              audience: uaa
-              forwardAuthToken: true
 
             - Name: PP_Backend_CC
               Type: HTTP
               ProxyType: Internet
               URL: ~{srv-api/srv-url}
               Authentication: OAuth2ClientCredentials
-              tokenServiceURL: ~{pp-backend-uaa-key/url}/oauth/token
-              clientId: ~{pp-backend-uaa-key/clientid}
-              clientSecret: ~{pp-backend-uaa-key/clientsecret}
+              TokenServiceInstanceName: pp-backend-uaa
+              TokenServiceKeyName: pp-backend-uaa-key
 
           existing_destinations_policy: update
 
