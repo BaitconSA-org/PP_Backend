@@ -87,17 +87,11 @@ modules:
         subaccount:
           destinations:
             - Name: PP_Backend
-              Type: HTTP
-              ProxyType: Internet
-              URL: ~{srv-api/srv-url}
               Authentication: OAuth2UserTokenExchange
               ServiceInstanceName: pp-backend-uaa
               ServiceKeyName: pp-backend-uaa-key
 
             - Name: PP_Backend_CC
-              Type: HTTP
-              ProxyType: Internet
-              URL: ~{srv-api/srv-url}
               Authentication: OAuth2ClientCredentials
               TokenServiceInstanceName: pp-backend-uaa
               TokenServiceKeyName: pp-backend-uaa-key
