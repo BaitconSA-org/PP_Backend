@@ -10,45 +10,8 @@ const DESTINATION_NAME = 'SBPA';
  * @returns {Promise<Object>} - Respuesta del workflow (instancia creada).
  */
 
-function formatDateToYYYYMMDD(date) {
-  return date.toISOString().split('T')[0]; // Ej: "2025-08-04"
-}
 
-function formatDateToSAP(date) {
-  return `/Date(${date.getTime()})/`;
-}
-
-
-async function triggerWorkflowInstance(req, context, definitionId) {
-  const db = cds.transaction(req); // Asegura la transacción dentro del contexto CAP
-
-  const today = new Date();
-  const formattedDate = formatDateToYYYYMMDD(today);
-
-  if (context.DocumentDate) {
-    context.DocumentDate = formatDateToSAP(new Date(context.DocumentDate));
-  }
-
-  if (context.PostingDate) {
-    context.PostingDate = formatDateToSAP(new Date(context.PostingDate));
-  }
-
-  if (context.TaxDeterminationDate) {
-    context.TaxDeterminationDate = formatDateToSAP(new Date(context.TaxDeterminationDate));
-  } 
-
-  const inserted = await db.run(
-    INSERT.into('Invoices').entries({
-      status_statusCode: 'B',
-      postingDate: formattedDate,
-    }),
-  );
-
-  const generated = await db.run(
-    SELECT.one.from('Invoices').orderBy('postingDate desc'),
-  );
-
-  const generatedId = generated?.ID;
+async function triggerWorkflowInstance(req, context, definitionId, invoiceId) {
 
   if (!context.entry) {
     context = { entry: context };
@@ -62,7 +25,7 @@ async function triggerWorkflowInstance(req, context, definitionId) {
   // Setear valores en patch
   context.entry.postact.fiscalYear = '';
   context.entry.postact.supplierInvoice = '';
-  context.entry.postact.Invoice_ID = generatedId || '';
+  context.entry.postact.Invoice_ID = invoiceId || '';
 
   // Validación del workflow definitionId
   if (!definitionId) {
@@ -96,23 +59,6 @@ async function triggerWorkflowInstance(req, context, definitionId) {
       },
     },
   );
-
-  const workflowInstanceId = response.data?.instanceId || response.data?.id;
-  const invoiceId = generatedId;
-
-  // Solo actualizar si se obtuvo una instancia válida del workflow
-  if (workflowInstanceId) {
-    await db.run(
-      UPDATE('Invoices')
-        .set({
-          status_statusCode: 'E',
-          workflowInstanceId: workflowInstanceId,
-        })
-        .where({ ID: invoiceId }),
-    );
-  } else {
-    console.warn('⚠️ No se obtuvo workflowInstanceId. No se actualiza la factura.');
-  }
 
   return response.data;
 
