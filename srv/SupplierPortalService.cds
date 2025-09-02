@@ -58,6 +58,8 @@ service SupplierPortalService
 
     entity Invoices             as projection on supplierPortalGD.Invoices{
       *,   // incluye invoiceNumber, supplier, purchaseOrderID, documentDate, …, files
+      invoiceItems : Composition of many InvoiceItems
+        on invoiceItems.invoice = $self,
 
       // asociación a PurchaseOrderExt
       toPurchaseOrder : Association to PurchaseOrderExt
@@ -71,6 +73,7 @@ service SupplierPortalService
 
     entity InvoiceItems           as projection on supplierPortalGD.InvoiceItems {
         *,
+        invoice : redirected to Invoices,
         // asociación a PurchaseOrderItemExt
         toPurchaseOrderItem : Association to PurchaseOrderItemExt
             on toPurchaseOrderItem.PurchaseOrder = purchaseOrder

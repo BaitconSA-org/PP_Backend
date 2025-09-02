@@ -14,7 +14,6 @@ function formatDateToSAP(date) {
 async function insertInvoice(data, db) {
   const today = new Date();
   const formattedDate = formatDateToYYYYMMDD(today);
-  console.log('Formatted Date for PostingDate:', formattedDate);
 
   const num = v => (v === undefined || v === null || v === '' ? null : Number(v));
 
@@ -35,7 +34,7 @@ async function insertInvoice(data, db) {
     taxCountry: taxes[0]?.TaxCountry ?? null,
   }));
 
-  console.log('Invoice Items:', invoiceItems);
+  //console.log('Invoice Items:', invoiceItems);
 
   // Mapeo a InvoiceTaxes
   const invoiceTaxes = taxes.map(t => ({
@@ -45,16 +44,20 @@ async function insertInvoice(data, db) {
     taxCountry: t.TaxCountry,
   }));
 
-  console.log('Invoice Taxes:', invoiceTaxes);
+  //console.log('Invoice Taxes:', invoiceTaxes);
+
+  const invoiceId = (cds.utils?.uuid?.() ?? require('uuid').v4());
 
   const result = await db.run(
     INSERT.into('Invoices').entries({
+      ID: invoiceId,
       documentDate: data.DocumentDate,
       postingDate: formattedDate,
       supplierInvoiceIDByInvcgParty:data.SupplierInvoiceIDByInvcgParty,
       taxIsCalculatedAutomatically: false,
       InvoiceReceiptDate: data.DocumentDate,
       purchaseOrderID: poRefs[0]?.PurchaseOrder ?? null,
+      totalAmount: data.InvoiceGrossAmount,
       currency: data.DocumentCurrency,
       status_statusCode: 'B',
       invoiceItems,
@@ -62,10 +65,7 @@ async function insertInvoice(data, db) {
     }),
   );
 
-  const generated = await db.run(
-    SELECT.one.from('Invoices').orderBy('postingDate desc'),
-  );
-  const invoiceId = generated?.ID ?? null;
+  //console.log('Inserted Invoice ID:', invoiceId);
 
   return invoiceId;
 }
@@ -83,7 +83,7 @@ async function handleStartWorkflow(req) {
     // Si viene como { entry: {...} }, tomamos sólo el contenido real
     let data = context?.entry || context;
 
-    console.log('Context received for workflow:', data);
+    //console.log('Context received for workflow:', data);
 
     const invoiceId = await insertInvoice(data, db);
 
@@ -106,6 +106,8 @@ async function handleStartWorkflow(req) {
 
     const workflowInstanceId = result?.instanceId || result?.id;
 
+    //console.log('Triggered Workflow Instance ID:', workflowInstanceId);
+
     // Solo actualizar si se obtuvo una instancia válida del workflow
     if (workflowInstanceId) {
       await db.run(
@@ -116,6 +118,7 @@ async function handleStartWorkflow(req) {
           })
           .where({ ID: invoiceId }),
       );
+      console.log(`Invoice ${invoiceId} updated with workflowInstanceId ${workflowInstanceId}`);
     } else {
       console.warn('⚠️ No se obtuvo workflowInstanceId. No se actualiza la factura.');
     }
