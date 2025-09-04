@@ -1,23 +1,23 @@
-code;porcentege
-C0;0
-C1;21
-C2;24
-C3;31.5
-C4;27
-C6;0
-C7;10.5
-C8;5
-C9;2.5
-CA;21
-CB;0
-CC;21.51
-CG;21
-CU;21
-CV;21
-CX;0
-D1;21
-D3;31.5
-DB;0
-DU;21
-DX;0
-SD;0
+code;porcentege;description
+C0;0;Exento de IVA
+C1;21;IVA 21%
+C2;24;IVA 21 % + 3 % percepción de IVA
+C3;31.5;IVA 21 % + 10,5 % recargo
+C4;27;IVA 27%
+C6;0;IVA 0%
+C7;10.5;IVA 10.5%
+C8;5;IVA 5%
+C9;2.5;IVA 2.5%
+CA;21;IVA 21% por alquileres
+CB;0;No gravado con IVA
+CC;21.51; IVA 21 % + IIBB CABA 0,01 % + IIBB Bs As 0,5 %
+CG;21;IVA 21 % - Compra de bienes usados por consumidor final
+CU;21;IVA 21% - Compra de bienes de uso (activo fijo)
+CV;21;IVA 21% por servicios
+CX;0;IVA 0% - Importacion desde el exterior
+D1;21;IVA 21%
+D3;31.5;IVA 21 % + 10,5 % recargo
+DB;0;No gravado con IVA
+DU;21;IVA 21% - Venta de bienes de uso (activo fijo)
+DX;0;IVA 0% - Exportacion al exterior
+SD;0;Indicador fiscal para SD (sistema especial de distribución)

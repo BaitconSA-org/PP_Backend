@@ -187,5 +187,6 @@ entity TaxCodes {
 entity TaxCodesFooter {
   key code        : String(2);
       porcentege  : Decimal(5,2);
+      description : String(500);
 }
 
