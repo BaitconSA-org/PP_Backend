@@ -615,6 +615,22 @@ module.exports = cds.service.impl(async function () {
     const { relativePath } = req.data || {};
     return dmsClient.listarDocumentosEnCarpeta(relativePath);
   });
+
+  this.on('getDocumentService', async (req) => {
+    const { folderName, documentName } = req.data;
+    if (!folderName || !documentName) {
+      return req.reject(400, 'folderName and documentName are required');
+    }
+    try {
+      const fileBuffer = await dmsClient.getDocument(folderName, documentName);
+      const base64Data = fileBuffer.toString('base64');
+      return { file: base64Data };
+    } catch (error) {
+      console.error('Error in getDocumentService:', error);
+      return req.reject(500, 'Error retrieving document from DMS');
+    }
+  });
+
   /**************** FIN DMS ****************/
 
 

@@ -152,11 +152,14 @@ const deleteDocument = async (documentId, folderName) => {
 
 const getDocument = async (folderName, documentName) => {
   try {
-    const encodedFolderName = encodeURIComponent(folderName);
+    const encodedFolderPath = folderName
+      .split('/')
+      .map(seg => encodeURIComponent(seg))
+      .join('/');
     const encodedDocumentName = encodeURIComponent(documentName);
     const config = {
       method: 'get',
-      url: `/root/${encodedFolderName}/${encodedDocumentName}`,
+      url: `/root/${encodedFolderPath}/${encodedDocumentName}`,
       responseType: 'arraybuffer',
     };
     const response = await dmsDestination(config);
