@@ -44,8 +44,8 @@ module.exports = async function handleSyncInvoices(req, srv) {
 
     if (!si) {
       await tx.run(
-        UPDATE(Invoices).set({ status: 'R' }).where({ ID: invoice.ID }),
-      );
+      UPDATE(Invoices).set({ status_statusCode: 'R' }).where({ ID: invoice.ID }),
+    );
       results.push({ invoiceID: invoice.ID, result: 'Rechazada (no encontrada)' });
     } else if (si.SupplierInvoiceStatus === '5') {
       await tx.run(
