@@ -56,29 +56,29 @@ module.exports = cds.service.impl(async function () {
 
   /**************** InvoiceReport Handler */
   // --- READ InvoiceReport (solo facturas aprobadas status = '5') ---
-this.on('READ', 'InvoiceReport', async (req) => {
-  const tx = cds.transaction(req);
+  this.on('READ', 'InvoiceReport', async (req) => {
+    const tx = cds.transaction(req);
 
-  // 1) Traer todas las facturas con su createdAt y status
-  const rows = await tx.run(
-    SELECT.from('supplierPortalGD.Invoices')
-      .columns('createdAt', 'status_statusCode')
-  );
+    // 1) Traer todas las facturas con su createdAt y status
+    const rows = await tx.run(
+      SELECT.from('supplierPortalGD.Invoices')
+        .columns('createdAt', 'status_statusCode'),
+    );
 
-  // 2) Agrupar en memoria por año/mes
-  const map = Object.create(null);
-  for (const r of rows) {
-    if (!r.createdAt) continue;
-    const d = new Date(String(r.createdAt));
-    const y = d.getUTCFullYear();
-    const m = d.getUTCMonth() + 1;
-    const key = `${y}-${m}`;
-    if (!map[key]) map[key] = { year: y, month: m, totalInvoices: 0 };
-    map[key].totalInvoices++;
-  }
+    // 2) Agrupar en memoria por año/mes
+    const map = Object.create(null);
+    for (const r of rows) {
+      if (!r.createdAt) continue;
+      const d = new Date(String(r.createdAt));
+      const y = d.getUTCFullYear();
+      const m = d.getUTCMonth() + 1;
+      const key = `${y}-${m}`;
+      if (!map[key]) map[key] = { year: y, month: m, totalInvoices: 0 };
+      map[key].totalInvoices++;
+    }
 
-  return Object.values(map);
-});
+    return Object.values(map);
+  });
 
   /**************** 1 ****************/
   this.on('READ', 'PurchaseOrderItemExt', async req => {
