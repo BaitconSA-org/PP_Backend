@@ -501,6 +501,8 @@ type SyncResult {
   invoiceID: String;
   result: String;
 }
+ @readonly
+  entity InvoiceReport as projection on supplierPortalGD.InvoiceReport;
 
 
 }

@@ -1,6 +1,6 @@
 namespace supplierPortalGD;
 
-using { Currency, cuid, sap.common } from '@sap/cds/common';
+using { Currency, cuid, managed , sap.common } from '@sap/cds/common';
 
 entity Suppliers : cuid {
   name            : String(100);
@@ -49,7 +49,7 @@ entity Products : cuid {
   isActive        : Boolean default true;
 }
 
-entity Invoices : cuid {
+entity Invoices : cuid, managed {
   documentDate                  : Date;               // Fecha de la factura
   postingDate                   : Date;               // Fecha de carga de la factura
   supplierInvoiceIDByInvcgParty : String(50);         // ID de factura PDF
@@ -188,5 +188,11 @@ entity TaxCodesFooter {
   key code        : String(3);
       porcentege  : Decimal(5,2);
       description : String(500);
+}
+@readonly
+entity InvoiceReport {
+  key year          : Integer;
+  key month         : Integer;
+  totalInvoices     : Integer;
 }
 

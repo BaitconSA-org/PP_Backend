@@ -54,7 +54,34 @@ module.exports = cds.service.impl(async function () {
   const s4Invoices = await cds.connect.to('A_SupplierInvoice_edmx');
   const s4bp = await cds.connect.to('A_BusinessPartner');
 
-  /**************** 1 ****************/
+  /**************** InvoiceReport Handler */
+  // --- READ InvoiceReport (solo facturas aprobadas status = '5') ---
+this.on('READ', 'InvoiceReport', async (req) => {
+  const tx = cds.transaction(req);
+
+  // 1) Traer solo facturas aprobadas
+  const rows = await tx.run(
+    SELECT.from('supplierPortalGD.Invoices')
+      .columns('createdAt', 'status')
+      .where({ status: '5' }) // solo aprobadas
+  );
+
+  // 2) Agrupar en memoria por año/mes
+  const map = Object.create(null);
+  for (const r of rows) {
+    if (!r.createdAt) continue;
+    const d = new Date(String(r.createdAt));
+    const y = d.getUTCFullYear();
+    const m = d.getUTCMonth() + 1;
+    const key = `${y}-${m}`;
+    if (!map[key]) map[key] = { year: y, month: m, totalInvoices: 0 };
+    map[key].totalInvoices++;
+  }
+
+  // 3) Devolver como array
+  return Object.values(map);
+});
+
   /**************** 1 ****************/
   this.on('READ', 'PurchaseOrderItemExt', async req => {
     try {
