@@ -59,11 +59,10 @@ module.exports = cds.service.impl(async function () {
 this.on('READ', 'InvoiceReport', async (req) => {
   const tx = cds.transaction(req);
 
-  // 1) Traer solo facturas aprobadas
+  // 1) Traer todas las facturas con su createdAt y status
   const rows = await tx.run(
     SELECT.from('supplierPortalGD.Invoices')
-      .columns('createdAt', 'status')
-      .where({ status: '5' }) // solo aprobadas
+      .columns('createdAt', 'status_statusCode')
   );
 
   // 2) Agrupar en memoria por año/mes
@@ -78,7 +77,6 @@ this.on('READ', 'InvoiceReport', async (req) => {
     map[key].totalInvoices++;
   }
 
-  // 3) Devolver como array
   return Object.values(map);
 });
 
@@ -408,7 +406,12 @@ this.on('READ', 'InvoiceReport', async (req) => {
 
     // 2. Mapear datos por clave
     const netByPO  = Object.fromEntries(netAmounts.map(r => [r.PurchaseOrder, r.NetAmount]));
-    const invByPO  = Object.fromEntries(invoiceHeaders.map(r => [r.PurchaseOrder, r.SupplierInvoiceAmount]));
+    const invByPO = {};
+      for (const r of invoiceHeaders) {
+        if (r.SupplierInvoiceStatus === '5') {
+          invByPO[r.PurchaseOrder] = (invByPO[r.PurchaseOrder] || 0) + (r.SupplierInvoiceAmount || 0);
+        }
+      }
     const invByKey = Object.fromEntries(invoiceItems.map(r =>
       [`${r.PurchaseOrder}-${r.PurchaseOrderItem}`, r.SupplierInvoiceItemAmount],
     ));
