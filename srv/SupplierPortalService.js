@@ -407,11 +407,12 @@ this.on('READ', 'InvoiceReport', async (req) => {
     // 2. Mapear datos por clave
     const netByPO  = Object.fromEntries(netAmounts.map(r => [r.PurchaseOrder, r.NetAmount]));
     const invByPO = {};
-      for (const r of invoiceHeaders) {
-        if (r.SupplierInvoiceStatus === '5') {
-          invByPO[r.PurchaseOrder] = (invByPO[r.PurchaseOrder] || 0) + (r.SupplierInvoiceAmount || 0);
-        }
+    for (const ref of invoiceItemsRef) {
+      const invoice = invoiceHeaders.find(h => h.SupplierInvoice === ref.SupplierInvoice);
+      if (invoice?.SupplierInvoiceStatus === '5') {
+        invByPO[ref.PurchaseOrder] = (invByPO[ref.PurchaseOrder] || 0) + (invoice.SupplierInvoiceAmount || 0);
       }
+    }
     const invByKey = Object.fromEntries(invoiceItems.map(r =>
       [`${r.PurchaseOrder}-${r.PurchaseOrderItem}`, r.SupplierInvoiceItemAmount],
     ));
