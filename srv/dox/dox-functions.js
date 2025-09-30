@@ -65,15 +65,7 @@ async function handleUploadPdf(req) {
   const buf = Buffer.from(file, 'base64');
   const finalFilename = filename || 'invoice.pdf';
 
-  const supplierFolder = supplierId;
-  const poFolder = purchaseOrderId;
-  const fullPath = `${supplierFolder}/${poFolder}`;
-
   try {
-    // DMS
-    await createFolder(supplierFolder).catch(() => {});
-    await createFolder(poFolder, supplierFolder).catch(() => {});
-    await uploadDocument(fullPath, finalFilename, file);
 
     // DOX
     const result = await uploadPdf(buf, finalFilename);

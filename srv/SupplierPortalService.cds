@@ -453,6 +453,7 @@ service SupplierPortalService
   action deleteFolderService(folderId: String);
   action listDocumentsService(folderId: String) returns array of AttachmentData;
   action getFoldersService(relativePath: String) returns array of Folders;
+  action createDocumentService(supplierId: String, purchaseOrderId: String, documentName: String, file: LargeBinary) returns String;
   
   function getDocumentService(folderName: String, documentName: String) returns LargeBinary;
 
