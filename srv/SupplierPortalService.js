@@ -405,14 +405,8 @@ module.exports = cds.service.impl(async function () {
     ]);
 
     // 2. Mapear datos por clave
-    const netByPO  = Object.fromEntries(netAmounts.map(r => [r.PurchaseOrder, r.NetAmount]));
-    const invByPO = {};
-    for (const ref of invoiceItemsRef) {
-      const invoice = invoiceHeaders.find(h => h.SupplierInvoice === ref.SupplierInvoice);
-      if (invoice?.SupplierInvoiceStatus === '5') {
-        invByPO[ref.PurchaseOrder] = (invByPO[ref.PurchaseOrder] || 0) + (invoice.SupplierInvoiceAmount || 0);
-      }
-    }
+   const netByPO  = Object.fromEntries(netAmounts.map(r => [r.PurchaseOrder, r.NetAmount]));
+    const invByPO  = Object.fromEntries(invoiceHeaders.map(r => [r.PurchaseOrder, r.SupplierInvoiceAmount]));
     const invByKey = Object.fromEntries(invoiceItems.map(r =>
       [`${r.PurchaseOrder}-${r.PurchaseOrderItem}`, r.SupplierInvoiceItemAmount],
     ));
