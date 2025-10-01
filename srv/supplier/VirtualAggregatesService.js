@@ -34,7 +34,7 @@ async function handleNetAmountRead(req) {
  * GET PurchaseOrderSupplierInvoiceAmount
  * Devuelve el total facturado por orden de compra desde S/4HANA
  */
-// Handler CAP: sumar SupplierInvoiceItemAmount por PurchaseOrder
+// suma SupplierInvoiceItemAmount por PurchaseOrder
 // INCLUYENDO SOLO facturas con estado '5'
 async function handleSupplierInvoiceAmountRead(req) {
   const INCLUDED_STATUS = '5'; // Solo se suman facturas con este status
@@ -104,38 +104,81 @@ async function handleSupplierInvoiceAmountRead(req) {
 
 /**
  * GET PurchaseOrderItemSupplierInvoiceAmount
- * Devuelve el total facturado por orden + posición desde S/4HANA
+ * Devuelve el total facturado por orden + posición desde S/4HANA 
+ *  Suma SupplierInvoiceItemAmount por (PurchaseOrder, PurchaseOrderItem)
+ *  INCLUYENDO SOLO facturas con estado '5'
  */
+
 async function handleItemSupplierInvoiceAmountRead(req) {
+  const INCLUDED_STATUS = '5';
+
   try {
     const s4INV = await cds.connect.to('A_SupplierInvoice_edmx');
 
-    const raw = await s4INV.run(
+    // 1) Ítems con la clave de factura para poder cruzar contra la cabecera
+    const items = await s4INV.run(
       SELECT.from('A_SuplrInvcItemPurOrdRef', [
         'PurchaseOrder',
         'PurchaseOrderItem',
+        'SupplierInvoice',             // clave de cabecera
         'SupplierInvoiceItemAmount',
-      ]),
+      ])
     );
+    if (!Array.isArray(items) || items.length === 0) return [];
 
-    const agrupado = {};
-    for (const row of raw) {
-      const key = `${row.PurchaseOrder}__${row.PurchaseOrderItem}`;
-      const amount = Number(row.SupplierInvoiceItemAmount) || 0;
-      if (!agrupado[key]) agrupado[key] = { 
-        PurchaseOrder: row.PurchaseOrder, 
-        PurchaseOrderItem: row.PurchaseOrderItem,
-        SupplierInvoiceItemAmount: 0,
-      };
-      agrupado[key].SupplierInvoiceItemAmount += amount;
+    // 2) Cabeceras (status) solo de las facturas mencionadas en los ítems
+    const uniqueInvoiceKeys = [...new Set(items.map(i => i.SupplierInvoice).filter(Boolean))];
+    if (uniqueInvoiceKeys.length === 0) return [];
+
+    let invoices = [];
+    try {
+      invoices = await s4INV.run(
+        SELECT.from('A_SupplierInvoice', [
+          'SupplierInvoice',
+          'SupplierInvoiceStatus',
+        ]).where({ SupplierInvoice: { in: uniqueInvoiceKeys } })
+      );
+    } catch (e) {
+      // Fallback por si el backend no soporta IN: traer todo y filtrar en memoria
+      invoices = await s4INV.run(
+        SELECT.from('A_SupplierInvoice', [
+          'SupplierInvoice',
+          'SupplierInvoiceStatus',
+        ])
+      );
     }
 
-    return Object.values(agrupado);
+    const statusByInvoice = {};
+    for (const inv of invoices || []) {
+      statusByInvoice[inv.SupplierInvoice] = inv.SupplierInvoiceStatus;
+    }
+
+    // 3) Agrupar SOLO los ítems cuya factura tenga status '5'
+    const grouped = {};
+    for (const row of items) {
+      const status = statusByInvoice[row.SupplierInvoice];
+      if (status !== INCLUDED_STATUS) continue; // incluir solo status 5
+
+      const key = `${row.PurchaseOrder}__${row.PurchaseOrderItem}`;
+      const amount = Number(row.SupplierInvoiceItemAmount) || 0;
+
+      if (!grouped[key]) {
+        grouped[key] = {
+          PurchaseOrder: row.PurchaseOrder,
+          PurchaseOrderItem: row.PurchaseOrderItem,
+          SupplierInvoiceItemAmount: 0,
+        };
+      }
+      grouped[key].SupplierInvoiceItemAmount += amount;
+    }
+
+    return Object.values(grouped);
   } catch (err) {
     console.error('[ERROR] PurchaseOrderItemSupplierInvoiceAmount:', err);
     return req.reject(500, 'Error al obtener datos de facturación por ítem');
   }
 }
+
 
 module.exports = {
   handleNetAmountRead,
