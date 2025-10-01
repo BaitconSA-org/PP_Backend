@@ -37,59 +37,78 @@ async function handleNetAmountRead(req) {
 // suma SupplierInvoiceItemAmount por PurchaseOrder
 // INCLUYENDO SOLO facturas con estado '5'
 async function handleSupplierInvoiceAmountRead(req) {
-  const INCLUDED_STATUS = '5'; // Solo se suman facturas con este status
+  const INCLUDED_STATUS = '5'; // solo status 5
+
+  // Normaliza flags tipo ABAP ('X'), boolean o '1'
+  const isTrue = v => v === true || v === 'X' || v === 'x' || v === '1' || v === 1;
+
+  // Evita doble negativos si el backend ya trae montos negativos
+  const applySigned = (amount, isCredit) => {
+    const a = Number(amount) || 0;
+    if (a === 0) return 0;
+    return isCredit ? -Math.abs(a) : Math.abs(a);
+  };
 
   try {
     const s4INV = await cds.connect.to('A_SupplierInvoice_edmx');
 
-    // 1) Traer ítems con referencia a Orden de Compra y a la clave de factura
+    // 1) Ítems con referencia a OC y factura
     const items = await s4INV.run(
       SELECT.from('A_SuplrInvcItemPurOrdRef', [
         'PurchaseOrder',
-        'SupplierInvoice',             // clave de cabecera
-        'SupplierInvoiceItemAmount',   // importe del ítem
+        'SupplierInvoice',            // clave de cabecera
+        'SupplierInvoiceItemAmount',  // importe del ítem
       ])
     );
+    if (!Array.isArray(items) || items.length === 0) return [];
 
-    if (!Array.isArray(items) || items.length === 0) {
-      return []; // No hay ítems
-    }
-
-    // 2) Traer cabeceras de las facturas (status)
+    // 2) Cabeceras: status + indicador de Nota de Crédito
     const uniqueInvoiceKeys = [...new Set(items.map(it => it.SupplierInvoice).filter(Boolean))];
-    if (uniqueInvoiceKeys.length === 0) {
-      return [];
+    if (uniqueInvoiceKeys.length === 0) return [];
+
+    let invoices = [];
+    try {
+      invoices = await s4INV.run(
+        SELECT.from('A_SupplierInvoice', [
+          'SupplierInvoice',
+          'SupplierInvoiceStatus',
+          'SupplierInvoiceIsCreditMemo', // ← importante para el signo
+        ]).where({ SupplierInvoice: { in: uniqueInvoiceKeys } })
+      );
+    } catch {
+      // Fallback si no soporta IN
+      invoices = await s4INV.run(
+        SELECT.from('A_SupplierInvoice', [
+          'SupplierInvoice',
+          'SupplierInvoiceStatus',
+          'SupplierInvoiceIsCreditMemo',
+        ])
+      );
     }
 
-    const invoices = await s4INV.run(
-      SELECT.from('A_SupplierInvoice', [
-        'SupplierInvoice',
-        'SupplierInvoiceStatus',
-      ])
-      .where({ SupplierInvoice: { in: uniqueInvoiceKeys } })
-    );
-
-    // Mapear status por clave de factura
-    const invoiceStatusByKey = {};
+    // Indexar cabeceras por factura
+    const invoiceInfo = {};
     for (const inv of invoices || []) {
-      invoiceStatusByKey[inv.SupplierInvoice] = inv.SupplierInvoiceStatus;
+      invoiceInfo[inv.SupplierInvoice] = {
+        status: inv.SupplierInvoiceStatus,
+        isCredit: isTrue(inv.SupplierInvoiceIsCreditMemo),
+      };
     }
 
-    // 3) Agrupar SOLO facturas con status '5'
+    // 3) Agrupar SOLO facturas con status '5' y aplicar signo por NC
     const agrupadoPorPO = {};
     for (const item of items) {
-      const po = item.PurchaseOrder;
-      const invKey = item.SupplierInvoice;
-      const amount = Number(item.SupplierInvoiceItemAmount) || 0;
+      const info = invoiceInfo[item.SupplierInvoice];
+      if (!info || info.status !== INCLUDED_STATUS) continue; // solo status 5
 
-      const status = invoiceStatusByKey[invKey];
-      if (status !== INCLUDED_STATUS) continue; // solo incluir status 5
+      const signed = applySigned(item.SupplierInvoiceItemAmount, info.isCredit);
+      const po = item.PurchaseOrder;
 
       if (!agrupadoPorPO[po]) agrupadoPorPO[po] = 0;
-      agrupadoPorPO[po] += amount;
+      agrupadoPorPO[po] += signed;
     }
 
-    // 4) Formato de salida
+    // 4) Salida
     return Object.entries(agrupadoPorPO).map(([PurchaseOrder, SupplierInvoiceAmount]) => ({
       PurchaseOrder,
       SupplierInvoiceAmount,
