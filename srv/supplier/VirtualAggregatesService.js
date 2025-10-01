@@ -112,6 +112,16 @@ async function handleSupplierInvoiceAmountRead(req) {
 async function handleItemSupplierInvoiceAmountRead(req) {
   const INCLUDED_STATUS = '5';
 
+  // Normaliza valores tipo ABAP ('X'), boolean o '1'
+  const isTrue = v => v === true || v === 'X' || v === 'x' || v === '1' || v === 1;
+
+  // Evita doble negativos si el backend ya trae montos negativos
+  const applySigned = (amount, isCredit) => {
+    const a = Number(amount) || 0;
+    if (a === 0) return 0;
+    return isCredit ? -Math.abs(a) : Math.abs(a);
+  };
+
   try {
     const s4INV = await cds.connect.to('A_SupplierInvoice_edmx');
 
@@ -126,7 +136,7 @@ async function handleItemSupplierInvoiceAmountRead(req) {
     );
     if (!Array.isArray(items) || items.length === 0) return [];
 
-    // 2) Cabeceras (status) solo de las facturas mencionadas en los ítems
+    // 2) Cabeceras (status) de las facturas mencionadas en los ítems
     const uniqueInvoiceKeys = [...new Set(items.map(i => i.SupplierInvoice).filter(Boolean))];
     if (uniqueInvoiceKeys.length === 0) return [];
 
@@ -136,6 +146,7 @@ async function handleItemSupplierInvoiceAmountRead(req) {
         SELECT.from('A_SupplierInvoice', [
           'SupplierInvoice',
           'SupplierInvoiceStatus',
+          'SupplierInvoiceIsCreditMemo',   // ⬅ AQUI: traemos el flag de Nota de Crédito
         ]).where({ SupplierInvoice: { in: uniqueInvoiceKeys } })
       );
     } catch (e) {
@@ -144,23 +155,31 @@ async function handleItemSupplierInvoiceAmountRead(req) {
         SELECT.from('A_SupplierInvoice', [
           'SupplierInvoice',
           'SupplierInvoiceStatus',
+          'SupplierInvoiceIsCreditMemo',   // ⬅ AQUI también
         ])
       );
     }
 
-    const statusByInvoice = {};
+    // Index con status e indicador de NC
+    const infoByInvoice = {};
     for (const inv of invoices || []) {
-      statusByInvoice[inv.SupplierInvoice] = inv.SupplierInvoiceStatus;
+      infoByInvoice[inv.SupplierInvoice] = {
+        status: inv.SupplierInvoiceStatus,
+        isCredit: isTrue(inv.SupplierInvoiceIsCreditMemo), // ⬅ AQUI: normalizamos 'X'/'1'/true
+      };
     }
 
     // 3) Agrupar SOLO los ítems cuya factura tenga status '5'
+    //    y aplicar signo negativo si es Nota de Crédito
     const grouped = {};
     for (const row of items) {
-      const status = statusByInvoice[row.SupplierInvoice];
-      if (status !== INCLUDED_STATUS) continue; // incluir solo status 5
+      const info = infoByInvoice[row.SupplierInvoice];
+      if (!info || info.status !== INCLUDED_STATUS) continue; // incluir solo status 5
 
       const key = `${row.PurchaseOrder}__${row.PurchaseOrderItem}`;
-      const amount = Number(row.SupplierInvoiceItemAmount) || 0;
+
+      // ⬅ AQUI: aplicamos el signo según NC
+      const signedAmount = applySigned(row.SupplierInvoiceItemAmount, info.isCredit);
 
       if (!grouped[key]) {
         grouped[key] = {
@@ -169,7 +188,7 @@ async function handleItemSupplierInvoiceAmountRead(req) {
           SupplierInvoiceItemAmount: 0,
         };
       }
-      grouped[key].SupplierInvoiceItemAmount += amount;
+      grouped[key].SupplierInvoiceItemAmount += signedAmount;
     }
 
     return Object.values(grouped);
@@ -178,6 +197,7 @@ async function handleItemSupplierInvoiceAmountRead(req) {
     return req.reject(500, 'Error al obtener datos de facturación por ítem');
   }
 }
+
 
 
 module.exports = {
