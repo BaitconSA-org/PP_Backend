@@ -34,34 +34,73 @@ async function handleNetAmountRead(req) {
  * GET PurchaseOrderSupplierInvoiceAmount
  * Devuelve el total facturado por orden de compra desde S/4HANA
  */
+// Handler CAP: sumar SupplierInvoiceItemAmount por PurchaseOrder
+// INCLUYENDO SOLO facturas con estado '5'
 async function handleSupplierInvoiceAmountRead(req) {
+  const INCLUDED_STATUS = '5'; // Solo se suman facturas con este status
+
   try {
     const s4INV = await cds.connect.to('A_SupplierInvoice_edmx');
 
-    const raw = await s4INV.run(
+    // 1) Traer ítems con referencia a Orden de Compra y a la clave de factura
+    const items = await s4INV.run(
       SELECT.from('A_SuplrInvcItemPurOrdRef', [
         'PurchaseOrder',
-        'SupplierInvoiceItemAmount',
-      ]),
+        'SupplierInvoice',             // clave de cabecera
+        'SupplierInvoiceItemAmount',   // importe del ítem
+      ])
     );
 
-    const agrupado = {};
-    for (const row of raw) {
-      const po = row.PurchaseOrder;
-      const amount = Number(row.SupplierInvoiceItemAmount) || 0;
-      if (!agrupado[po]) agrupado[po] = 0;
-      agrupado[po] += amount;
+    if (!Array.isArray(items) || items.length === 0) {
+      return []; // No hay ítems
     }
 
-    return Object.entries(agrupado).map(([PurchaseOrder, SupplierInvoiceAmount]) => ({
+    // 2) Traer cabeceras de las facturas (status)
+    const uniqueInvoiceKeys = [...new Set(items.map(it => it.SupplierInvoice).filter(Boolean))];
+    if (uniqueInvoiceKeys.length === 0) {
+      return [];
+    }
+
+    const invoices = await s4INV.run(
+      SELECT.from('A_SupplierInvoice', [
+        'SupplierInvoice',
+        'SupplierInvoiceStatus',
+      ])
+      .where({ SupplierInvoice: { in: uniqueInvoiceKeys } })
+    );
+
+    // Mapear status por clave de factura
+    const invoiceStatusByKey = {};
+    for (const inv of invoices || []) {
+      invoiceStatusByKey[inv.SupplierInvoice] = inv.SupplierInvoiceStatus;
+    }
+
+    // 3) Agrupar SOLO facturas con status '5'
+    const agrupadoPorPO = {};
+    for (const item of items) {
+      const po = item.PurchaseOrder;
+      const invKey = item.SupplierInvoice;
+      const amount = Number(item.SupplierInvoiceItemAmount) || 0;
+
+      const status = invoiceStatusByKey[invKey];
+      if (status !== INCLUDED_STATUS) continue; // solo incluir status 5
+
+      if (!agrupadoPorPO[po]) agrupadoPorPO[po] = 0;
+      agrupadoPorPO[po] += amount;
+    }
+
+    // 4) Formato de salida
+    return Object.entries(agrupadoPorPO).map(([PurchaseOrder, SupplierInvoiceAmount]) => ({
       PurchaseOrder,
       SupplierInvoiceAmount,
     }));
+
   } catch (err) {
     console.error('[ERROR] PurchaseOrderSupplierInvoiceAmount:', err);
     return req.reject(500, 'Error al obtener datos de facturación por orden');
   }
 }
+
 
 /**
  * GET PurchaseOrderItemSupplierInvoiceAmount
