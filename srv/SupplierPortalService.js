@@ -80,7 +80,7 @@ module.exports = cds.service.impl(async function () {
     return Object.values(map);
   });
 
-   /**************** total de facturas del mes actual****************/
+   /**************** total de facturas del mes actual!****************/
   this.on('totalInvoicesCurrentMonth', async (req) => {
     const tx = cds.transaction(req);
     const now = new Date();
