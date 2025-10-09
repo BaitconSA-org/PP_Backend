@@ -504,7 +504,8 @@ type SyncResult {
 }
  @readonly
   entity InvoiceReport as projection on supplierPortalGD.InvoiceReport;
-
+     // 🔹 NUEVA FUNCIÓN para el tile dinámico del Launchpad
+  function totalInvoicesCurrentMonth() returns Integer;
 
 }
 //annotate SupplierPortalService with @requires : ['Supplier'];

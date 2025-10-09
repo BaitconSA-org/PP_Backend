@@ -80,6 +80,22 @@ module.exports = cds.service.impl(async function () {
     return Object.values(map);
   });
 
+   /**************** total de facturas del mes actual****************/
+  this.on('totalInvoicesCurrentMonth', async (req) => {
+    const tx = cds.transaction(req);
+    const now = new Date();
+    const currentMonth = now.getUTCMonth() + 1;
+    const currentYear = now.getUTCFullYear();
+
+    const result = await tx.run(
+      SELECT.one`count(*) as total`
+        .from('supplierPortalGD.Invoices')
+        .where`month(createdAt) = ${currentMonth} and year(createdAt) = ${currentYear}`
+    );
+
+  return result.total || 0;
+});
+
   /**************** 1 ****************/
   this.on('READ', 'PurchaseOrderItemExt', async req => {
     try {
