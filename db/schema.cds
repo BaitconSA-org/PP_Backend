@@ -66,7 +66,6 @@ entity Invoices : cuid, managed {
   invoiceTaxes                  : Composition of many InvoiceTaxes on invoiceTaxes.invoice = $self; // Impuestos de la factura
   currency                      : String(3);          // Moneda de la factura
   // files                         : Association to many InvoiceAttachments on files.invoice = $self;
-   createdAt       ; 
 }
 
 entity InvoiceStatus {

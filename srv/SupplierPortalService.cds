@@ -58,6 +58,7 @@ service SupplierPortalService
 
     entity Invoices             as projection on supplierPortalGD.Invoices{
       *,   // incluye invoiceNumber, supplier, purchaseOrderID, documentDate, …, files
+      createdAt,
       invoiceItems : Composition of many InvoiceItems
         on invoiceItems.invoice = $self,
 
