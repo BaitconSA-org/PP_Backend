@@ -50,6 +50,7 @@ entity Products : cuid {
 }
 
 entity Invoices : cuid, managed {
+ 
   documentDate                  : Date;               // Fecha de la factura
   postingDate                   : Date;               // Fecha de carga de la factura
   supplierInvoiceIDByInvcgParty : String(50);         // ID de factura PDF
@@ -65,6 +66,7 @@ entity Invoices : cuid, managed {
   invoiceTaxes                  : Composition of many InvoiceTaxes on invoiceTaxes.invoice = $self; // Impuestos de la factura
   currency                      : String(3);          // Moneda de la factura
   // files                         : Association to many InvoiceAttachments on files.invoice = $self;
+   createdAt       : Timestamp;
 }
 
 entity InvoiceStatus {
