@@ -93,8 +93,21 @@ module.exports = cds.service.impl(async function () {
         .where`month(createdAt) = ${currentMonth} and year(createdAt) = ${currentYear}`
     );
 
-  return result.total || 0;
+  const total = result?.total || 0;
+
+  // 🔹 Detectar si el Launchpad pide texto plano
+  const acceptHeader = req._.req.headers['accept'] || '';
+  const wantsPlainText = acceptHeader.includes('text/plain');
+
+  if (wantsPlainText) {
+    const res = req._.res;
+    res.status(200).type('text/plain').send(String(total));
+    return; // 🔥 corta el flujo OData
+  }
+
+  return { value: total };
 });
+
 
   /**************** 1 ****************/
   this.on('READ', 'PurchaseOrderItemExt', async req => {
