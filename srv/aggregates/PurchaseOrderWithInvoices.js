@@ -8,7 +8,7 @@ const cds = require('@sap/cds');
  */
 module.exports = async function handlePOWithInvoicesRead(req, s4Purchase, s4Invoices) {
   try {
-    const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006'];
+    const userSupplierIDs = ['31300001', '31300002', '31300003', '31300006','1000022'];
     const queryParams = req.query.SELECT?.columns || [];
 
     const poQuery = SELECT.from('PurchaseOrder')
