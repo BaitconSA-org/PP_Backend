@@ -43,7 +43,6 @@ const { handleUploadPdf } = require('./dox/dox-functions');
 const { handleStartWorkflow } = require('./workflow/workflow-functions');
 
 
-
 const {
   PurchaseOrderExt,
 } = cds.entities('SupplierPortalService');
@@ -107,7 +106,6 @@ module.exports = cds.service.impl(async function () {
 
   return { value: total };
 });
-
 
   /**************** 1 ****************/
   this.on('READ', 'PurchaseOrderItemExt', async req => {
@@ -715,6 +713,28 @@ module.exports = cds.service.impl(async function () {
   /**************** FIN WORKFLOW ***********/
   this.on('UpdateInvoiceWorkflow', (req) => updateInvoiceFromWorkflow( req, this));
 
+
+  /** * Leer Materiales Documents desde S/4HANA * */
+
+  this.on('READ', 'MaterialDocumentExt', async (req) => {
+    try {
+      const s4 = await cds.connect.to('A_MaterialDocument');
+      return await s4.run(req.query);
+    } catch (error) {
+      console.error('[ERROR] al leer MaterialDocumentExt:', error);
+      return req.reject(500, 'Error al leer MaterialDocument desde S/4HANA');
+    }
+  });
+  
+  this.on('READ', 'MaterialDocumentItemExt', async (req) => {
+    try {
+      const s4 = await cds.connect.to('A_MaterialDocument');
+      return await s4.run(req.query);
+    } catch (error) {
+      console.error('[ERROR] al leer MaterialDocumentItemExt:', error);
+      return req.reject(500, 'Error al leer MaterialDocumentItem desde S/4HANA');
+    }
+  });
 
 
   

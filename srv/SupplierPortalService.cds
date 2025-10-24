@@ -9,6 +9,9 @@ using { A_SupplierInvoice_edmx as inv } from './external/A_SupplierInvoice/A_Sup
 // Business Partner
 using { A_BusinessPartner as prt } from './external/A_BusinessPartner/A_BusinessPartner_edmx.csn';
 
+// Material Document
+using { A_MaterialDocument as mat } from './external/A_MaterialDocument/A_MaterialDocument.csn';
+
 // View agregados con totales
 using {
   PurchaseOrderNetAmount      as VirtualPONet,
@@ -358,7 +361,127 @@ service SupplierPortalService
             on  _InvoiceItems.PurchaseOrder     = PurchaseOrder
             and _InvoiceItems.PurchaseOrderItem = PurchaseOrderItem
     }
-        
+      @readonly
+      @cds.redirection.target : true
+      entity MaterialDocumentExt as select from mat.A_MaterialDocumentHeader as md {
+        key md.MaterialDocumentYear,
+        key md.MaterialDocument,
+        md.InventoryTransactionType,
+        md.DocumentDate,
+        md.PostingDate,
+        md.CreationDate,
+        md.CreationTime,
+        md.CreatedByUser,
+        md.MaterialDocumentHeaderText,
+        md.ReferenceDocument,
+        md.VersionForPrintingSlip,
+        md.ManualPrintIsTriggered,
+        md.CtrlPostgForExtWhseMgmtSyst,
+        md.GoodsMovementCode,
+        // Asociación a los ítems
+        _Items : Composition of many MaterialDocumentItemExt
+          on _Items.MaterialDocument = $self.MaterialDocument
+          and _Items.MaterialDocumentYear = $self.MaterialDocumentYear
+      }
+
+
+      @readonly
+      entity MaterialDocumentItemExt as select from mat.A_MaterialDocumentItem as item {
+        key item.MaterialDocumentYear,
+        key item.MaterialDocument,
+        key item.MaterialDocumentItem,
+
+        item.Material,
+        item.Plant,
+        item.StorageLocation,
+        item.Batch,
+        item.BatchBySupplier,
+        item.GoodsMovementType,
+        item.InventoryStockType,
+        item.InventoryValuationType,
+        item.InventorySpecialStockType,
+        item.Supplier,
+        item.Customer,
+        item.SalesOrder,
+        item.SalesOrderItem,
+        item.SalesOrderScheduleLine,
+        item.PurchaseOrder,
+        item.PurchaseOrderItem,
+        item.WBSElement,
+        item.ManufacturingOrder,
+        item.ManufacturingOrderItem,
+        item.GoodsMovementRefDocType,
+        item.GoodsMovementReasonCode,
+        item.Delivery,
+        item.DeliveryItem,
+        item.AccountAssignmentCategory,
+        item.CostCenter,
+        item.ControllingArea,
+        item.CostObject,
+        item.GLAccount,
+        item.FunctionalArea,
+        item.ProfitabilitySegment,
+        item.ProfitCenter,
+        item.MasterFixedAsset,
+        item.FixedAsset,
+        item.MaterialBaseUnitISOCode,
+        item.MaterialBaseUnitSAPCode,
+        item.MaterialBaseUnit,
+        item.QuantityInBaseUnit,
+        item.EntryUnitISOCode,
+        item.EntryUnitSAPCode,
+        item.EntryUnit,
+        item.QuantityInEntryUnit,
+        item.CompanyCodeCurrency,
+        item.GdsMvtExtAmtInCoCodeCrcy,
+        item.SlsPrcAmtInclVATInCoCodeCrcy,
+        item.FiscalYear,
+        item.FiscalYearPeriod,
+        item.FiscalYearVariant,
+        item.IssgOrRcvgMaterial,
+        item.IssgOrRcvgBatch,
+        item.IssuingOrReceivingPlant,
+        item.IssuingOrReceivingStorageLoc,
+        item.IssuingOrReceivingStockType,
+        item.IssgOrRcvgSpclStockInd,
+        item.IssuingOrReceivingValType,
+        item.IsCompletelyDelivered,
+        item.MaterialDocumentItemText,
+        item.GoodsRecipientName,
+        item.UnloadingPointName,
+        item.ShelfLifeExpirationDate,
+        item.ManufactureDate,
+        item.SerialNumbersAreCreatedAutomly,
+        item.Reservation,
+        item.ReservationItem,
+        item.ReservationItemRecordType,
+        item.ReservationIsFinallyIssued,
+        item.SpecialStockIdfgSalesOrder,
+        item.SpecialStockIdfgSalesOrderItem,
+        item.SpecialStockIdfgWBSElement,
+        item.IsAutomaticallyCreated,
+        item.MaterialDocumentLine,
+        item.MaterialDocumentParentLine,
+        item.HierarchyNodeLevel,
+        item.GoodsMovementIsCancelled,
+        item.ReversedMaterialDocumentYear,
+        item.ReversedMaterialDocument,
+        item.ReversedMaterialDocumentItem,
+        item.ReferenceDocumentFiscalYear,
+        item.InvtryMgmtRefDocumentItem,
+        item.InvtryMgmtReferenceDocument,
+        item.MaterialDocumentPostingType,
+        item.InventoryUsabilityCode,
+        item.EWMWarehouse,
+        item.EWMStorageBin,
+        item.DebitCreditCode,
+
+        // Asociación inversa hacia el encabezado
+        toHeader : Association to MaterialDocumentExt
+          on toHeader.MaterialDocument = $self.MaterialDocument
+          and toHeader.MaterialDocumentYear = $self.MaterialDocumentYear
+      };
+              
 
     entity PurchaseOrderSupplierAddress as projection on ext.PurchaseOrderSupplierAddress;
 
@@ -507,6 +630,5 @@ type SyncResult {
   entity InvoiceReport as projection on supplierPortalGD.InvoiceReport;
      // 🔹 NUEVA FUNCIÓN para el tile dinámico del Launchpad
   function totalInvoicesCurrentMonth() returns Integer;
-
 }
 //annotate SupplierPortalService with @requires : ['Supplier'];
