@@ -29,28 +29,28 @@ service SupplierPortalService
 {
     annotate PurchaseOrderExt with @restrict :
     [
-        { grant : [ '*' ], to : [ 'Supplier' ] },
+        { grant : [ '*' ], to : [ 'SupplierUser' ] },
         { grant : [ '*' ], to : [ 'authenticated-user' ] }
     ];
 
     annotate SupplierInvoiceExt with @restrict : 
     [
-        { grant : [ '*' ], to : [ 'Supplier' ] },
+        { grant : [ '*' ], to : [ 'SupplierUser' ] },
         { grant : [ '*' ], to : [ 'authenticated-user' ] }
     ];
 
     annotate PurchaseOrderNetAmount with @restrict : [
-    { grant: ['READ'], to: ['Supplier'] },
+    { grant: ['READ'], to: ['SupplierUser'] },
     { grant: ['READ'], to: ['authenticated-user'] }
     ];
 
     annotate PurchaseOrderSupplierInvoiceAmount with @restrict : [
-        { grant: ['READ'], to: ['Supplier'] },
+        { grant: ['READ'], to: ['SupplierUser'] },
         { grant: ['READ'], to: ['authenticated-user'] }
     ];
 
     annotate PurchaseOrderItemSupplierInvoiceAmount with @restrict : [
-        { grant: ['READ'], to: ['Supplier'] },
+        { grant: ['READ'], to: ['SupplierUser'] },
         { grant: ['READ'], to: ['authenticated-user'] }
     ];
 
