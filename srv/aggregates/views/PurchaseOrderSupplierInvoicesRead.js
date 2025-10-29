@@ -8,8 +8,10 @@ const cds = require('@sap/cds');
  */
 async function handlePurchaseOrderSupplierInvRead(req, s4Inv) {
   // 1. SupplierIDs del usuario – fallback en local
-  const supplierIDs =
-    req.user?.attr?.supplierID ?? ['31300001', '31300002', '31300003', '31300006'];
+  //const supplierIDs =
+    //req.user?.attr?.supplierID ?? ['31300001', '31300002', '31300003', '31300006'];
+  
+    let supplierIDs = req.user?.attr?.supplierID;
 
   if (!Array.isArray(supplierIDs) || supplierIDs.length === 0) {
     return req.reject(403, 'El usuario no tiene SupplierID asignado');

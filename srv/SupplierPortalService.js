@@ -355,10 +355,6 @@ module.exports = cds.service.impl(async function () {
 
 
   this.on('READ', 'PurchaseOrderExt', async (req) => {
-
-    console.log('🛑 DEBUG PurchaseOrderExt - userSupplierIDs:', JSON.stringify(userSupplierIDs));
-    console.log('🛑 DEBUG - User ID:', req.user?.id);
-    console.log('🛑 DEBUG - User attributes:', JSON.stringify(req.user?.attr));
     const s4Purchase = await cds.connect.to('purchaseorder_edmx');
     //const userSupplierIDs = ['31300001'];
     let userSupplierIDs = req.user?.attr?.supplierID;
@@ -376,6 +372,10 @@ module.exports = cds.service.impl(async function () {
         return req.reject(403, 'El usuario no cuenta con roles de proveedor');
       }
     }
+
+    console.log('🛑 DEBUG PurchaseOrderExt - userSupplierIDs:', JSON.stringify(userSupplierIDs));
+    console.log('🛑 DEBUG - User ID:', req.user?.id);
+    console.log('🛑 DEBUG - User attributes:', JSON.stringify(req.user?.attr));
 
 
 
