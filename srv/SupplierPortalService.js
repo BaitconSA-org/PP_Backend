@@ -409,13 +409,15 @@ module.exports = cds.service.impl(async function () {
         : [];
 
       filteredPOs = poFromParsed.length ? poFromParsed : poFromRaw;
-      const supplierFilter = [{ ref: ['Supplier'] }, 'in', { val: userSupplierIDs }];
+
+      //descomentar
+      //const supplierFilter = [{ ref: ['Supplier'] }, 'in', { val: userSupplierIDs }];
         
-        if (parsedWhere.length > 0) {
-          query.SELECT.where = [...parsedWhere, 'and', ...supplierFilter];
-        } else {
-          query.SELECT.where = supplierFilter;
-        }
+        //if (parsedWhere.length > 0) {
+         // query.SELECT.where = [...parsedWhere, 'and', ...supplierFilter];
+       // } else {
+        //  query.SELECT.where = supplierFilter;
+       // }
           console.log('🔍 DEBUG - Query final:', JSON.stringify(query.SELECT.where, null, 2));
 
       // Eliminar count/columns si es $count=true
@@ -424,10 +426,16 @@ module.exports = cds.service.impl(async function () {
     }
 
     let poHeaders = await s4Purchase.run(query);
-    console.log('🔍 DEBUG - Número de órdenes después de consulta S4:', poHeaders.length);
-    console.log('🔍 DEBUG - Suppliers únicos en resultados:', [...new Set(poHeaders.map(p => p.Supplier))]);
-    console.log('🔍 DEBUG - Primeras 3 órdenes:', poHeaders.slice(0, 3).map(p => ({ PurchaseOrder: p.PurchaseOrder, Supplier: p.Supplier })));
-    console.log('🔍 DEBUG - Estructura completa del primer registro:', JSON.stringify(poHeaders[0], null, 2));
+      console.log('🔍 DEBUG - Número de órdenes después de consulta S4:', poHeaders.length);
+
+      // 🆕 DEBUG CRÍTICO: Ver TODOS los campos disponibles
+      if (poHeaders.length > 0) {
+        console.log('🔍 DEBUG - TODOS los campos disponibles:', Object.keys(poHeaders[0]));
+        console.log('🔍 DEBUG - _SupplierAddress completo:', JSON.stringify(poHeaders[0]._SupplierAddress, null, 2));
+      }
+
+      console.log('🔍 DEBUG - Suppliers únicos en resultados:', [...new Set(poHeaders.map(p => p.Supplier))]);
+      console.log('🔍 DEBUG - Primeras 3 órdenes:', poHeaders.slice(0, 3).map(p => ({ PurchaseOrder: p.PurchaseOrder, Supplier: p.Supplier })));
 
     if (!poHeaders.length) return [];
 
