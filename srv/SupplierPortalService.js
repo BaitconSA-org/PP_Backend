@@ -409,7 +409,14 @@ module.exports = cds.service.impl(async function () {
         : [];
 
       filteredPOs = poFromParsed.length ? poFromParsed : poFromRaw;
-      query.SELECT.where = [{ ref: ['Supplier'] }, 'in', { val: userSupplierIDs }];
+      const supplierFilter = [{ ref: ['Supplier'] }, 'in', { val: userSupplierIDs }];
+        
+        if (parsedWhere.length > 0) {
+          query.SELECT.where = [...parsedWhere, 'and', ...supplierFilter];
+        } else {
+          query.SELECT.where = supplierFilter;
+        }
+          console.log('🔍 DEBUG - Query final:', JSON.stringify(query.SELECT.where, null, 2));
 
       // Eliminar count/columns si es $count=true
       if (req.query?.SELECT?.count) delete query.SELECT.count;
@@ -417,6 +424,8 @@ module.exports = cds.service.impl(async function () {
     }
 
     let poHeaders = await s4Purchase.run(query);
+    console.log('🔍 DEBUG - Número de órdenes después de consulta:', poHeaders.length);
+    console.log('🔍 DEBUG - Suppliers únicos en resultados:', [...new Set(poHeaders.map(p => p.Supplier))]);
     if (!poHeaders.length) return [];
 
     poHeaders = applyPostFilters(poHeaders, originalWhere);
