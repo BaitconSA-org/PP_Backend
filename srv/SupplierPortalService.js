@@ -373,15 +373,6 @@ module.exports = cds.service.impl(async function () {
       }
     }
 
-    console.log('🛑 DEBUG PurchaseOrderExt - userSupplierIDs:', JSON.stringify(userSupplierIDs));
-    console.log('🛑 DEBUG - User ID:', req.user?.id);
-    console.log('🛑 DEBUG - User attributes:', JSON.stringify(req.user?.attr));
-    console.log('🔍 DEBUG - userSupplierIDs:', userSupplierIDs);
-
-
-
-
-
     req._batchCache = req._batchCache || {};
     const isCountEndpoint = req.http?.req?.originalUrl?.includes('/$count');
 
@@ -434,16 +425,7 @@ module.exports = cds.service.impl(async function () {
 
       // Aplicar filtro final
       poHeaders = poHeaders.filter(po => validPOs.includes(po.PurchaseOrder));
-      console.log('🔍 DEBUG - Número de órdenes después de consulta S4:', poHeaders.length);
-
-      // 🆕 DEBUG CRÍTICO: Ver TODOS los campos disponibles
-      if (poHeaders.length > 0) {
-        console.log('🔍 DEBUG - TODOS los campos disponibles:', Object.keys(poHeaders[0]));
-        console.log('🔍 DEBUG - _SupplierAddress completo:', JSON.stringify(poHeaders[0]._SupplierAddress, null, 2));
-      }
-
-      console.log('🔍 DEBUG - Suppliers únicos en resultados:', [...new Set(poHeaders.map(p => p.Supplier))]);
-      console.log('🔍 DEBUG - Primeras 3 órdenes:', poHeaders.slice(0, 3).map(p => ({ PurchaseOrder: p.PurchaseOrder, Supplier: p.Supplier })));
+     // console.log('DEBUG - Número de órdenes después de consulta S4:', poHeaders.length);
 
     if (!poHeaders.length) return [];
 
