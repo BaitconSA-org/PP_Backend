@@ -376,6 +376,8 @@ module.exports = cds.service.impl(async function () {
     console.log('🛑 DEBUG PurchaseOrderExt - userSupplierIDs:', JSON.stringify(userSupplierIDs));
     console.log('🛑 DEBUG - User ID:', req.user?.id);
     console.log('🛑 DEBUG - User attributes:', JSON.stringify(req.user?.attr));
+    console.log('🔍 DEBUG - userSupplierIDs:', userSupplierIDs);
+
 
 
 
