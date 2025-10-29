@@ -410,15 +410,7 @@ module.exports = cds.service.impl(async function () {
 
       filteredPOs = poFromParsed.length ? poFromParsed : poFromRaw;
 
-      //descomentar
-      //const supplierFilter = [{ ref: ['Supplier'] }, 'in', { val: userSupplierIDs }];
-        
-        //if (parsedWhere.length > 0) {
-         // query.SELECT.where = [...parsedWhere, 'and', ...supplierFilter];
-       // } else {
-        //  query.SELECT.where = supplierFilter;
-       // }
-          console.log('🔍 DEBUG - Query final:', JSON.stringify(query.SELECT.where, null, 2));
+
 
       // Eliminar count/columns si es $count=true
       if (req.query?.SELECT?.count) delete query.SELECT.count;
@@ -426,6 +418,22 @@ module.exports = cds.service.impl(async function () {
     }
 
     let poHeaders = await s4Purchase.run(query);
+      const allPoIds = poHeaders.map(p => p.PurchaseOrder);  // ← CAMBIA solo esta línea
+    
+      // Consulta adicional para obtener Supplier IDs reales
+      const poDetails = await s4Purchase.run(
+        SELECT.from('PurchaseOrder')
+          .columns('PurchaseOrder', 'Supplier')
+          .where({ PurchaseOrder: { in: allPoIds } })  // ← Y esta también
+      );
+
+      // Filtrar órdenes que pertenecen a los suppliers del usuario
+      const validPOs = poDetails
+        .filter(po => userSupplierIDs.includes(po.Supplier))
+        .map(po => po.PurchaseOrder);
+
+      // Aplicar filtro final
+      poHeaders = poHeaders.filter(po => validPOs.includes(po.PurchaseOrder));
       console.log('🔍 DEBUG - Número de órdenes después de consulta S4:', poHeaders.length);
 
       // 🆕 DEBUG CRÍTICO: Ver TODOS los campos disponibles
