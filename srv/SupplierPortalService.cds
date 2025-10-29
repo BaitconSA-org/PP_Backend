@@ -29,16 +29,8 @@ service SupplierPortalService
 {
     annotate PurchaseOrderExt with @restrict :
     [
-        { 
-            grant : [ 'READ' ], 
-            to : [ 'Supplier' ],
-            where : 'Supplier in $user.attr.supplierID'
-        },
-        { 
-            grant : [ 'READ' ], 
-            to : [ 'authenticated-user' ],
-            where : 'Supplier in $user.attr.supplierID'
-        }
+        { grant : [ '*' ], to : [ 'Supplier' ] },
+        { grant : [ '*' ], to : [ 'authenticated-user' ] }
     ];
 
     annotate SupplierInvoiceExt with @restrict : 

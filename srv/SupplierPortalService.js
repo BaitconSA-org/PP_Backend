@@ -424,13 +424,15 @@ module.exports = cds.service.impl(async function () {
     }
 
     let poHeaders = await s4Purchase.run(query);
-    console.log('🔍 DEBUG - Número de órdenes después de consulta:', poHeaders.length);
+    console.log('🔍 DEBUG - Número de órdenes después de consulta S4:', poHeaders.length);
     console.log('🔍 DEBUG - Suppliers únicos en resultados:', [...new Set(poHeaders.map(p => p.Supplier))]);
+    console.log('🔍 DEBUG - Primeras 3 órdenes:', poHeaders.slice(0, 3).map(p => ({ PurchaseOrder: p.PurchaseOrder, Supplier: p.Supplier })));
     if (!poHeaders.length) return [];
 
-    poHeaders = applyPostFilters(poHeaders, originalWhere);
-    if (filteredPOs?.length)
-      poHeaders = poHeaders.filter(po => filteredPOs.includes(po.PurchaseOrder));
+    //descomentar 16:10
+   // poHeaders = applyPostFilters(poHeaders, originalWhere);
+    //if (filteredPOs?.length)
+      //poHeaders = poHeaders.filter(po => filteredPOs.includes(po.PurchaseOrder));
 
     /* ------------------------------------------------------------------
  * 3. Enriquecer cabeceras (items, montos, campos calculados)
