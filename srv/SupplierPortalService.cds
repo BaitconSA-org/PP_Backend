@@ -357,9 +357,14 @@ service SupplierPortalService
         cast(null as Decimal(15,2)) as QuantityInPurchaseOrderUnit,
         cast(null as Decimal(15,2)) as UnitPrice,
 
-        _InvoiceItems: Association to many SupplierInvoiceItemExt
+       _InvoiceItems : Association to many SupplierInvoiceItemExt
             on  _InvoiceItems.PurchaseOrder     = PurchaseOrder
-            and _InvoiceItems.PurchaseOrderItem = PurchaseOrderItem
+            and _InvoiceItems.PurchaseOrderItem = PurchaseOrderItem;
+
+      _MaterialItem : Association to many MaterialDocumentItemExt
+        on  _MaterialItem.PurchaseOrder     = PurchaseOrder
+        and _MaterialItem.PurchaseOrderItem = PurchaseOrderItem;
+
     }
       @readonly
       @cds.redirection.target : true
