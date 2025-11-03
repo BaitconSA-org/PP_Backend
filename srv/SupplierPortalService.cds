@@ -361,9 +361,10 @@ service SupplierPortalService
             on  _InvoiceItems.PurchaseOrder     = PurchaseOrder
             and _InvoiceItems.PurchaseOrderItem = PurchaseOrderItem,
        
-        _MaterialItem : Association to many MaterialDocumentItemExt
-            on  _MaterialItem.PurchaseOrder     = PurchaseOrder
-            and _MaterialItem.PurchaseOrderItem = PurchaseOrderItem
+        _MaterialItem   : Association to many MaterialDocumentItemExt
+        on  _MaterialItem.PurchaseOrder     = PurchaseOrder
+        and _MaterialItem.PurchaseOrderItem = PurchaseOrderItem
+        or true
 
     }
       @readonly
