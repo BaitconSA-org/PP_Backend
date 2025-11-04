@@ -512,26 +512,6 @@ module.exports = cds.service.impl(async function () {
 
     return poHeaders;
   });
-  this.on('READ', 'PurchaseOrderItemExt', async (req) => {
-  try {
-    console.log('🚨 HANDLER PurchaseOrderItemExt EJECUTÁNDOSE');
-    
-    // Query MUY básica
-    const tx = cds.transaction(req);
-    const results = await tx.run(
-      SELECT.from('PurchaseOrderItemExt')
-        .columns(['PurchaseOrder', 'PurchaseOrderItem', 'PurchaseOrderCategory'])
-        .limit(5)
-    );
-    
-    console.log('✅ Resultados obtenidos:', results.length);
-    return results;
-    
-  } catch (error) {
-    console.error('❌ Error en handler:', error.message, error.stack);
-    return req.reject(500, 'Error específico: ' + error.message);
-  }
-});
   /* ------------------------------------------------------------------ */
   /* Helpers                                                             */
   /* ------------------------------------------------------------------ */
@@ -772,18 +752,36 @@ module.exports = cds.service.impl(async function () {
   });
 
   this.on('READ', 'PurchaseOrderItemExt', async (req) => {
+  console.log('=== DEBUG PurchaseOrderItemExt START ===');
+  console.log('Query completo:', JSON.stringify(req.query, null, 2));
+  
   const results = await cds.transaction(req).run(req.query);
   
-  // Si se está expandiendo _MaterialItems
-  const shouldExpandMaterials = req.query.SELECT.columns?.some(col => 
-    col.ref && col.ref[0] === '_MaterialItems'
-  );
+  // Debug detallado de la expansión
+  const hasMaterialExpand = req.query.SELECT.columns?.some(col => {
+    console.log('Column:', JSON.stringify(col));
+    if (col.ref && col.ref[0] === '_MaterialItems') {
+      console.log('✅ ENCONTRADO _MaterialItems en ref');
+      return true;
+    }
+    if (col.expand) {
+      const hasExpand = col.expand.some(e => e.ref && e.ref[0] === '_MaterialItems');
+      if (hasExpand) console.log('✅ ENCONTRADO _MaterialItems en expand');
+      return hasExpand;
+    }
+    return false;
+  });
   
-  if (shouldExpandMaterials && results.length > 0) {
-    const materialService = await cds.connect.to('A_MaterialDocument');
-    
-    for (let item of results) {
-      try {
+  console.log('Should expand materials:', hasMaterialExpand);
+  console.log('Number of results:', results.length);
+  
+  if (hasMaterialExpand && results.length > 0) {
+    console.log('🔍 BUSCANDO MATERIALS...');
+    try {
+      const materialService = await cds.connect.to('A_MaterialDocument');
+      
+      for (let item of results) {
+        console.log('🔍 Buscando materials para:', item.PurchaseOrder, item.PurchaseOrderItem);
         const materials = await materialService.run(
           SELECT.from('A_MaterialDocumentItem')
             .where({
@@ -791,14 +789,16 @@ module.exports = cds.service.impl(async function () {
               PurchaseOrderItem: item.PurchaseOrderItem
             })
         );
+        console.log('🔍 Materials encontrados:', materials.length);
         item._MaterialItems = materials;
-      } catch (error) {
-        console.error('Error fetching materials:', error);
-        item._MaterialItems = [];
+        console.log('🔍 _MaterialItems agregado al item');
       }
+    } catch (error) {
+      console.error('❌ Error:', error);
     }
   }
   
+  console.log('=== DEBUG PurchaseOrderItemExt END ===');
   return results;
 });
 
