@@ -771,19 +771,35 @@ module.exports = cds.service.impl(async function () {
     }
   });
 
-  this.after('READ', 'PurchaseOrderItemExt', async (items, req) => {
-  if (!Array.isArray(items)) items = [items];
+  this.on('READ', 'PurchaseOrderItemExt', async (req) => {
+  const results = await cds.transaction(req).run(req.query);
   
-  for (let item of items) {
-    const materials = await cds.transaction(req).run(
-      SELECT.from('MaterialDocumentItemExt')
-        .where({
-          PurchaseOrder: item.PurchaseOrder,
-          PurchaseOrderItem: item.PurchaseOrderItem  
-        })
-    );
-    item._MaterialItems = materials;
+  // Si se está expandiendo _MaterialItems
+  const shouldExpandMaterials = req.query.SELECT.columns?.some(col => 
+    col.ref && col.ref[0] === '_MaterialItems'
+  );
+  
+  if (shouldExpandMaterials && results.length > 0) {
+    const materialService = await cds.connect.to('A_MaterialDocument');
+    
+    for (let item of results) {
+      try {
+        const materials = await materialService.run(
+          SELECT.from('A_MaterialDocumentItem')
+            .where({
+              PurchaseOrder: item.PurchaseOrder,
+              PurchaseOrderItem: item.PurchaseOrderItem
+            })
+        );
+        item._MaterialItems = materials;
+      } catch (error) {
+        console.error('Error fetching materials:', error);
+        item._MaterialItems = [];
+      }
+    }
   }
+  
+  return results;
 });
 
 
