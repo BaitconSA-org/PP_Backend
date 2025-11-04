@@ -513,36 +513,21 @@ module.exports = cds.service.impl(async function () {
     return poHeaders;
   });
   this.on('READ', 'PurchaseOrderItemExt', async (req) => {
-  // Siempre remover la expansión problemática
-  const safeQuery = cloneCQN(req.query);
-  safeQuery.SELECT.columns = safeQuery.SELECT.columns.filter(
-    col => !col.ref || col.ref[0] !== '_MaterialItems'
-  );
-  
-  const results = await cds.transaction(req).run(safeQuery);
-  
-  // Agregar materiales manualmente SI se pidió la expansión
-  if (req.query.SELECT.columns.some(c => c.ref && c.ref[0] === '_MaterialItems')) {
-    const materialService = await cds.connect.to('A_MaterialDocument');
+  try {
+    console.log('✅ Handler PurchaseOrderItemExt ejecutándose');
     
-    for (let item of results) {
-      try {
-        const materials = await materialService.run(
-          SELECT.from('A_MaterialDocumentItem')
-            .where({
-              PurchaseOrder: item.PurchaseOrder,
-              PurchaseOrderItem: item.PurchaseOrderItem
-            })
-        );
-        item._MaterialItems = materials;
-      } catch (error) {
-        console.error('Error fetching materials:', error);
-        item._MaterialItems = [];
-      }
-    }
+    // Query MUY básica para testear
+    const results = await SELECT.from('PurchaseOrderItemExt')
+      .columns('PurchaseOrder', 'PurchaseOrderItem')
+      .limit(5);
+    
+    console.log('✅ Resultados:', results.length);
+    return results;
+    
+  } catch (error) {
+    console.error('❌ Error en handler:', error);
+    return req.reject(500, 'Error en handler: ' + error.message);
   }
-  
-  return results;
 });
   /* ------------------------------------------------------------------ */
   /* Helpers                                                             */
