@@ -514,19 +514,22 @@ module.exports = cds.service.impl(async function () {
   });
   this.on('READ', 'PurchaseOrderItemExt', async (req) => {
   try {
-    console.log('✅ Handler PurchaseOrderItemExt ejecutándose');
+    console.log('🚨 HANDLER PurchaseOrderItemExt EJECUTÁNDOSE');
     
-    // Query MUY básica para testear
-    const results = await SELECT.from('PurchaseOrderItemExt')
-      .columns('PurchaseOrder', 'PurchaseOrderItem')
-      .limit(5);
+    // Query MUY básica
+    const tx = cds.transaction(req);
+    const results = await tx.run(
+      SELECT.from('PurchaseOrderItemExt')
+        .columns(['PurchaseOrder', 'PurchaseOrderItem', 'PurchaseOrderCategory'])
+        .limit(5)
+    );
     
-    console.log('✅ Resultados:', results.length);
+    console.log('✅ Resultados obtenidos:', results.length);
     return results;
     
   } catch (error) {
-    console.error('❌ Error en handler:', error);
-    return req.reject(500, 'Error en handler: ' + error.message);
+    console.error('❌ Error en handler:', error.message, error.stack);
+    return req.reject(500, 'Error específico: ' + error.message);
   }
 });
   /* ------------------------------------------------------------------ */
