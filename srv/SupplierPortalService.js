@@ -513,34 +513,36 @@ module.exports = cds.service.impl(async function () {
     return poHeaders;
   });
   this.on('READ', 'PurchaseOrderItemExt', async (req) => {
-    const results = await cds.transaction(req).run(req.query);
+  // Siempre remover la expansión problemática
+  const safeQuery = cloneCQN(req.query);
+  safeQuery.SELECT.columns = safeQuery.SELECT.columns.filter(
+    col => !col.ref || col.ref[0] !== '_MaterialItems'
+  );
+  
+  const results = await cds.transaction(req).run(safeQuery);
+  
+  // Agregar materiales manualmente SI se pidió la expansión
+  if (req.query.SELECT.columns.some(c => c.ref && c.ref[0] === '_MaterialItems')) {
+    const materialService = await cds.connect.to('A_MaterialDocument');
     
-    // Si la consulta incluye expand _MaterialItems
-    if (req.query.SELECT.columns && 
-        req.query.SELECT.columns.some(c => c.ref && c.ref[0] === '_MaterialItems')) {
-      
-      // Conectar al servicio remoto de Materials
-      const materialService = await cds.connect.to('A_MaterialDocument');
-      
-      for (let item of results) {
-        try {
-          // Buscar los materiales en el servicio remoto
-          const materials = await materialService.run(
-            SELECT.from('A_MaterialDocumentItem')
-              .where({
-                PurchaseOrder: item.PurchaseOrder,
-                PurchaseOrderItem: item.PurchaseOrderItem
-              })
-          );
-          item._MaterialItems = materials;
-        } catch (error) {
-          console.error('Error fetching materials for PO item:', error);
-          item._MaterialItems = []; // Array vacío en caso de error
-        }
+    for (let item of results) {
+      try {
+        const materials = await materialService.run(
+          SELECT.from('A_MaterialDocumentItem')
+            .where({
+              PurchaseOrder: item.PurchaseOrder,
+              PurchaseOrderItem: item.PurchaseOrderItem
+            })
+        );
+        item._MaterialItems = materials;
+      } catch (error) {
+        console.error('Error fetching materials:', error);
+        item._MaterialItems = [];
       }
     }
-    
-    return results;
+  }
+  
+  return results;
 });
   /* ------------------------------------------------------------------ */
   /* Helpers                                                             */
