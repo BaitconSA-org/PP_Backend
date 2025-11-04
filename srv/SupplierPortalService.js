@@ -750,55 +750,15 @@ module.exports = cds.service.impl(async function () {
       return req.reject(500, 'Error al leer MaterialDocumentItem desde S/4HANA');
     }
   });
+  this.before('READ', 'PurchaseOrderItemExt', (req) => {
+  console.log('🔴🔴🔴 BEFORE PurchaseOrderItemExt SE EJECUTÓ 🔴🔴🔴');
+});
 
-  this.on('READ', 'PurchaseOrderItemExt', async (req) => {
-  console.log('=== DEBUG PurchaseOrderItemExt START ===');
-  console.log('Query completo:', JSON.stringify(req.query, null, 2));
+this.on('READ', 'PurchaseOrderItemExt', async (req) => {
+  console.log('🟢🟢🟢 HANDLER PurchaseOrderItemExt SE EJECUTÓ 🟢🟢🟢');
+  console.log('QUERY:', JSON.stringify(req.query));
   
   const results = await cds.transaction(req).run(req.query);
-  
-  // Debug detallado de la expansión
-  const hasMaterialExpand = req.query.SELECT.columns?.some(col => {
-    console.log('Column:', JSON.stringify(col));
-    if (col.ref && col.ref[0] === '_MaterialItems') {
-      console.log('✅ ENCONTRADO _MaterialItems en ref');
-      return true;
-    }
-    if (col.expand) {
-      const hasExpand = col.expand.some(e => e.ref && e.ref[0] === '_MaterialItems');
-      if (hasExpand) console.log('✅ ENCONTRADO _MaterialItems en expand');
-      return hasExpand;
-    }
-    return false;
-  });
-  
-  console.log('Should expand materials:', hasMaterialExpand);
-  console.log('Number of results:', results.length);
-  
-  if (hasMaterialExpand && results.length > 0) {
-    console.log('🔍 BUSCANDO MATERIALS...');
-    try {
-      const materialService = await cds.connect.to('A_MaterialDocument');
-      
-      for (let item of results) {
-        console.log('🔍 Buscando materials para:', item.PurchaseOrder, item.PurchaseOrderItem);
-        const materials = await materialService.run(
-          SELECT.from('A_MaterialDocumentItem')
-            .where({
-              PurchaseOrder: item.PurchaseOrder,
-              PurchaseOrderItem: item.PurchaseOrderItem
-            })
-        );
-        console.log('🔍 Materials encontrados:', materials.length);
-        item._MaterialItems = materials;
-        console.log('🔍 _MaterialItems agregado al item');
-      }
-    } catch (error) {
-      console.error('❌ Error:', error);
-    }
-  }
-  
-  console.log('=== DEBUG PurchaseOrderItemExt END ===');
   return results;
 });
 
