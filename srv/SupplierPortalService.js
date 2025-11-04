@@ -512,6 +512,26 @@ module.exports = cds.service.impl(async function () {
 
     return poHeaders;
   });
+  this.on('READ', 'PurchaseOrderItemExt', async (req) => {
+    const results = await cds.transaction(req).run(req.query);
+    
+    // Si la consulta incluye expand _MaterialItems
+    if (req.query.SELECT.columns && 
+        req.query.SELECT.columns.some(c => c.ref && c.ref[0] === '_MaterialItems')) {
+      
+      for (let item of results) {
+        // Buscar los materiales para este item
+        const materials = await SELECT.from('MaterialDocumentItemExt')
+          .where({
+            PurchaseOrder: item.PurchaseOrder,
+            PurchaseOrderItem: item.PurchaseOrderItem
+          });
+        item._MaterialItems = materials;
+      }
+    }
+    
+    return results;
+  });
 
   /* ------------------------------------------------------------------ */
   /* Helpers                                                             */
@@ -751,6 +771,21 @@ module.exports = cds.service.impl(async function () {
       return req.reject(500, 'Error al leer MaterialDocumentItem desde S/4HANA');
     }
   });
+
+  this.after('READ', 'PurchaseOrderItemExt', async (items, req) => {
+  if (!Array.isArray(items)) items = [items];
+  
+  for (let item of items) {
+    const materials = await cds.transaction(req).run(
+      SELECT.from('MaterialDocumentItemExt')
+        .where({
+          PurchaseOrder: item.PurchaseOrder,
+          PurchaseOrderItem: item.PurchaseOrderItem  
+        })
+    );
+    item._MaterialItems = materials;
+  }
+});
 
 
   
