@@ -357,14 +357,14 @@ service SupplierPortalService
         cast(null as Decimal(15,2)) as QuantityInPurchaseOrderUnit,
         cast(null as Decimal(15,2)) as UnitPrice,
 
-        _InvoiceItems: Association to many SupplierInvoiceItemExt
-            on  _InvoiceItems.PurchaseOrder     = PurchaseOrder
-            and _InvoiceItems.PurchaseOrderItem = PurchaseOrderItem,
-       
-        _MaterialItem   : Association to many MaterialDocumentItemExt
-        on  _MaterialItem.PurchaseOrder     = PurchaseOrder
-        and _MaterialItem.PurchaseOrderItem = PurchaseOrderItem
-        or true
+        // Asociaciones
+    _InvoiceItems : Association to many SupplierInvoiceItemExt
+        on  _InvoiceItems.PurchaseOrder     = $self.PurchaseOrder
+        and _InvoiceItems.PurchaseOrderItem = $self.PurchaseOrderItem,
+
+    _MaterialItems : Association to many MaterialDocumentItemExt
+        on  _MaterialItems.PurchaseOrder     = $self.PurchaseOrder
+        and _MaterialItems.PurchaseOrderItem = $self.PurchaseOrderItem
 
     }
       @readonly
