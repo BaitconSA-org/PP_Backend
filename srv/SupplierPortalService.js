@@ -519,20 +519,29 @@ module.exports = cds.service.impl(async function () {
     if (req.query.SELECT.columns && 
         req.query.SELECT.columns.some(c => c.ref && c.ref[0] === '_MaterialItems')) {
       
+      // Conectar al servicio remoto de Materials
+      const materialService = await cds.connect.to('A_MaterialDocument');
+      
       for (let item of results) {
-        // Buscar los materiales para este item
-        const materials = await SELECT.from('MaterialDocumentItemExt')
-          .where({
-            PurchaseOrder: item.PurchaseOrder,
-            PurchaseOrderItem: item.PurchaseOrderItem
-          });
-        item._MaterialItems = materials;
+        try {
+          // Buscar los materiales en el servicio remoto
+          const materials = await materialService.run(
+            SELECT.from('A_MaterialDocumentItem')
+              .where({
+                PurchaseOrder: item.PurchaseOrder,
+                PurchaseOrderItem: item.PurchaseOrderItem
+              })
+          );
+          item._MaterialItems = materials;
+        } catch (error) {
+          console.error('Error fetching materials for PO item:', error);
+          item._MaterialItems = []; // Array vacío en caso de error
+        }
       }
     }
     
     return results;
-  });
-
+});
   /* ------------------------------------------------------------------ */
   /* Helpers                                                             */
   /* ------------------------------------------------------------------ */
