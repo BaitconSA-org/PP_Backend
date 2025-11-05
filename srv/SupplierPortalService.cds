@@ -636,5 +636,12 @@ type SyncResult {
   entity InvoiceReport as projection on supplierPortalGD.InvoiceReport;
      // 🔹 NUEVA FUNCIÓN para el tile dinámico del Launchpad
   function totalInvoicesCurrentMonth() returns Integer;
+
+
+  // Proyecciones de tablas nuevas para CostCenters/Reportes/DocumentTypes/PaymentTerms/GLAccounts
+  entity CostCenters as projection on supplierPortalGD.CostCenters;
+  entity DocumentTypes as projection on supplierPortalGD.DocumentTypes;
+  entity PaymentTerms as projection on supplierPortalGD.PaymentTerms;
+  entity GlobalLedgerAccounts as projection on supplierPortalGD.GlobalLedgerAccounts;
 }
 //annotate SupplierPortalService with @requires : ['Supplier'];

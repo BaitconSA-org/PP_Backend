@@ -197,3 +197,23 @@ entity InvoiceReport {
   totalInvoices     : Integer;
 }
 
+entity CostCenters {
+  key costCenter   : String(10);
+      Name         : String(100);
+}
+
+entity DocumentTypes {
+  key documentType : String(2);
+      description  : String(100);
+}
+
+entity PaymentTerms{
+  key paymentTerms : String(4);
+      description   : String(100);
+}
+
+entity GlobalLedgerAccounts{
+  key GLAccount : String(10);
+      description   : String(100);
+}
+
