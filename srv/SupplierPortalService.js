@@ -180,6 +180,32 @@ module.exports = cds.service.impl(async function () {
           ? Number((item.NetPriceAmount / item.NetPriceQuantity).toFixed(2))
           : 0;
       });
+    /* ------------------------------------------------------------------ */
+    /* 6. Enriquecer con Material Documents si se pidió en la query       */
+    /* ------------------------------------------------------------------ */
+       const shouldExpandMaterials = req.query.SELECT.columns?.some(col => 
+      col.ref && col.ref[0] === '_MaterialItems'
+    );
+
+    if (shouldExpandMaterials && poItems.length > 0) {
+      const materialService = await cds.connect.to('A_MaterialDocument');
+      
+      for (let item of poItems) {
+        try {
+          const materials = await materialService.run(
+            SELECT.from('A_MaterialDocumentItem')
+              .where({
+                PurchaseOrder: item.PurchaseOrder,
+                PurchaseOrderItem: item.PurchaseOrderItem
+              })
+          );
+          item._MaterialItems = materials;
+        } catch (error) {
+          console.error('Error fetching materials:', error);
+          item._MaterialItems = [];
+        }
+      }
+    }
 
       return onlyOneItem ? poItems[0] : poItems;
 
@@ -750,17 +776,6 @@ module.exports = cds.service.impl(async function () {
       return req.reject(500, 'Error al leer MaterialDocumentItem desde S/4HANA');
     }
   });
-  this.before('READ', 'PurchaseOrderItemExt', (req) => {
-  console.log('🔴🔴🔴 BEFORE PurchaseOrderItemExt SE EJECUTÓ 🔴🔴🔴');
-});
-
-this.on('READ', 'PurchaseOrderItemExt', async (req) => {
-  console.log('🟢🟢🟢 HANDLER PurchaseOrderItemExt SE EJECUTÓ 🟢🟢🟢');
-  console.log('QUERY:', JSON.stringify(req.query));
-  
-  const results = await cds.transaction(req).run(req.query);
-  return results;
-});
 
 
   
