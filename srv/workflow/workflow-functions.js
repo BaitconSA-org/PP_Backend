@@ -19,7 +19,7 @@ async function insertInvoice(data, db) {
 
   const poRefs = data?.to_SuplrInvcItemPurOrdRef?.results ?? [];
   const taxes  = data?.to_SupplierInvoiceTax?.results ?? [];
-
+  const glAccounts = data?.to_SupplierInvoiceItemGLAcct?.results ?? [];
   // Mapeo a InvoiceItems
   const invoiceItems = poRefs.map(po => ({
     invoiceItem: String(po.SupplierInvoiceItem),
@@ -32,6 +32,22 @@ async function insertInvoice(data, db) {
     taxAmount: null,
     taxBaseAmountInTransCrcy: null,
     taxCountry: taxes[0]?.TaxCountry ?? null,
+  }));
+  // Mapeo a datos contables (GL Accounts)
+  const invoiceGLAccounts = glAccounts.map(gl => ({
+    supplierInvoiceItem: gl.SupplierInvoiceItem,
+    companyCode: gl.CompanyCode,
+    costCenter: gl.CostCenter,
+    controllingArea: gl.ControllingArea,
+    profitCenter: gl.ProfitCenter,
+    functionalArea: gl.FunctionalArea,
+    glAccount: gl.GLAccount,
+    documentCurrency: gl.DocumentCurrency,
+    supplierInvoiceItemAmount: num(gl.SupplierInvoiceItemAmount),
+    taxCode: gl.TaxCode,
+    debitCreditCode: gl.DebitCreditCode,
+    supplierInvoiceItemText: gl.SupplierInvoiceItemText,
+    isNotCashDiscountLiable: gl.IsNotCashDiscountLiable
   }));
 
   //console.log('Invoice Items:', invoiceItems);
@@ -62,6 +78,7 @@ async function insertInvoice(data, db) {
       status_statusCode: 'B',
       invoiceItems,
       invoiceTaxes,
+      invoiceGLAccounts,
     }),
   );
 

@@ -64,6 +64,7 @@ entity Invoices : cuid, managed {
   workflowInstanceId            : String(100);        // ID de la instancia del workflow
   invoiceItems                  : Composition of many InvoiceItems on invoiceItems.invoice = $self; // Ítems de la factura
   invoiceTaxes                  : Composition of many InvoiceTaxes on invoiceTaxes.invoice = $self; // Impuestos de la factura
+  invoiceGLAccounts             : Composition of many InvoiceGLAccounts on invoiceGLAccounts.invoice = $self; // Cuentas contables de la factura
   currency                      : String(3);          // Moneda de la factura
   // files                         : Association to many InvoiceAttachments on files.invoice = $self;
 }
@@ -86,6 +87,22 @@ entity InvoiceItems : cuid {
   taxAmount                   : Decimal(15,2);    // Importe del impuesto aplicado
   taxBaseAmountInTransCrcy    : Decimal(15,2);    // Base imponible del impuesto en la moneda de transacción
   taxCountry                  : String(3);        // País del impuesto (ej: ARG)
+}
+entity InvoiceGLAccounts : cuid {
+  invoice                     : Association to Invoices;
+  supplierInvoiceItem         : String(10);        // "0001"
+  companyCode                 : String(10);        // "10AA"
+  costCenter                  : String(20);        // "10AA002"
+  controllingArea             : String(10);        // "A000"
+  profitCenter                : String(20);        // "YB600"
+  functionalArea              : String(20);        // "YB75"
+  glAccount                   : String(20);        // "71000000"
+  documentCurrency            : String(3);         // "ARS"
+  supplierInvoiceItemAmount   : Decimal(15,2);     // 3200.00
+  taxCode                     : String(10);        // "C0"
+  debitCreditCode             : String(1);         // "S"
+  supplierInvoiceItemText     : String(500);       // "item sin oc"
+  isNotCashDiscountLiable     : Boolean;           // false
 }
 
 entity InvoiceTaxes : cuid {
