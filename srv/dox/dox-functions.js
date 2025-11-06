@@ -58,8 +58,8 @@ async function handleUploadPdf(req) {
   }  */
   
 
-  if (!supplierId || !purchaseOrderId || !file) {
-    return req.reject(400, 'Missing supplierId, purchaseOrderId, or file');
+  if (!supplierId || !file) {
+    return req.reject(400, 'Missing supplierId or file');
   }
 
   const buf = Buffer.from(file, 'base64');

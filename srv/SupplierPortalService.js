@@ -725,21 +725,26 @@ module.exports = cds.service.impl(async function () {
   });
 
   this.on('createDocumentService', async (req) => {
-    const { supplierId, purchaseOrderId, documentName, file } = req.data;
-    if (!supplierId || !purchaseOrderId || !documentName || !file) {
-      return req.reject(400, 'supplierId, purchaseOrderId, documentName and file are required');
-    }
-    try {
-      await dmsClient.createFolder(supplierId).catch(() => {});
-      await dmsClient.createFolder(purchaseOrderId, supplierId).catch(() => {});
-      const fullPath = `${supplierId}/${purchaseOrderId}`;
-      await dmsClient.uploadDocument(fullPath, documentName, file);
-      return { success: true };
-    } catch (error) {
-      console.error('Error in createFolderService:', error);
-      return req.reject(500, 'Error creating folder in DMS');
-    }
-  });
+  const { supplierId, purchaseOrderId, documentName, file } = req.data;
+  if (!supplierId || !documentName || !file) {
+    return req.reject(400, 'supplierId, documentName and file are required');
+  }
+  try {
+    await dmsClient.createFolder(supplierId).catch(() => {});
+    
+    // Usar 'facturas-sin-oc' si no hay purchaseOrderId
+    const targetFolder = purchaseOrderId || 'facturas-sin-oc';
+    await dmsClient.createFolder(targetFolder, supplierId).catch(() => {});
+    
+    const fullPath = `${supplierId}/${targetFolder}`; // ← Usar targetFolder en lugar de purchaseOrderId
+    await dmsClient.uploadDocument(fullPath, documentName, file);
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error in createFolderService:', error);
+    return req.reject(500, 'Error creating folder in DMS');
+  }
+});
 
   /**************** FIN DMS ****************/
 
