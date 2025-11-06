@@ -216,7 +216,7 @@ entity InvoiceReport {
 
 entity CostCenters {
   key costCenter   : String(10);
-  companyCode      : String(4);
+      Name         : String(100);
 }
 
 entity DocumentTypes {
@@ -232,5 +232,9 @@ entity PaymentTerms{
 entity GlobalLedgerAccounts{
   key GLAccount : String(10);
       description   : String(100);
+}
+
+entity CompanyCode{
+  key CompanyCode : String(4);
 }
 
