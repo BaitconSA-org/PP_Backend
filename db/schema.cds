@@ -215,8 +215,8 @@ entity InvoiceReport {
 }
 
 entity CostCenters {
-  key costCenter   : String(10);
-      Name         : String(100);
+  key costCenter   : String(20);
+      description  : String(100);
 }
 
 entity DocumentTypes {
