@@ -772,50 +772,46 @@ module.exports = cds.service.impl(async function () {
   }
 });
 this.on('READ', 'MaterialDocumentItemExt', async (req) => {
-   console.log('=== MATERIAL DOCUMENT DEBUG ===');
-    console.log('Request target:', req.target);
-    console.log('Target keys:', req.target?._keys);
-    console.log('Target parent:', req.target?._parent);
-    console.log('Parent keys:', req.target?._parent?._keys);
-    console.log('Query:', req.query.SELECT);
-    console.log('========================');
-    try {
-        const materialService = await cds.connect.to('A_MaterialDocument');
-        
-        let query = SELECT.from('A_MaterialDocumentItem');
-        
-        // 1. EXTRAER FILTROS DEL CONTEXTO DE NAVEGACIÓN
-        let purchaseOrder, purchaseOrderItem;
-        
-        // Si viene de navegación: /PurchaseOrderExt(...)/_PurchaseOrderItem(...)/_MaterialItems
-        if (req.target && req.target._keys) {
-            // El contexto está en la cadena de navegación
-            const parent = req.target._parent;
-            if (parent && parent._keys) {
-                purchaseOrder = parent._keys.PurchaseOrder;
-                purchaseOrderItem = parent._keys.PurchaseOrderItem;
-            }
-        }
-        
-        // 2. APLICAR FILTROS SI SE ENCONTRARON
-        if (purchaseOrder && purchaseOrderItem) {
-            query.where({ 
-                PurchaseOrder: purchaseOrder,
-                PurchaseOrderItem: purchaseOrderItem 
-            });
-            console.log('Applied filters - PO:', purchaseOrder, 'Item:', purchaseOrderItem);
-        }
-        
-        // 3. APLICAR EL RESTO DE LA QUERY ($select, $top, $skip, etc.)
-        Object.assign(query, req.query);
-        
-        console.log('MaterialDocument Query WITH FILTERS:', query.SELECT);
-        const result = await materialService.run(query);
-        return result;
-        
-    } catch (error) {
-        console.error('Error reading MaterialDocumentItemExt:', error);
-        req.reject(500, 'Error al leer documentos de material');
+  console.log('=== MATERIAL DOCUMENT DEBUG ===');
+  console.log('Query inicial:', req.query.SELECT);
+
+  try {
+    const materialService = await cds.connect.to('A_MaterialDocument');
+    let query = SELECT.from('A_MaterialDocumentItem');
+
+    // 🔹 1️⃣ Intentar obtener PurchaseOrder y PurchaseOrderItem del path OData
+    let purchaseOrder, purchaseOrderItem;
+
+    const segs = req._.odataReq?._pathSegments || [];
+    for (const seg of segs) {
+      const keys = seg.getKeyPredicates?.() || [];
+      for (const k of keys) {
+        if (k.getName() === 'PurchaseOrder') purchaseOrder = k.getText();
+        if (k.getName() === 'PurchaseOrderItem') purchaseOrderItem = k.getText();
+      }
     }
+
+    console.log('Detected PO:', purchaseOrder, 'Item:', purchaseOrderItem);
+
+    // 🔹 2️⃣ Aplicar filtros si se detectaron
+    if (purchaseOrder && purchaseOrderItem) {
+      query.where({
+        PurchaseOrder: purchaseOrder,
+        PurchaseOrderItem: purchaseOrderItem
+      });
+    }
+
+    // 🔹 3️⃣ Combinar con la query original ($select, $skip, etc.)
+    Object.assign(query, req.query);
+    console.log('Final Query:', query.SELECT);
+
+    // 🔹 4️⃣ Ejecutar contra S/4
+    const result = await materialService.run(query);
+    return result;
+
+  } catch (error) {
+    console.error('Error leyendo MaterialDocumentItemExt:', error);
+    return req.reject(500, 'Error al leer documentos de material');
+  }
 });
 });
