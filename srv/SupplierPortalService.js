@@ -772,65 +772,103 @@ module.exports = cds.service.impl(async function () {
   }
 });
 this.on('READ', 'MaterialDocumentItemExt', async (req) => {
-  console.log('=== MATERIAL DOCUMENT DEBUG ===');
-  console.log('Query inicial:', req.query.SELECT);
-
-  try {
-    // Conectar al servicio remoto S/4HANA
-    const materialService = await cds.connect.to('A_MaterialDocument');
-    
-    // Construir la query para el servicio remoto usando la entidad REAL
-    const remoteQuery = SELECT.from('A_MaterialDocumentItem')
-      .columns([
-        'MaterialDocument', 
-        'MaterialDocumentYear', 
-        'MaterialDocumentItem',
-        'PurchaseOrder',
-        'PurchaseOrderItem',
-        'Material',
-        'Plant',
-        'QuantityInBaseUnit'
-      ])
-      .orderBy({
-        MaterialDocumentYear: 'asc',
-        MaterialDocument: 'asc', 
-        MaterialDocumentItem: 'asc'
-      });
-
-    // Aplicar los mismos filtros que vienen del request
-    if (req.query.SELECT.where) {
-      // Convertir los filtros para la entidad remota
-      const whereClause = req.query.SELECT.where;
-      if (whereClause && whereClause.length > 0) {
-        // Buscar filtros de PurchaseOrder y PurchaseOrderItem
-        for (let i = 0; i < whereClause.length; i++) {
-          if (whereClause[i].ref && whereClause[i].ref[0] === 'PurchaseOrder') {
-            if (whereClause[i + 1] === '=' && whereClause[i + 2]) {
-              const poValue = whereClause[i + 2].val || whereClause[i + 2];
-              remoteQuery.where({ PurchaseOrder: poValue });
+    try {
+        console.log('=== MATERIAL DOCUMENT ITEM EXT READ ===');
+        console.log('Request path:', req.path);
+        
+        const materialService = await cds.connect.to('A_MaterialDocument');
+        
+        // INICIO - EXTRACCIÓN DE FILTROS ESPECÍFICOS
+        let purchaseOrder, purchaseOrderItem;
+        
+        // 1. Buscar en parámetros de navegación (para _MaterialItems)
+        if (req.path && req.path.includes('_MaterialItems')) {
+            // El path sería algo como: /PurchaseOrderExt('4500000046')/_PurchaseOrderItem(PurchaseOrder='4500000046',PurchaseOrderItem='10')/_MaterialItems
+            const pathParts = req.path.split('/');
+            for (let i = 0; i < pathParts.length; i++) {
+                if (pathParts[i].includes('_PurchaseOrderItem')) {
+                    // Extraer parámetros del parent
+                    const parentPart = pathParts[i];
+                    const poMatch = parentPart.match(/PurchaseOrder='([^']+)'/);
+                    const itemMatch = parentPart.match(/PurchaseOrderItem='([^']+)'/);
+                    
+                    if (poMatch) purchaseOrder = poMatch[1];
+                    if (itemMatch) purchaseOrderItem = itemMatch[1];
+                    break;
+                }
             }
-          }
-          if (whereClause[i].ref && whereClause[i].ref[0] === 'PurchaseOrderItem') {
-            if (whereClause[i + 1] === '=' && whereClause[i + 2]) {
-              const itemValue = whereClause[i + 2].val || whereClause[i + 2];
-              remoteQuery.where({ PurchaseOrderItem: itemValue });
-            }
-          }
         }
-      }
+        
+        // 2. Buscar en query parameters directos
+        if (!purchaseOrder || !purchaseOrderItem) {
+            const query = SELECT.from('MaterialDocumentItemExt');
+            if (req.query.SELECT.where) {
+                query.where(req.query.SELECT.where);
+            }
+            // Analizar el where clause para encontrar PurchaseOrder y PurchaseOrderItem
+            const whereClause = req.query.SELECT.where;
+            if (whereClause) {
+                for (let i = 0; i < whereClause.length; i++) {
+                    if (whereClause[i].ref && whereClause[i].ref[0] === 'PurchaseOrder' && 
+                        whereClause[i + 1] === '=' && whereClause[i + 2]) {
+                        purchaseOrder = whereClause[i + 2].val || whereClause[i + 2];
+                    }
+                    if (whereClause[i].ref && whereClause[i].ref[0] === 'PurchaseOrderItem' && 
+                        whereClause[i + 1] === '=' && whereClause[i + 2]) {
+                        purchaseOrderItem = whereClause[i + 2].val || whereClause[i + 2];
+                    }
+                }
+            }
+        }
+        
+        console.log('FILTROS EXTRAÍDOS - PurchaseOrder:', purchaseOrder, 'PurchaseOrderItem:', purchaseOrderItem);
+        // FIN - EXTRACCIÓN DE FILTROS ESPECÍFICOS
+        
+        // Construir query para S/4HANA
+        let query = SELECT.from('A_MaterialDocumentItem');
+        
+        // APLICAR FILTROS ESPECÍFICOS
+        if (purchaseOrder && purchaseOrderItem) {
+            query.where({
+                PurchaseOrder: purchaseOrder,
+                PurchaseOrderItem: purchaseOrderItem
+            });
+            console.log('✅ APLICANDO FILTROS: PO=', purchaseOrder, 'ITEM=', purchaseOrderItem);
+        } else {
+            console.log('❌ NO SE ENCONTRARON FILTROS ESPECÍFICOS - Traerá todos los registros');
+        }
+        
+        // Aplicar columnas, ordenamiento y límite del request original
+        if (req.query.SELECT.columns) {
+            query.columns(req.query.SELECT.columns);
+        }
+        
+        if (req.query.SELECT.orderBy) {
+            query.orderBy(req.query.SELECT.orderBy);
+        }
+        
+        if (req.query.SELECT.limit) {
+            query.limit(req.query.SELECT.limit);
+        }
+        
+        console.log('Query final a S/4HANA:', JSON.stringify(query, null, 2));
+        
+        const result = await materialService.run(query);
+        console.log('✅ Resultados encontrados:', result.length);
+        
+        if (result.length > 0) {
+            console.log('Primer registro:', {
+                PurchaseOrder: result[0].PurchaseOrder,
+                PurchaseOrderItem: result[0].PurchaseOrderItem,
+                MaterialDocument: result[0].MaterialDocument
+            });
+        }
+        
+        return result;
+        
+    } catch (error) {
+        console.error('Error reading MaterialDocumentItemExt:', error);
+        req.reject(500, 'Error al leer documentos de material');
     }
-
-    console.log('Final Query para S/4HANA:', JSON.stringify(remoteQuery, null, 2));
-    
-    // Ejecutar la consulta contra el servicio remoto S/4HANA
-    const result = await materialService.run(remoteQuery);
-    
-    console.log('Query result from S/4HANA:', result);
-    return result;
-    
-  } catch (error) {
-    console.error('Error accessing material documents from S/4HANA:', error);
-    throw new Error('Error al leer documentos de material desde S/4HANA');
-  }
 });
 });
