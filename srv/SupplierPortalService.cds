@@ -386,9 +386,10 @@ service SupplierPortalService
         md.CtrlPostgForExtWhseMgmtSyst,
         md.GoodsMovementCode,
         // Asociación a los ítems
-        _Items : Composition of many MaterialDocumentItemExt
-          on _Items.MaterialDocument = $self.MaterialDocument
-          and _Items.MaterialDocumentYear = $self.MaterialDocumentYear
+       _Items : Composition of many mat.A_MaterialDocumentItem
+        on _Items.MaterialDocument = $self.MaterialDocument
+        and _Items.MaterialDocumentYear = $self.MaterialDocumentYear
+
       }
 
 
