@@ -771,4 +771,27 @@ module.exports = cds.service.impl(async function () {
     return req.reject(500, 'Error al leer MaterialDocument desde S/4HANA');
   }
 });
+this.on('READ', 'MaterialDocumentItemExt', async (req) => {
+    try {
+        const materialService = await cds.connect.to('A_MaterialDocument');
+        
+        const query = SELECT.from('A_MaterialDocumentItem')
+            .where(req.query.SELECT.where)
+            .columns(req.query.SELECT.columns);
+            
+        if (req.query.SELECT.orderBy) {
+            query.orderBy(req.query.SELECT.orderBy);
+        }
+        
+        if (req.query.SELECT.limit) {
+            query.limit(req.query.SELECT.limit);
+        }
+        
+        return await materialService.run(query);
+        
+    } catch (error) {
+        console.error('Error reading MaterialDocumentItemExt:', error);
+        req.reject(500, 'Error al leer documentos de material');
+    }
+});
 });
