@@ -771,4 +771,13 @@ module.exports = cds.service.impl(async function () {
       return req.reject(500, 'Error al leer MaterialDocument desde S/4HANA');
     }
   });  
+  this.on('READ', 'MaterialDocumentItemExt', async (req) => {
+  try {
+    const s4 = await cds.connect.to('A_MaterialDocument');
+    return await s4.run(req.query);
+  } catch (error) {
+    console.error('[ERROR] al leer MaterialDocumentItemExt:', error);
+    return req.reject(500, 'Error al leer MaterialDocumentItem desde S/4HANA');
+  }
+});
 });
