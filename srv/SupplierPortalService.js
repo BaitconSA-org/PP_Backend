@@ -777,33 +777,26 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
         
         let query = SELECT.from('A_MaterialDocumentItem');
         
-        // 1. Si viene de navegación (_MaterialItems)
-        if (req.params && req.params.length > 0) {
-            const { PurchaseOrder, PurchaseOrderItem } = req.params[0] || {};
-            if (PurchaseOrder && PurchaseOrderItem) {
-                query.where({ 
-                    PurchaseOrder: PurchaseOrder,
-                    PurchaseOrderItem: PurchaseOrderItem 
-                });
-            }
+        // 1. Obtener los filtros del contexto de navegación
+        const purchaseOrder = req.target?._purchaseOrder?.PurchaseOrder;
+        const purchaseOrderItem = req.target?._purchaseOrderItem?.PurchaseOrderItem;
+        
+        // 2. Si vienen del contexto de navegación
+        if (purchaseOrder && purchaseOrderItem) {
+            query.where({ 
+                PurchaseOrder: purchaseOrder,
+                PurchaseOrderItem: purchaseOrderItem 
+            });
         }
-        // 2. Si viene con filtros directos ($filter)
+        // 3. Si vienen como filtros directos ($filter)
         else if (req.query.SELECT.where) {
             query.where(req.query.SELECT.where);
         }
         
-        // Aplicar columnas, orden, límite si existen
-        if (req.query.SELECT.columns) {
-            query.columns(req.query.SELECT.columns);
-        }
-        if (req.query.SELECT.orderBy) {
-            query.orderBy(req.query.SELECT.orderBy);
-        }
-        if (req.query.SELECT.limit) {
-            query.limit(req.query.SELECT.limit);
-        }
+        // Aplicar columnas, orden, límite
+        Object.assign(query, req.query);
         
-        console.log('MaterialDocument Query:', query.SELECT); // Para debug
+        console.log('MaterialDocument Query WITH FILTERS:', query.SELECT);
         return await materialService.run(query);
         
     } catch (error) {
