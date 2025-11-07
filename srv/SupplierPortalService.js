@@ -775,18 +775,35 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
     try {
         const materialService = await cds.connect.to('A_MaterialDocument');
         
-        const query = SELECT.from('A_MaterialDocumentItem')
-            .where(req.query.SELECT.where)
-            .columns(req.query.SELECT.columns);
-            
+        let query = SELECT.from('A_MaterialDocumentItem');
+        
+        // 1. Si viene de navegación (_MaterialItems)
+        if (req.params && req.params.length > 0) {
+            const { PurchaseOrder, PurchaseOrderItem } = req.params[0] || {};
+            if (PurchaseOrder && PurchaseOrderItem) {
+                query.where({ 
+                    PurchaseOrder: PurchaseOrder,
+                    PurchaseOrderItem: PurchaseOrderItem 
+                });
+            }
+        }
+        // 2. Si viene con filtros directos ($filter)
+        else if (req.query.SELECT.where) {
+            query.where(req.query.SELECT.where);
+        }
+        
+        // Aplicar columnas, orden, límite si existen
+        if (req.query.SELECT.columns) {
+            query.columns(req.query.SELECT.columns);
+        }
         if (req.query.SELECT.orderBy) {
             query.orderBy(req.query.SELECT.orderBy);
         }
-        
         if (req.query.SELECT.limit) {
             query.limit(req.query.SELECT.limit);
         }
         
+        console.log('MaterialDocument Query:', query.SELECT); // Para debug
         return await materialService.run(query);
         
     } catch (error) {
