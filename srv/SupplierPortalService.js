@@ -850,7 +850,6 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
         
         // Construir query para S/4HANA
         let query = SELECT.from('A_MaterialDocumentItem');
-        
         // APLICAR FILTROS SI SE ENCONTRARON
         if (purchaseOrder && purchaseOrderItem) {
             query.where({
