@@ -773,45 +773,31 @@ module.exports = cds.service.impl(async function () {
 });
 this.on('READ', 'MaterialDocumentItemExt', async (req) => {
   console.log('=== MATERIAL DOCUMENT DEBUG ===');
-  console.log('Query inicial:', req.query.SELECT);
-
+  
   try {
-    const materialService = await cds.connect.to('A_MaterialDocument');
-    let query = SELECT.from('A_MaterialDocumentItem');
-
-    // 🔹 1️⃣ Intentar obtener PurchaseOrder y PurchaseOrderItem del path OData
-    let purchaseOrder, purchaseOrderItem;
-
-    const segs = req._.odataReq?._pathSegments || [];
-    for (const seg of segs) {
-      const keys = seg.getKeyPredicates?.() || [];
-      for (const k of keys) {
-        if (k.getName() === 'PurchaseOrder') purchaseOrder = k.getText();
-        if (k.getName() === 'PurchaseOrderItem') purchaseOrderItem = k.getText();
-      }
+    // Clonar la query original y ejecutarla
+    // Esto preserva todos los filtros, ordenamientos, etc.
+    const query = SELECT.from('MaterialDocumentItemExt');
+    
+    // Aplicar la misma estructura WHERE de la request original
+    if (req.query.SELECT.where) {
+      query.where(req.query.SELECT.where);
     }
-
-    console.log('Detected PO:', purchaseOrder, 'Item:', purchaseOrderItem);
-
-    // 🔹 2️⃣ Aplicar filtros si se detectaron
-    if (purchaseOrder && purchaseOrderItem) {
-      query.where({
-        PurchaseOrder: purchaseOrder,
-        PurchaseOrderItem: purchaseOrderItem
-      });
+    
+    // Aplicar ORDER BY si existe
+    if (req.query.SELECT.orderBy) {
+      query.orderBy(req.query.SELECT.orderBy);
     }
-
-    // 🔹 3️⃣ Combinar con la query original ($select, $skip, etc.)
-    Object.assign(query, req.query);
-    console.log('Final Query:', query.SELECT);
-
-    // 🔹 4️⃣ Ejecutar contra S/4
-    const result = await materialService.run(query);
+    
+    console.log('Final Query:', JSON.stringify(query, null, 2));
+    
+    const result = await query;
+    console.log('Query result:', result.length, 'records found');
     return result;
-
+    
   } catch (error) {
-    console.error('Error leyendo MaterialDocumentItemExt:', error);
-    return req.reject(500, 'Error al leer documentos de material');
+    console.error('Error accessing material documents:', error);
+    throw new Error('Error al leer documentos de material');
   }
 });
 });
