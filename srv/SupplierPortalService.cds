@@ -363,9 +363,9 @@ service SupplierPortalService
         on  _InvoiceItems.PurchaseOrder     = $self.PurchaseOrder
         and _InvoiceItems.PurchaseOrderItem = $self.PurchaseOrderItem,
 
-   _MaterialItems : Association to many mat.A_MaterialDocumentItem
-      on  _MaterialItems.PurchaseOrder     = $self.PurchaseOrder
-      and _MaterialItems.PurchaseOrderItem = $self.PurchaseOrderItem
+   _MaterialItems : Association to many MaterialDocumentItemExt
+    on  _MaterialItems.PurchaseOrder     = $self.PurchaseOrder
+    and _MaterialItems.PurchaseOrderItem = $self.PurchaseOrderItem
 
     }
       @readonly
