@@ -1,0 +1,18 @@
+costCenter;description
+0001;Pagar inmediatamente sin deducción
+0002;14 días 2%, 30 neto
+0003;14 días 3%, 20/2%, 30 neto
+0004;A partir de fin de mes
+0005;A partir del 10 del mes sig.
+0006;Fin de mes 4%, medio mes 2%
+0007;15/31 mes siguiente 2%, ...
+0007;15/31 mes siguiente 2%, ...
+0008;14 días 2%, 30/1,5%, 45 neto
+0008;14 días 2%, 30/1,5%, 45 neto
+0009;Pagadero en 3 plazos
+NT00;Pagadero inmediatamente
+NT08;Vencimiento neto en 8 días
+NT15;Vencimiento neto en 15 días
+NT30;Vencimiento neto en 30 días
+NT45;Vencimiento neto en 45 días
+NT60;Vencimiento neto en 60 días
