@@ -55,7 +55,7 @@ async function triggerWorkflowInstance(req, context, definitionId, invoiceId) {
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
-        'irpa-api-key': 'ThUn7khg6CBxyOqi5K5D-gcbJjtZiGAu',
+        'irpa-api-key': process.env.IRPA_API_KEY,
       },
     },
   );

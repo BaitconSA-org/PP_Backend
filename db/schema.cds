@@ -215,8 +215,8 @@ entity InvoiceReport {
 }
 
 entity CostCenters {
-  key costCenter   : String(10);
-      Name         : String(100);
+  key costCenter   : String(20);
+      description  : String(100);
 }
 
 entity DocumentTypes {
@@ -225,16 +225,17 @@ entity DocumentTypes {
 }
 
 entity PaymentTerms{
-  key paymentTerms : String(4);
+  key paymentTerms  : String(4);
       description   : String(100);
 }
 
 entity GlobalLedgerAccounts{
-  key GLAccount : String(10);
+  key GLAccount     : String(10);
       description   : String(100);
 }
 
 entity CompanyCode{
-  key CompanyCode : String(4);
+  key CompanyCode   : String(4);
+      description   : String(100);
 }
 

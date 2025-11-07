@@ -1,0 +1,61 @@
+documentType;description
+AA;Asset Posting
+AB;Journal Entry
+AD;Accruals/Deferrals
+AF;Depreciation Pstngs
+AN;Net Asset Posting
+AP;Periodic asset post
+AR;Asset Reorg Posting
+CC;Sec. Cost CrossComp.
+CL;CL/OP FY Postings
+CM;Nota de Crédito MiPy
+CO;Secondary Cost
+DA;Customer document
+DG;Customer credit memo
+DM;Nota de Débito MiPyM
+DR;Customer invoice
+DV;Customer interests
+DZ;Customer Payment
+ER;Manual ExpenseTravel
+EU;Euro Rounding Diff.
+EX;External Number
+FM;Factura MiPyME
+GR;GR Realignment
+IR;IC Reconciliation
+KA;Vendor Document
+KG;Vendor Credit Memo
+KN;Net vendors
+KP;Account maintenance
+KR;Vendor Invoice
+KZ;Vendor payment
+ML;ML Settlement
+PR;Price Change
+RA;Sub.Cred.Memo Stlmt
+RE;Invoice - Gross
+RK;Invoice Reduction
+RN;Invoice - Net
+RP;Spl Inv Price Change
+RR;Rev Rec Document
+RT;Retentions
+RV;Billing doc.transfer
+SA;G/L Account Document
+SB;G/L Account Posting
+SC;Transfer P&L to B/S
+SD;MENA Cust Debit Memo
+SE;Inventory Postings
+SJ;Cash Journal Doc
+SK;Cash Document
+SU;Intercomp./Clearing
+UE;Data Transfer
+UF;Data Transfer FI-CA
+WA;Goods Issue
+WE;Goods Receipt
+WI;Inventory Document
+WL;Goods Issue/Delivery
+WN;Net Goods Receipt
+Y1;Invoice - Gross
+ZP;Payment Posting
+ZR;Bank reconciliation
+ZS;Payment by Check
+ZV;Payment Clearing
+ZZ;Billing doc.transfer

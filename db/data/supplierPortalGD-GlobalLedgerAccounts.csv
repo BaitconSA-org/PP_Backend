@@ -1,0 +1,12 @@
+GLAccount;description
+71000000;Gastos bancarios
+71010000;Pérdida de movimientos de activos fijos
+71010100;Beneficios de movimientos de activos fijos
+71010200;Beneficios de corrección de activos fijos
+71010700;Amortización estimada (FI-AA)
+71015000;Ord.revalorización de cuentas compens.: Amortiz.
+71040000;Descuento perdido con procedimiento neto
+71050000;Gastos de descuentos por pronto pago
+71100000;Gastos por intereses
+71300000;Gastos por intereses - Filiales
+71800000;Otros gastos extraordinarios
