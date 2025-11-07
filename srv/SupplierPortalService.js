@@ -772,65 +772,137 @@ module.exports = cds.service.impl(async function () {
   }
 });
 this.on('READ', 'MaterialDocumentItemExt', async (req) => {
-  console.log('=== MATERIAL DOCUMENT DEBUG ===');
-  console.log('Query inicial:', req.query.SELECT);
-
-  try {
-    // Conectar al servicio remoto S/4HANA
-    const materialService = await cds.connect.to('A_MaterialDocument');
-    
-    // Construir la query para el servicio remoto usando la entidad REAL
-    const remoteQuery = SELECT.from('A_MaterialDocumentItem')
-      .columns([
-        'MaterialDocument', 
-        'MaterialDocumentYear', 
-        'MaterialDocumentItem',
-        'PurchaseOrder',
-        'PurchaseOrderItem',
-        'Material',
-        'Plant',
-        'QuantityInBaseUnit'
-      ])
-      .orderBy({
-        MaterialDocumentYear: 'asc',
-        MaterialDocument: 'asc', 
-        MaterialDocumentItem: 'asc'
-      });
-
-    // Aplicar los mismos filtros que vienen del request
-    if (req.query.SELECT.where) {
-      // Convertir los filtros para la entidad remota
-      const whereClause = req.query.SELECT.where;
-      if (whereClause && whereClause.length > 0) {
-        // Buscar filtros de PurchaseOrder y PurchaseOrderItem
-        for (let i = 0; i < whereClause.length; i++) {
-          if (whereClause[i].ref && whereClause[i].ref[0] === 'PurchaseOrder') {
-            if (whereClause[i + 1] === '=' && whereClause[i + 2]) {
-              const poValue = whereClause[i + 2].val || whereClause[i + 2];
-              remoteQuery.where({ PurchaseOrder: poValue });
+    try {
+        console.log('🎯 DEBUG COMPLETO DEL REQUEST - MaterialDocumentItemExt');
+        
+        // DEBUG DETALLADO
+        const debugInfo = {
+            path: req.path,
+            target: req.target ? {
+                name: req.target.name,
+                entity: req.target.entity,
+                parent: req.target.parent ? {
+                    name: req.target.parent.name,
+                    entity: req.target.parent.entity,
+                    params: req.target.parent.params,
+                    key: req.target.parent.key,
+                    // Información adicional del parent
+                    _parent: req.target.parent.parent ? {
+                        name: req.target.parent.parent.name,
+                        params: req.target.parent.parent.params
+                    } : null
+                } : null
+            } : null,
+            params: req.params,
+            context: req.context,
+            _: req._ ? {
+                query: req._.query,
+                params: req._.params,
+                // Otros campos internos que puedan ser útiles
+                keys: Object.keys(req._)
+            } : null,
+            query: {
+                SELECT: {
+                    from: req.query.SELECT.from,
+                    where: req.query.SELECT.where,
+                    columns: req.query.SELECT.columns,
+                    orderBy: req.query.SELECT.orderBy,
+                    limit: req.query.SELECT.limit
+                }
             }
-          }
-          if (whereClause[i].ref && whereClause[i].ref[0] === 'PurchaseOrderItem') {
-            if (whereClause[i + 1] === '=' && whereClause[i + 2]) {
-              const itemValue = whereClause[i + 2].val || whereClause[i + 2];
-              remoteQuery.where({ PurchaseOrderItem: itemValue });
+        };
+        
+        console.log('🔍 DEBUG INFO:', JSON.stringify(debugInfo, null, 2));
+        
+        const materialService = await cds.connect.to('A_MaterialDocument');
+        
+        // EXTRAER PARÁMETROS DEL CONTEXTO DE NAVEGACIÓN
+        let purchaseOrder, purchaseOrderItem;
+        
+        // Método 1: Desde el contexto de navegación
+        if (req.target && req.target.parent) {
+            const parent = req.target.parent;
+            console.log('Parent target:', parent);
+            
+            if (parent.params) {
+                purchaseOrder = parent.params.PurchaseOrder;
+                purchaseOrderItem = parent.params.PurchaseOrderItem;
+                console.log('Params from parent:', parent.params);
             }
-          }
+            
+            // Si no hay params, buscar en el key del parent
+            if (!purchaseOrder && parent.key) {
+                purchaseOrder = parent.key.PurchaseOrder;
+                purchaseOrderItem = parent.key.PurchaseOrderItem;
+                console.log('Key from parent:', parent.key);
+            }
         }
-      }
+        
+        // Método 2: Desde el path (como fallback)
+        if (!purchaseOrder && req.path) {
+            const pathMatch = req.path.match(/PurchaseOrderExt\('([^']+)'\)/);
+            if (pathMatch) {
+                purchaseOrder = pathMatch[1];
+            }
+        }
+        
+        console.log('🎯 FILTROS EXTRAÍDOS - PurchaseOrder:', purchaseOrder, 'PurchaseOrderItem:', purchaseOrderItem);
+        
+        // Construir query para S/4HANA
+        let query = SELECT.from('A_MaterialDocumentItem');
+        
+        // APLICAR FILTROS SI SE ENCONTRARON
+        if (purchaseOrder && purchaseOrderItem) {
+            query.where({
+                PurchaseOrder: purchaseOrder,
+                PurchaseOrderItem: purchaseOrderItem
+            });
+            console.log('✅ APLICANDO FILTROS: PO=', purchaseOrder, 'ITEM=', purchaseOrderItem);
+        } else if (purchaseOrder) {
+            // Si solo tenemos PurchaseOrder, filtrar por eso
+            query.where({ PurchaseOrder: purchaseOrder });
+            console.log('✅ APLICANDO FILTRO PARCIAL: PO=', purchaseOrder);
+        } else {
+            console.log('❌ NO SE ENCONTRARON FILTROS - Traerá todos los registros');
+            // Opcional: puedes decidir no retornar nada si no hay filtros
+            // return [];
+        }
+        
+        // Aplicar columnas, ordenamiento y límite del request original
+        if (req.query.SELECT.columns) {
+            query.columns(req.query.SELECT.columns);
+        }
+        
+        if (req.query.SELECT.orderBy) {
+            query.orderBy(req.query.SELECT.orderBy);
+        }
+        
+        if (req.query.SELECT.limit) {
+            query.limit(req.query.SELECT.limit);
+        }
+        
+        console.log('🚀 Query final a S/4HANA:', JSON.stringify(query, null, 2));
+        
+        const result = await materialService.run(query);
+        console.log('✅ Resultados encontrados:', result.length);
+        
+        if (result.length > 0) {
+            console.log('📦 Primer registro:', {
+                PurchaseOrder: result[0].PurchaseOrder,
+                PurchaseOrderItem: result[0].PurchaseOrderItem,
+                MaterialDocument: result[0].MaterialDocument,
+                Material: result[0].Material,
+                QuantityInBaseUnit: result[0].QuantityInBaseUnit
+            });
+        } else {
+            console.log('📭 No se encontraron registros');
+        }
+        
+        return result;
+        
+    } catch (error) {
+        console.error('💥 Error reading MaterialDocumentItemExt:', error);
+        req.reject(500, 'Error al leer documentos de material');
     }
-
-    console.log('Final Query para S/4HANA:', JSON.stringify(remoteQuery, null, 2));
-    
-    // Ejecutar la consulta contra el servicio remoto S/4HANA
-    const result = await materialService.run(remoteQuery);
-    
-    console.log('Query result from S/4HANA:', result);
-    return result;
-    
-  } catch (error) {
-    console.error('Error accessing material documents from S/4HANA:', error);
-    throw new Error('Error al leer documentos de material desde S/4HANA');
-  }
 });
 });
