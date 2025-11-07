@@ -772,32 +772,46 @@ module.exports = cds.service.impl(async function () {
   }
 });
 this.on('READ', 'MaterialDocumentItemExt', async (req) => {
+   console.log('=== MATERIAL DOCUMENT DEBUG ===');
+    console.log('Request target:', req.target);
+    console.log('Target keys:', req.target?._keys);
+    console.log('Target parent:', req.target?._parent);
+    console.log('Parent keys:', req.target?._parent?._keys);
+    console.log('Query:', req.query.SELECT);
+    console.log('========================');
     try {
         const materialService = await cds.connect.to('A_MaterialDocument');
         
         let query = SELECT.from('A_MaterialDocumentItem');
         
-        // 1. Obtener los filtros del contexto de navegación
-        const purchaseOrder = req.target?._purchaseOrder?.PurchaseOrder;
-        const purchaseOrderItem = req.target?._purchaseOrderItem?.PurchaseOrderItem;
+        // 1. EXTRAER FILTROS DEL CONTEXTO DE NAVEGACIÓN
+        let purchaseOrder, purchaseOrderItem;
         
-        // 2. Si vienen del contexto de navegación
+        // Si viene de navegación: /PurchaseOrderExt(...)/_PurchaseOrderItem(...)/_MaterialItems
+        if (req.target && req.target._keys) {
+            // El contexto está en la cadena de navegación
+            const parent = req.target._parent;
+            if (parent && parent._keys) {
+                purchaseOrder = parent._keys.PurchaseOrder;
+                purchaseOrderItem = parent._keys.PurchaseOrderItem;
+            }
+        }
+        
+        // 2. APLICAR FILTROS SI SE ENCONTRARON
         if (purchaseOrder && purchaseOrderItem) {
             query.where({ 
                 PurchaseOrder: purchaseOrder,
                 PurchaseOrderItem: purchaseOrderItem 
             });
-        }
-        // 3. Si vienen como filtros directos ($filter)
-        else if (req.query.SELECT.where) {
-            query.where(req.query.SELECT.where);
+            console.log('Applied filters - PO:', purchaseOrder, 'Item:', purchaseOrderItem);
         }
         
-        // Aplicar columnas, orden, límite
+        // 3. APLICAR EL RESTO DE LA QUERY ($select, $top, $skip, etc.)
         Object.assign(query, req.query);
         
         console.log('MaterialDocument Query WITH FILTERS:', query.SELECT);
-        return await materialService.run(query);
+        const result = await materialService.run(query);
+        return result;
         
     } catch (error) {
         console.error('Error reading MaterialDocumentItemExt:', error);
