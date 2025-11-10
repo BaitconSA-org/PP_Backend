@@ -117,7 +117,7 @@ entity InvoiceAttachments : cuid {
   invoice       : Association to Invoices;         // Cabecera de la factura
   supplier      : Association to Suppliers;        // CUIT proveedor (validación contra usuario)
   //SpurchaseOrder : Association to PurchaseOrders;   // OC origen para sociedad, etc.
-  companyCode   : Association to CompanyCodes;     // Derivado de OC
+  companyCode   : Association to CompanyCode;     // Derivado de OC
 
   fileName      : String(255);                     // Nombre del archivo
   mimeType      : String(100);                     // Tipo MIME (application/pdf)
@@ -156,13 +156,6 @@ entity InvoiceAttachmentItems : cuid {
   vatAmount     : Decimal(15,2);                   // IVA extraído si lo hubiera
   matchedStatus : String(20);                      // Estado de emparejamiento con OC (match, warning, error)
 }
-
-entity CompanyCodes {
-  key CompanyCode : String(4);
-      Name        : String(100);
-      Country     : String(3);
-}
-
 
 entity Contracts : cuid {
   supplier        : Association to Suppliers;

@@ -643,6 +643,6 @@ type SyncResult {
   entity DocumentTypes as projection on supplierPortalGD.DocumentTypes;
   entity PaymentTerms as projection on supplierPortalGD.PaymentTerms;
   entity GlobalLedgerAccounts as projection on supplierPortalGD.GlobalLedgerAccounts;
-  entity CompanyCodes as projection on supplierPortalGD.CompanyCodes;
+  entity CompanyCode as projection on supplierPortalGD.CompanyCode;
 }
 //annotate SupplierPortalService with @requires : ['Supplier'];
