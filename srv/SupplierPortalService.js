@@ -775,57 +775,17 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
     try {
         console.log('🎯 DEBUG COMPLETO DEL REQUEST - MaterialDocumentItemExt');
         
-        // LOS PARÁMETROS ESTÁN EN req.params - ESTRATEGIA CORRECTA
+        // Extraer parámetros
         let purchaseOrder, purchaseOrderItem;
 
         console.log('🔍 REQ.PARAMS:', JSON.stringify(req.params, null, 2));
         
-        // ESTRATEGIA 1: Buscar en req.params (donde realmente están)
         if (req.params && Array.isArray(req.params)) {
-            // Buscar el objeto que tenga ambos parámetros
             const paramsWithItem = req.params.find(p => p.PurchaseOrder && p.PurchaseOrderItem);
             if (paramsWithItem) {
                 purchaseOrder = paramsWithItem.PurchaseOrder;
                 purchaseOrderItem = paramsWithItem.PurchaseOrderItem;
                 console.log('✅ Encontrado en REQ.PARAMS (con item):', { purchaseOrder, purchaseOrderItem });
-            } else {
-                // Si no encuentra ambos, buscar solo PurchaseOrder
-                const paramsWithPO = req.params.find(p => p.PurchaseOrder);
-                if (paramsWithPO) {
-                    purchaseOrder = paramsWithPO.PurchaseOrder;
-                    console.log('✅ Encontrado en REQ.PARAMS (solo PO):', { purchaseOrder });
-                }
-            }
-        }
-
-        // ESTRATEGIA 2: Buscar en el contexto de navegación del query
-        if (!purchaseOrder && req._ && req._.query && req._.query.SELECT && req._.query.SELECT.from) {
-            console.log('🔍 Buscando en CONTEXTO DE NAVEGACIÓN...');
-            const fromClause = req._.query.SELECT.from;
-            
-            if (fromClause.ref && Array.isArray(fromClause.ref)) {
-                // Recorrer la estructura de navegación
-                fromClause.ref.forEach(item => {
-                    if (item.where) {
-                        // Buscar PurchaseOrder en las cláusulas WHERE
-                        item.where.forEach((clause, index) => {
-                            if (clause && clause.ref && clause.ref[0] === 'PurchaseOrder' && 
-                                clause.ref.length === 1 && item.where[index + 1] === '=' && 
-                                item.where[index + 2] && item.where[index + 2].val) {
-                                purchaseOrder = item.where[index + 2].val;
-                            }
-                            if (clause && clause.ref && clause.ref[0] === 'PurchaseOrderItem' && 
-                                clause.ref.length === 1 && item.where[index + 1] === '=' && 
-                                item.where[index + 2] && item.where[index + 2].val) {
-                                purchaseOrderItem = item.where[index + 2].val;
-                            }
-                        });
-                    }
-                });
-                
-                if (purchaseOrder) {
-                    console.log('✅ Encontrado en CONTEXTO NAVEGACIÓN:', { purchaseOrder, purchaseOrderItem });
-                }
             }
         }
 
@@ -838,18 +798,25 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
         
         // APLICAR FILTROS SI SE ENCONTRARON
         if (purchaseOrder && purchaseOrderItem) {
+            // VERIFICAR LOS CAMPOS REALES DE LA ENTIDAD S/4HANA
+            // Posibles nombres de campos en S/4HANA:
             query.where({
-                PurchaseOrder: purchaseOrder,
-                PurchaseOrderItem: purchaseOrderItem
+                // Intenta con estos nombres comunes en S/4HANA:
+                PurchaseOrder: purchaseOrder,           // Opción 1
+                PurchaseOrderItem: purchaseOrderItem,   // Opción 1
+                
+                // O alternativamente:
+                // PurchasingDocument: purchaseOrder,         // Opción 2
+                // PurchasingDocumentItem: purchaseOrderItem, // Opción 2
+                
+                // O:
+                // PONumber: purchaseOrder,                   // Opción 3  
+                // POItem: purchaseOrderItem                  // Opción 3
             });
             console.log('✅ APLICANDO FILTROS: PO=', purchaseOrder, 'ITEM=', purchaseOrderItem);
-        } else if (purchaseOrder) {
-            query.where({ PurchaseOrder: purchaseOrder });
-            console.log('✅ APLICANDO FILTRO PARCIAL: PO=', purchaseOrder);
         } else {
             console.log('❌ NO SE ENCONTRARON FILTROS - Traerá todos los registros');
-            // Opcional: retornar vacío para evitar datos incorrectos
-            // return [];
+            return [];
         }
 
         // Aplicar columnas, ordenamiento y límite del request original
@@ -871,16 +838,26 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
         console.log('✅ Resultados encontrados:', result.length);
         
         if (result.length > 0) {
-            console.log('📦 Primer registro:', {
-                PurchaseOrder: result[0].PurchaseOrder,
-                PurchaseOrderItem: result[0].PurchaseOrderItem,
-                MaterialDocument: result[0].MaterialDocument
-            });
+            console.log('📦 Primer registro COMPLETO:', result[0]);
+            console.log('🔍 Campos disponibles en el resultado:', Object.keys(result[0]));
         } else {
             console.log('📭 No se encontraron registros para los filtros aplicados');
         }
         
-        return result;
+        // ENRIQUECER LOS RESULTADOS CON LOS FILTROS
+        const enrichedResult = result.map(item => ({
+            ...item,
+            PurchaseOrder: purchaseOrder,      // Agregar manualmente
+            PurchaseOrderItem: purchaseOrderItem // Agregar manualmente
+        }));
+        
+        console.log('🎯 Resultados enriquecidos - Primer registro:', {
+            PurchaseOrder: enrichedResult[0]?.PurchaseOrder,
+            PurchaseOrderItem: enrichedResult[0]?.PurchaseOrderItem,
+            MaterialDocument: enrichedResult[0]?.MaterialDocument
+        });
+        
+        return enrichedResult;
         
     } catch (error) {
         console.error('💥 Error reading MaterialDocumentItemExt:', error);
