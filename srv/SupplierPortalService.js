@@ -775,81 +775,67 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
     try {
         console.log('🎯 DEBUG COMPLETO DEL REQUEST - MaterialDocumentItemExt');
         
-        // DEBUG DETALLADO
-        const debugInfo = {
-            path: req.path,
-            target: req.target ? {
-                name: req.target.name,
-                entity: req.target.entity,
-                parent: req.target.parent ? {
-                    name: req.target.parent.name,
-                    entity: req.target.parent.entity,
-                    params: req.target.parent.params,
-                    key: req.target.parent.key,
-                    // Información adicional del parent
-                    _parent: req.target.parent.parent ? {
-                        name: req.target.parent.parent.name,
-                        params: req.target.parent.parent.params
-                    } : null
-                } : null
-            } : null,
-            params: req.params,
-            context: req.context,
-            _: req._ ? {
-                query: req._.query,
-                params: req._.params,
-                // Otros campos internos que puedan ser útiles
-                keys: Object.keys(req._)
-            } : null,
-            query: {
-                SELECT: {
-                    from: req.query.SELECT.from,
-                    where: req.query.SELECT.where,
-                    columns: req.query.SELECT.columns,
-                    orderBy: req.query.SELECT.orderBy,
-                    limit: req.query.SELECT.limit
+        // LOS PARÁMETROS ESTÁN EN req.params - ESTRATEGIA CORRECTA
+        let purchaseOrder, purchaseOrderItem;
+
+        console.log('🔍 REQ.PARAMS:', JSON.stringify(req.params, null, 2));
+        
+        // ESTRATEGIA 1: Buscar en req.params (donde realmente están)
+        if (req.params && Array.isArray(req.params)) {
+            // Buscar el objeto que tenga ambos parámetros
+            const paramsWithItem = req.params.find(p => p.PurchaseOrder && p.PurchaseOrderItem);
+            if (paramsWithItem) {
+                purchaseOrder = paramsWithItem.PurchaseOrder;
+                purchaseOrderItem = paramsWithItem.PurchaseOrderItem;
+                console.log('✅ Encontrado en REQ.PARAMS (con item):', { purchaseOrder, purchaseOrderItem });
+            } else {
+                // Si no encuentra ambos, buscar solo PurchaseOrder
+                const paramsWithPO = req.params.find(p => p.PurchaseOrder);
+                if (paramsWithPO) {
+                    purchaseOrder = paramsWithPO.PurchaseOrder;
+                    console.log('✅ Encontrado en REQ.PARAMS (solo PO):', { purchaseOrder });
                 }
             }
-        };
-        
-        console.log('🔍 DEBUG INFO:', JSON.stringify(debugInfo, null, 2));
-        
+        }
+
+        // ESTRATEGIA 2: Buscar en el contexto de navegación del query
+        if (!purchaseOrder && req._ && req._.query && req._.query.SELECT && req._.query.SELECT.from) {
+            console.log('🔍 Buscando en CONTEXTO DE NAVEGACIÓN...');
+            const fromClause = req._.query.SELECT.from;
+            
+            if (fromClause.ref && Array.isArray(fromClause.ref)) {
+                // Recorrer la estructura de navegación
+                fromClause.ref.forEach(item => {
+                    if (item.where) {
+                        // Buscar PurchaseOrder en las cláusulas WHERE
+                        item.where.forEach((clause, index) => {
+                            if (clause && clause.ref && clause.ref[0] === 'PurchaseOrder' && 
+                                clause.ref.length === 1 && item.where[index + 1] === '=' && 
+                                item.where[index + 2] && item.where[index + 2].val) {
+                                purchaseOrder = item.where[index + 2].val;
+                            }
+                            if (clause && clause.ref && clause.ref[0] === 'PurchaseOrderItem' && 
+                                clause.ref.length === 1 && item.where[index + 1] === '=' && 
+                                item.where[index + 2] && item.where[index + 2].val) {
+                                purchaseOrderItem = item.where[index + 2].val;
+                            }
+                        });
+                    }
+                });
+                
+                if (purchaseOrder) {
+                    console.log('✅ Encontrado en CONTEXTO NAVEGACIÓN:', { purchaseOrder, purchaseOrderItem });
+                }
+            }
+        }
+
+        console.log('🎯 FILTROS FINALES - PurchaseOrder:', purchaseOrder, 'PurchaseOrderItem:', purchaseOrderItem);
+
         const materialService = await cds.connect.to('A_MaterialDocument');
-        
-        // EXTRAER PARÁMETROS DEL CONTEXTO DE NAVEGACIÓN
-        let purchaseOrder, purchaseOrderItem;
-        
-        // Método 1: Desde el contexto de navegación
-        if (req.target && req.target.parent) {
-            const parent = req.target.parent;
-            console.log('Parent target:', parent);
-            
-            if (parent.params) {
-                purchaseOrder = parent.params.PurchaseOrder;
-                purchaseOrderItem = parent.params.PurchaseOrderItem;
-                console.log('Params from parent:', parent.params);
-            }
-            
-            // Si no hay params, buscar en el key del parent
-            if (!purchaseOrder && parent.key) {
-                purchaseOrder = parent.key.PurchaseOrder;
-                purchaseOrderItem = parent.key.PurchaseOrderItem;
-                console.log('Key from parent:', parent.key);
-            }
-        }
-        
-        // Método 2: Desde el path (como fallback)
-        if (!purchaseOrder && req.path) {
-            const pathMatch = req.path.match(/PurchaseOrderExt\('([^']+)'\)/);
-            if (pathMatch) {
-                purchaseOrder = pathMatch[1];
-            }
-        }
-        
-        console.log('🎯 FILTROS EXTRAÍDOS - PurchaseOrder:', purchaseOrder, 'PurchaseOrderItem:', purchaseOrderItem);
-        
+
         // Construir query para S/4HANA
         let query = SELECT.from('A_MaterialDocumentItem');
+        
         // APLICAR FILTROS SI SE ENCONTRARON
         if (purchaseOrder && purchaseOrderItem) {
             query.where({
@@ -858,15 +844,14 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
             });
             console.log('✅ APLICANDO FILTROS: PO=', purchaseOrder, 'ITEM=', purchaseOrderItem);
         } else if (purchaseOrder) {
-            // Si solo tenemos PurchaseOrder, filtrar por eso
             query.where({ PurchaseOrder: purchaseOrder });
             console.log('✅ APLICANDO FILTRO PARCIAL: PO=', purchaseOrder);
         } else {
             console.log('❌ NO SE ENCONTRARON FILTROS - Traerá todos los registros');
-            // Opcional: puedes decidir no retornar nada si no hay filtros
+            // Opcional: retornar vacío para evitar datos incorrectos
             // return [];
         }
-        
+
         // Aplicar columnas, ordenamiento y límite del request original
         if (req.query.SELECT.columns) {
             query.columns(req.query.SELECT.columns);
@@ -879,7 +864,7 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
         if (req.query.SELECT.limit) {
             query.limit(req.query.SELECT.limit);
         }
-        
+
         console.log('🚀 Query final a S/4HANA:', JSON.stringify(query, null, 2));
         
         const result = await materialService.run(query);
@@ -889,12 +874,10 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
             console.log('📦 Primer registro:', {
                 PurchaseOrder: result[0].PurchaseOrder,
                 PurchaseOrderItem: result[0].PurchaseOrderItem,
-                MaterialDocument: result[0].MaterialDocument,
-                Material: result[0].Material,
-                QuantityInBaseUnit: result[0].QuantityInBaseUnit
+                MaterialDocument: result[0].MaterialDocument
             });
         } else {
-            console.log('📭 No se encontraron registros');
+            console.log('📭 No se encontraron registros para los filtros aplicados');
         }
         
         return result;
