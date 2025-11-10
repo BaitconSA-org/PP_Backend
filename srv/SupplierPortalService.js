@@ -775,7 +775,7 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
     try {
         console.log('[MaterialDocumentItemExt] Iniciando lectura');
         
-        // Extraer parámetros
+        // Extraer parámetros - PERO NO RETORNAR VACÍO SI NO HAY
         let purchaseOrder, purchaseOrderItem;
 
         if (req.params && Array.isArray(req.params)) {
@@ -787,84 +787,85 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
             }
         }
 
-        // Si no hay filtros, retornar vacío inmediatamente
-        if (!purchaseOrder || !purchaseOrderItem) {
-            console.log('[MaterialDocumentItemExt] No se encontraron filtros completos - retornando vacío');
-            return [];
-        }
-
         const materialService = await cds.connect.to('A_MaterialDocument');
 
         // Construir query para S/4HANA
         let query = SELECT.from('A_MaterialDocumentItem');
         
-        // Aplicar filtros
-        query.where({
-            PurchaseOrder: purchaseOrder,
-            PurchaseOrderItem: purchaseOrderItem
-        });
-
-        console.log('[MaterialDocumentItemExt] Ejecutando query en S/4HANA');
-
-        // Aplicar columnas, ordenamiento y límite del request original
-        if (req.query.SELECT.columns) {
-            query.columns(req.query.SELECT.columns);
-        }
-        
-        if (req.query.SELECT.orderBy) {
-            query.orderBy(req.query.SELECT.orderBy);
-        }
-        
-        if (req.query.SELECT.limit) {
-            query.limit(req.query.SELECT.limit);
+        // APLICAR FILTROS SOLO SI SE ENCONTRARON (NO RETORNAR VACÍO)
+        if (purchaseOrder && purchaseOrderItem) {
+            query.where({
+                PurchaseOrder: purchaseOrder,
+                PurchaseOrderItem: purchaseOrderItem
+            });
+            console.log(`[MaterialDocumentItemExt] Aplicando filtros: PO=${purchaseOrder}, Item=${purchaseOrderItem}`);
+        } else {
+            console.log('[MaterialDocumentItemExt] Sin filtros específicos - trayendo todos los registros');
+            // Opcional: aplicar un límite por defecto
+            query.limit(100);
         }
 
-        const result = await materialService.run(query);
-        console.log(`[MaterialDocumentItemExt] Resultados encontrados: ${result.length} registros`);
-        
-        // **NUEVO: MANEJAR EL EXPAND toHeader**
+        // **MANEJAR EL EXPAND toHeader**
         if (req.query.SELECT.expand && req.query.SELECT.expand.find(expand => expand.ref && expand.ref[0] === 'toHeader')) {
             console.log('[MaterialDocumentItemExt] Detectado $expand=toHeader - resolviendo asociación');
             
-            // Obtener los headers correspondientes
-            const materialDocs = result.map(item => item.MaterialDocument);
-            const materialDocYears = result.map(item => item.MaterialDocumentYear);
+            const result = await materialService.run(query);
+            console.log(`[MaterialDocumentItemExt] Items encontrados: ${result.length}`);
             
-            if (materialDocs.length > 0) {
-                const headerQuery = SELECT.from('A_MaterialDocument').where({
-                    MaterialDocument: { in: materialDocs },
-                    MaterialDocumentYear: { in: materialDocYears }
-                });
-                
-                const headers = await materialService.run(headerQuery);
-                console.log(`[MaterialDocumentItemExt] Headers encontrados: ${headers.length}`);
-                
-                // Combinar items con sus headers
-                const enrichedResult = result.map(item => {
-                    const header = headers.find(h => 
-                        h.MaterialDocument === item.MaterialDocument && 
-                        h.MaterialDocumentYear === item.MaterialDocumentYear
-                    );
-                    
-                    return {
-                        ...item,
-                        PurchaseOrder: purchaseOrder,
-                        PurchaseOrderItem: purchaseOrderItem,
-                        toHeader: header || null // Agregar la asociación expandida
-                    };
-                });
-                
-                console.log(`[MaterialDocumentItemExt] Procesamiento con expand completado - ${enrichedResult.length} registros`);
-                return enrichedResult;
+            if (result.length === 0) {
+                return [];
             }
+
+            // Obtener los headers correspondientes
+            const materialDocs = [...new Set(result.map(item => item.MaterialDocument))];
+            const materialDocYears = [...new Set(result.map(item => item.MaterialDocumentYear))];
+            
+            const headerQuery = SELECT.from('A_MaterialDocument').where({
+                MaterialDocument: { in: materialDocs },
+                MaterialDocumentYear: { in: materialDocYears }
+            });
+            
+            const headers = await materialService.run(headerQuery);
+            console.log(`[MaterialDocumentItemExt] Headers encontrados: ${headers.length}`);
+            
+            // Combinar items con sus headers
+            const enrichedResult = result.map(item => {
+                const header = headers.find(h => 
+                    h.MaterialDocument === item.MaterialDocument && 
+                    h.MaterialDocumentYear === item.MaterialDocumentYear
+                );
+                
+                const enrichedItem = {
+                    ...item,
+                    toHeader: header || null
+                };
+                
+                // Solo agregar los filtros si se usaron
+                if (purchaseOrder && purchaseOrderItem) {
+                    enrichedItem.PurchaseOrder = purchaseOrder;
+                    enrichedItem.PurchaseOrderItem = purchaseOrderItem;
+                }
+                
+                return enrichedItem;
+            });
+            
+            console.log(`[MaterialDocumentItemExt] Procesamiento con expand completado - ${enrichedResult.length} registros`);
+            return enrichedResult;
         }
 
-        // **CÓDIGO ORIGINAL SIN EXPAND**
-        const enrichedResult = result.map(item => ({
-            ...item,
-            PurchaseOrder: purchaseOrder,
-            PurchaseOrderItem: purchaseOrderItem
-        }));
+        // **SIN EXPAND**
+        const result = await materialService.run(query);
+        console.log(`[MaterialDocumentItemExt] Resultados encontrados: ${result.length} registros`);
+        
+        const enrichedResult = result.map(item => {
+            const enrichedItem = { ...item };
+            // Solo agregar los filtros si se usaron
+            if (purchaseOrder && purchaseOrderItem) {
+                enrichedItem.PurchaseOrder = purchaseOrder;
+                enrichedItem.PurchaseOrderItem = purchaseOrderItem;
+            }
+            return enrichedItem;
+        });
         
         console.log(`[MaterialDocumentItemExt] Procesamiento completado - ${enrichedResult.length} registros`);
         return enrichedResult;
