@@ -46,6 +46,13 @@
     "role-template-references": [
       "$XSAPPNAME.SupplierUser"
     ]
+  },
+  {
+    "name": "AdminAccess",
+    "description": "Full admin access",
+    "role-template-references": [
+      "$XSAPPNAME.AdminUser"
+    ]
   }
 ]
 
