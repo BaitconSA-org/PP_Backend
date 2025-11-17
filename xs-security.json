@@ -9,6 +9,10 @@
     {
       "name": "$XSAPPNAME.Display",
       "description": "Public access"
+    },
+    {
+      "name": "$XSAPPNAME.Admin",
+      "description": "Full administrative access"
     }
   ],
   "role-templates": [
@@ -19,6 +23,13 @@
         "$XSAPPNAME.Supplier"
       ],
       "attribute-references": ["supplierID"]
+    },
+    {
+      "name": "AdminUser",
+      "description": "Full access for administrators",
+      "scope-references": [
+        "$XSAPPNAME.Admin"  
+      ]
     }
   ],
   "attributes": [
