@@ -875,4 +875,7 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
         req.reject(500, 'Error al leer documentos de material desde S/4HANA');
     }
 });
+this.on('getUserRoles', req => {
+  return { roles: req.user?.roles || [] };
+});
 });

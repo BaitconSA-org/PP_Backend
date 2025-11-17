@@ -644,5 +644,13 @@ type SyncResult {
   entity PaymentTerms as projection on supplierPortalGD.PaymentTerms;
   entity GlobalLedgerAccounts as projection on supplierPortalGD.GlobalLedgerAccounts;
   entity CompanyCode as projection on supplierPortalGD.CompanyCode;
+
+  
+  // Roles de usuario 
+  type UserRoles : {
+  roles : array of String;
+  }
+
+  action getUserRoles() returns UserRoles;
 }
 //annotate SupplierPortalService with @requires : ['Supplier'];
