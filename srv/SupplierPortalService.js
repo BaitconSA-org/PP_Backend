@@ -842,24 +842,10 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
 });
 
 
-this.on('READ', 'Roles', async (req) => {
-  // Obtener roles del usuario actual desde req.user
-  const userRoles = [];
-  
-  if (req.user._scopes) {
-    userRoles.push(...req.user._scopes);
-  }
-  
-  // O si no, devolver roles basados en atributos
-  if (req.user.attr && req.user.attr.supplierID) {
-    userRoles.push('Supplier');
-  }
-  
-  // Devolver como entidad Roles
-  return userRoles.map((role, index) => ({
-    ID: (index + 1).toString(),
-    name: role,
-    description: `Role: ${role}`
-  }));
+this.on('getUserRoles', req => {
+  console.log("JWT SCOPES:", req.user?.scopes);
+  console.log("JWT ATTRS:", req.user?.attr);
+  console.log("RAW USER:", req.user);
+  return { roles: req.user?.roles || [] };
 });
 });

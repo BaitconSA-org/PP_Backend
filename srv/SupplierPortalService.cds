@@ -655,5 +655,11 @@ type SyncResult {
   //proyecciones Roles
 
   entity Roles as projection on supplierPortalGD.Roles;
+
+   type UserRoles : {
+  roles : array of String;
+  }
+
+  action getUserRoles() returns UserRoles;
 }
 //annotate SupplierPortalService with @requires : ['Supplier'];
