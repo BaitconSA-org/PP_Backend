@@ -30,7 +30,7 @@ service SupplierPortalService
     annotate PurchaseOrderExt with @restrict :
     [
         { grant : [ '*' ], to : [ 'Supplier' ] },
-        { grant : [ '*' ], to : [ 'authenticated-user' ] }
+        //{ grant : [ '*' ], to : [ 'authenticated-user' ] }
     ];
 
     annotate SupplierInvoiceExt with @restrict : 
@@ -651,12 +651,9 @@ type SyncResult {
   entity GlobalLedgerAccounts as projection on supplierPortalGD.GlobalLedgerAccounts;
   entity CompanyCode as projection on supplierPortalGD.CompanyCode;
 
-  
-  // Roles de usuario 
-  type UserRoles : {
-  roles : array of String;
-  }
 
-  action getUserRoles() returns UserRoles;
+  //proyecciones Roles
+
+  entity Roles as projection on supplierPortalGD.Roles;
 }
 //annotate SupplierPortalService with @requires : ['Supplier'];
