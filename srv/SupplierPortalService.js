@@ -773,14 +773,8 @@ module.exports = cds.service.impl(async function () {
 });
 this.on('READ', 'MaterialDocumentItemExt', async (req) => {
     try {
-        console.log('[MaterialDocumentItemExt] Inicio handler');
+        console.log('[MaterialDocumentItemExt] Iniciando lectura');
 
-        const materialService = await cds.connect.to('A_MaterialDocument');
-
-        // 1) Tomamos la query ORIGINAL que envía el frontend
-        const q = req.query;
-
-        // 2) Detectamos si vienen filtros para PurchaseOrder y PurchaseOrderItem
         let purchaseOrder, purchaseOrderItem;
 
         if (req.params && Array.isArray(req.params)) {
@@ -788,32 +782,70 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
             if (paramsWithItem) {
                 purchaseOrder = paramsWithItem.PurchaseOrder;
                 purchaseOrderItem = paramsWithItem.PurchaseOrderItem;
-
-                console.log(`[MaterialDocumentItemExt] Filtros detectados: PO=${purchaseOrder}, Item=${purchaseOrderItem}`);
-
-                // 3) Inyectamos el WHERE sin eliminar $expand, $select, $orderby, etc.
-                q.SELECT.where = [
-                    { ref: ['PurchaseOrder'] }, '=', { val: purchaseOrder },
-                    'and',
-                    { ref: ['PurchaseOrderItem'] }, '=', { val: purchaseOrderItem }
-                ];
+                console.log(`[MaterialDocumentItemExt] Filtros aplicados: PO=${purchaseOrder}, Item=${purchaseOrderItem}`);
             }
         }
 
-        // 4) Ejecutamos la query tal cual hacia S/4HANA
-        const result = await materialService.run(q);
+        const materialService = await cds.connect.to('A_MaterialDocument');
 
-        console.log(`[MaterialDocumentItemExt] Registros devueltos: ${result.length}`);
+        // Query base (NO se usa req.query porque rompe la navegación)
+        let query = SELECT.from('A_MaterialDocumentItem');
 
-        return result;
+        if (purchaseOrder && purchaseOrderItem) {
+            query.where({
+                PurchaseOrder: purchaseOrder,
+                PurchaseOrderItem: purchaseOrderItem
+            });
+        } else {
+            query.limit(100);
+        }
 
-    } catch (err) {
-        console.error('[MaterialDocumentItemExt] Error:', err);
+        // Manejar expand
+        const expandHeader =
+            req.query.SELECT.expand &&
+            req.query.SELECT.expand.find(e => e.ref && e.ref[0] === 'to_MaterialDocumentHeader');
+
+        if (expandHeader) {
+            console.log('[MaterialDocumentItemExt] Detectado expand to_MaterialDocumentHeader');
+
+            const items = await materialService.run(query);
+
+            if (!items.length) return [];
+
+            const materialDocs = [...new Set(items.map(i => i.MaterialDocument))];
+            const materialDocYears = [...new Set(items.map(i => i.MaterialDocumentYear))];
+
+            const headers = await materialService.run(
+                SELECT.from('A_MaterialDocument')
+                      .where({
+                          MaterialDocument: { in: materialDocs },
+                          MaterialDocumentYear: { in: materialDocYears }
+                      })
+            );
+
+            return items.map(item => ({
+                ...item,
+                to_MaterialDocumentHeader: headers.find(h =>
+                    h.MaterialDocument === item.MaterialDocument &&
+                    h.MaterialDocumentYear === item.MaterialDocumentYear
+                ) || null
+            }));
+        }
+
+        // Sin expand
+        return await materialService.run(query);
+
+    } catch (error) {
+        console.error('[MaterialDocumentItemExt] Error:', error);
         req.reject(500, 'Error al leer documentos de material desde S/4HANA');
     }
 });
 
+
 this.on('getUserRoles', req => {
+  console.log("JWT SCOPES:", req.user?.scopes);
+  console.log("JWT ATTRS:", req.user?.attr);
+  console.log("RAW USER:", req.user);
   return { roles: req.user?.roles || [] };
 });
 });
