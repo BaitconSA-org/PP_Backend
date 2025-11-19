@@ -806,8 +806,8 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
         }
 
         // **MANEJAR EL EXPAND toHeader**
-        if (req.query.SELECT.expand && req.query.SELECT.expand.find(expand => expand.ref && expand.ref[0] === 'toHeader')) {
-            console.log('[MaterialDocumentItemExt] Detectado $expand=toHeader - resolviendo asociación');
+        if (req.query.SELECT.expand && req.query.SELECT.expand.find(expand => expand.ref && expand.ref[0] === 'to_MaterialDocumentHeader')) {
+            console.log('[MaterialDocumentItemExt] Detectado $expand=to_MaterialDocumentHeader - resolviendo asociación');
             
             const result = await materialService.run(query);
             console.log(`[MaterialDocumentItemExt] Items encontrados: ${result.length}`);
@@ -837,7 +837,7 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
                 
                 const enrichedItem = {
                     ...item,
-                    toHeader: header || null
+                    to_MaterialDocumentHeader: header || null
                 };
                 
                 // Solo agregar los filtros si se usaron

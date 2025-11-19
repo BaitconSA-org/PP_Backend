@@ -370,6 +370,7 @@ service SupplierPortalService
     }
       @readonly
       @cds.redirection.target : true
+      @cds.api: true
       entity MaterialDocumentExt as select from mat.A_MaterialDocumentHeader as md {
         key md.MaterialDocumentYear,
         key md.MaterialDocument,
@@ -392,6 +393,9 @@ service SupplierPortalService
 
 
       @readonly
+      @cds.api: true
+      @cds.redirection.target : true
+
       entity MaterialDocumentItemExt as select from mat.A_MaterialDocumentItem as item {
         key item.MaterialDocumentYear,
         key item.MaterialDocument,
@@ -483,9 +487,11 @@ service SupplierPortalService
         item.DebitCreditCode,
 
         // Asociación inversa hacia el encabezado
-        toHeader : Association to MaterialDocumentExt
-          on toHeader.MaterialDocument = $self.MaterialDocument
-          and toHeader.MaterialDocumentYear = $self.MaterialDocumentYear
+        to_MaterialDocumentHeader : Association to MaterialDocumentExt
+
+          on to_MaterialDocumentHeader.MaterialDocument     = $self.MaterialDocument
+          and to_MaterialDocumentHeader.MaterialDocumentYear = $self.MaterialDocumentYear
+
       };
               
 
