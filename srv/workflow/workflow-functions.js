@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 /* eslint-disable prefer-const */
 const cds = require('@sap/cds');
+const { UPDATE, DELETE, INSERT, SELECT } = cds.ql; // ← NUEVO
 const { triggerWorkflowInstance } = require('./workflow-client');
 
 function formatDateToYYYYMMDD(date) {
@@ -85,6 +86,48 @@ async function insertInvoice(data, db) {
   //console.log('Inserted Invoice ID:', invoiceId);
 
   return invoiceId;
+}
+
+async function updateExistingInvoice(db, invoiceId, data) {
+  console.log(`📝 Actualizando factura existente: ${invoiceId}`);
+  
+  // 1. Actualizar cabecera
+  await db.run(
+    UPDATE('Invoices')
+      .set({
+        documentDate: data.DocumentDate || new Date(),
+        totalAmount: data.InvoiceGrossAmount || 0,
+        currency: data.DocumentCurrency || 'ARS',
+        supplierInvoiceIDByInvcgParty: data.SupplierInvoiceIDByInvcgParty,
+        updatedAt: new Date().toISOString()
+      })
+      .where({ ID: invoiceId })
+  );
+
+  // 2. Actualizar items si vienen en data
+  if (data.to_SuplrInvcItemPurOrdRef?.results) {
+    console.log(`🔄 Actualizando ${data.to_SuplrInvcItemPurOrdRef.results.length} items`);
+    
+    // Borrar items antiguos
+    await db.run(DELETE.from('InvoiceItems').where({ invoice_ID: invoiceId }));
+    
+    // Insertar nuevos items
+    const items = data.to_SuplrInvcItemPurOrdRef.results.map(po => ({
+      invoice_ID: invoiceId,
+      invoiceItem: String(po.SupplierInvoiceItem),
+      purchaseOrder: po.PurchaseOrder,
+      purchaseOrderItem: po.PurchaseOrderItem,
+      taxCode: po.TaxCode,
+      supplierInvoiceItemAmmount: po.SupplierInvoiceItemAmount || 0,
+      taxCountry: po.TaxCountry
+    }));
+    
+    if (items.length > 0) {
+      await db.run(INSERT.into('InvoiceItems').entries(items));
+    }
+  }
+  
+  console.log(`✅ Factura ${invoiceId} actualizada`);
 }
 
 async function handleStartWorkflow(req) {

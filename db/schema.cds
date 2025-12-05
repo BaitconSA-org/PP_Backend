@@ -103,6 +103,10 @@ entity InvoiceGLAccounts : cuid {
   debitCreditCode             : String(1);         // "S"
   supplierInvoiceItemText     : String(500);       // "item sin oc"
   isNotCashDiscountLiable     : Boolean;           // false
+  quantity                   : Decimal(13,3);     // 1
+  subtotal                   : Decimal(15,2);     // 693015.00
+  unitOfMeasure               : String(3);         // "KG"
+  unitPrice                 : Decimal(15,5);     // 69301.5
 }
 
 entity InvoiceTaxes : cuid {
