@@ -66,6 +66,7 @@ entity Invoices : cuid, managed {
   invoiceTaxes                  : Composition of many InvoiceTaxes on invoiceTaxes.invoice = $self; // Impuestos de la factura
   invoiceGLAccounts             : Composition of many InvoiceGLAccounts on invoiceGLAccounts.invoice = $self; // Cuentas contables de la factura
   currency                      : String(3);          // Moneda de la factura
+  typeInvoice                   : String(20);         // Tipo de factura (normal, abono, etc.)   
   // files                         : Association to many InvoiceAttachments on files.invoice = $self;
 }
 
