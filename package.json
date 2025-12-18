@@ -99,15 +99,7 @@
         "kind": "hana"
       },
       "auth": {
-        "kind": "mocked",
-      "users": {
-        "devSupplier": {
-          "roles": ["authenticated-user", "Supplier"],
-          "attr": {
-            "supplierID": ["31300001"]
-          }
-    }
-  }
+        "kind":  "xsuaa"
 }
     }
   },
