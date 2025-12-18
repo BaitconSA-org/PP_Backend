@@ -75,12 +75,40 @@
           "path": "/sap/opu/odata/sap/API_MATERIAL_DOCUMENT_SRV"
         }
       },
+      "API_PAYMENT_ADVICE_SRV": {
+        "kind": "odata-v2",
+        "model": "srv/external/A_PaymentAdvice/API_PAYMENT_ADVICE_SRV",
+        "csrf": true,
+        "csrfInBatch": true,
+        "credentials": {
+          "destination": "S4HANA",
+          "path": "/sap/opu/odata/sap/API_PAYMENT_ADVICE_SRV"
+        }
+      },
+      "API_OPLACCTGDOCITEMCUBE_SRV": {
+        "kind": "odata-v2",
+        "model": "srv/external/A_PaymentAccountingDocument/API_OPLACCTGDOCITEMCUBE_SRV",
+         "csrf": true,
+        "csrfInBatch": true,
+        "credentials": {
+          "destination": "S4HANA",
+          "path": "/sap/opu/odata/sap/API_OPLACCTGDOCITEMCUBE_SRV"
+        }
+      },
       "db": {
         "kind": "hana"
       },
       "auth": {
-        "kind": "xsuaa"
-      }
+        "kind": "mocked",
+      "users": {
+        "devSupplier": {
+          "roles": ["authenticated-user", "Supplier"],
+          "attr": {
+            "supplierID": ["31300001"]
+          }
+    }
+  }
+}
     }
   },
   "main": "generate-env.js",

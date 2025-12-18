@@ -1,0 +1,610 @@
+{
+ "meta": {
+  "creator": "cds-dk 9.1.2"
+ },
+ "$version": "2.0",
+ "definitions": {
+  "API_PAYMENT_ADVICE_SRV": {
+   "kind": "service",
+   "@cds.external": true,
+   "@m.IsDefaultEntityContainer": "true",
+   "@sap.message.scope.supported": "true",
+   "@sap.supported.formats": "atom json xlsx"
+  },
+  "API_PAYMENT_ADVICE_SRV.A_PaymentAdvice": {
+   "kind": "entity",
+   "@cds.external": true,
+   "@cds.persistence.skip": true,
+   "@sap.content.version": "1",
+   "@sap.label": "Payment Advice",
+   "elements": {
+    "CompanyCode": {
+     "key": true,
+     "type": "cds.String",
+     "length": 4,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Company Code",
+     "notNull": true
+    },
+    "PaymentAdviceAccountType": {
+     "key": true,
+     "type": "cds.String",
+     "length": 1,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Account Type",
+     "@sap.quickinfo": "Payment Advice Account Type",
+     "notNull": true
+    },
+    "PaymentAdviceAccount": {
+     "key": true,
+     "type": "cds.String",
+     "length": 10,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Account",
+     "@sap.quickinfo": "Account Number",
+     "notNull": true
+    },
+    "PaymentAdvice": {
+     "key": true,
+     "type": "cds.String",
+     "length": 16,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Payment Advice Number",
+     "notNull": true
+    },
+    "PaymentDocument": {
+     "type": "cds.String",
+     "length": 10,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Payment Document Number"
+    },
+    "AccountByShipper": {
+     "type": "cds.String",
+     "length": 12,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Payee's Account at the Customer"
+    },
+    "PaymentCurrency": {
+     "type": "cds.String",
+     "length": 5,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Payment Currency",
+     "@sap.quickinfo": "Payment Currency Key",
+     "@sap.semantics": "currency-code"
+    },
+    "PaymentDate": {
+     "type": "cds.Date",
+     "@sap.display.format": "Date",
+     "@sap.label": "Payment Date"
+    },
+    "PaidAmountInPaytCurrency": {
+     "type": "cds.Decimal",
+     "precision": 24,
+     "scale": 3,
+     "@sap.unit": "PaymentCurrency",
+     "@sap.label": "Payment Amount",
+     "@sap.quickinfo": "Payment Amount from the Payment Advice Header"
+    },
+    "CashDiscountAmountInPaytCrcy": {
+     "type": "cds.Decimal",
+     "precision": 24,
+     "scale": 3,
+     "@sap.unit": "PaymentCurrency",
+     "@sap.label": "Cash Discount Amount"
+    },
+    "PartnerBankCountry": {
+     "type": "cds.String",
+     "length": 3,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Part. Bank Ctry/Rgn",
+     "@sap.quickinfo": "Country/Region Key of Partner Bank"
+    },
+    "PartnerBankSWIFTCode": {
+     "type": "cds.String",
+     "length": 11,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Partner SWIFT Code",
+     "@sap.quickinfo": "SWIFT Code of Partner Bank"
+    },
+    "CreatedByUser": {
+     "type": "cds.String",
+     "length": 12,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Created By",
+     "@sap.quickinfo": "Name of Person Responsible for Creating the Object",
+     "@sap.creatable": "false",
+     "@sap.updatable": "false"
+    },
+    "CreationDate": {
+     "type": "cds.Date",
+     "@sap.display.format": "Date",
+     "@sap.label": "Created On",
+     "@sap.quickinfo": "Record Creation Date",
+     "@sap.creatable": "false",
+     "@sap.updatable": "false"
+    },
+    "CreationTime": {
+     "type": "cds.Time",
+     "@sap.label": "Time of Entry",
+     "@sap.creatable": "false",
+     "@sap.updatable": "false"
+    },
+    "LastChangeDate": {
+     "type": "cds.Date",
+     "@sap.display.format": "Date",
+     "@sap.label": "Changed On",
+     "@sap.quickinfo": "Last Changed On",
+     "@sap.creatable": "false",
+     "@sap.updatable": "false"
+    },
+    "LastChangedByUser": {
+     "type": "cds.String",
+     "length": 12,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Changed By",
+     "@sap.quickinfo": "Name of Person Who Changed Object",
+     "@sap.creatable": "false",
+     "@sap.updatable": "false"
+    },
+    "PaymentAdviceHeaderText": {
+     "type": "cds.String",
+     "length": 25,
+     "@sap.label": "Payment Advice Header Text"
+    },
+    "PaymentAdviceType": {
+     "type": "cds.String",
+     "length": 2,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Payment Advice Type"
+    },
+    "PaymentAdviceStatus": {
+     "type": "cds.String",
+     "length": 1,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Payt Advice Status",
+     "@sap.quickinfo": "Payment Advice Status"
+    },
+    "PaytAdvcDiffDeterminationRule": {
+     "type": "cds.String",
+     "length": 3,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Reason Code Conversion",
+     "@sap.quickinfo": "Reason Code Conversion Version"
+    },
+    "PaymentAdviceSelectionRule": {
+     "type": "cds.String",
+     "length": 3,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Selection Rule",
+     "@sap.quickinfo": "Selection Rule for Payment Advices"
+    },
+    "OriginalReferenceDocument": {
+     "type": "cds.String",
+     "length": 20,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Object Key"
+    },
+    "ReferenceDocumentType": {
+     "type": "cds.String",
+     "length": 5,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Reference Transact.",
+     "@sap.quickinfo": "Reference Transaction"
+    },
+    "FeeAmountInTransactionCrcy": {
+     "type": "cds.Decimal",
+     "precision": 24,
+     "scale": 3,
+     "@sap.unit": "PaymentCurrency",
+     "@sap.label": "Fees in Account Crcy",
+     "@sap.quickinfo": "Fees in Account Currency"
+    },
+    "PaymentTransaction": {
+     "type": "cds.String",
+     "length": 3,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Business Trans Code",
+     "@sap.quickinfo": "Business Transaction Code"
+    },
+    "ExchangeRate": {
+     "type": "cds.String",
+     "length": 12,
+     "@sap.label": "Accounting Exchange Rate"
+    },
+    "BillOfExchangeFailureDate": {
+     "type": "cds.Date",
+     "@sap.display.format": "Date",
+     "@sap.label": "Date in Japan",
+     "@sap.quickinfo": "Date of Failed Bills of Exchange in Japan"
+    },
+    "BankReference": {
+     "type": "cds.String",
+     "length": 35,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Bank Reference",
+     "@sap.quickinfo": "Bank Reference Number"
+    },
+    "BusinessPartnerName": {
+     "type": "cds.String",
+     "length": 55,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Business Partner"
+    },
+    "to_PaymentAdviceItem": {
+     "type": "cds.Association",
+     "target": "API_PAYMENT_ADVICE_SRV.A_PaymentAdviceItem",
+     "cardinality": {
+      "max": "*"
+     },
+     "keys": []
+    }
+   }
+  },
+  "API_PAYMENT_ADVICE_SRV.A_PaymentAdviceItem": {
+   "kind": "entity",
+   "@cds.external": true,
+   "@cds.persistence.skip": true,
+   "@sap.content.version": "1",
+   "@sap.label": "Payment Advice Line Item",
+   "elements": {
+    "CompanyCode": {
+     "key": true,
+     "type": "cds.String",
+     "length": 4,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Company Code",
+     "notNull": true
+    },
+    "PaymentAdviceAccountType": {
+     "key": true,
+     "type": "cds.String",
+     "length": 1,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Account Type",
+     "@sap.quickinfo": "Payment Advice Account Type",
+     "notNull": true
+    },
+    "PaymentAdviceAccount": {
+     "key": true,
+     "type": "cds.String",
+     "length": 10,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Account",
+     "@sap.quickinfo": "Account Number",
+     "notNull": true
+    },
+    "PaymentAdvice": {
+     "key": true,
+     "type": "cds.String",
+     "length": 16,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Payment Advice Number",
+     "notNull": true
+    },
+    "PaymentAdviceItem": {
+     "key": true,
+     "type": "cds.String",
+     "length": 5,
+     "@sap.display.format": "NonNegative",
+     "@sap.label": "Payment Advice Item",
+     "notNull": true
+    },
+    "PaymentAdviceAltvAccount": {
+     "type": "cds.String",
+     "length": 10,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Alternative Account",
+     "@sap.quickinfo": "Alternative Account (Payment Advice Management)"
+    },
+    "AlternativeCompanyCode": {
+     "type": "cds.String",
+     "length": 4,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Alternative Company Code",
+     "@sap.quickinfo": "Alternative Company Code (Payment Advice Management)"
+    },
+    "AccountingDocument": {
+     "type": "cds.String",
+     "length": 10,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Document Number",
+     "@sap.quickinfo": "Document Number of an Accounting Document"
+    },
+    "DocumentReferenceID": {
+     "type": "cds.String",
+     "length": 16,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Reference",
+     "@sap.quickinfo": "Reference Document"
+    },
+    "BillingDocument": {
+     "type": "cds.String",
+     "length": 10,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Billing Document"
+    },
+    "BranchAccount": {
+     "type": "cds.String",
+     "length": 10,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Branch Account No.",
+     "@sap.quickinfo": "Account Number of the Branch"
+    },
+    "AccountingDocumentCreationDate": {
+     "type": "cds.Date",
+     "@sap.display.format": "Date",
+     "@sap.label": "Entered On",
+     "@sap.quickinfo": "Accounting Document Entry Date"
+    },
+    "BusinessArea": {
+     "type": "cds.String",
+     "length": 4,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Business Area"
+    },
+    "AssignmentReference": {
+     "type": "cds.String",
+     "length": 18,
+     "@sap.label": "Assignment",
+     "@sap.quickinfo": "Assignment Number"
+    },
+    "PaytDifferenceReasonExtCode": {
+     "type": "cds.String",
+     "length": 3,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "External Reason Code",
+     "@sap.quickinfo": "External Reason Code for Payment Differences"
+    },
+    "DocumentItemText": {
+     "type": "cds.String",
+     "length": 50,
+     "@sap.label": "Item Text"
+    },
+    "TaxAmountInCoCodeCrcy": {
+     "type": "cds.Decimal",
+     "precision": 24,
+     "scale": 3,
+     "@sap.unit": "Currency",
+     "@sap.label": "Tax Amount",
+     "@sap.quickinfo": "Tax Amount in Local Currency"
+    },
+    "TaxCode": {
+     "type": "cds.String",
+     "length": 2,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Tax Code",
+     "@sap.quickinfo": "Tax on Sales/Purchases Code"
+    },
+    "GrossAmountInPaymentCurrency": {
+     "type": "cds.Decimal",
+     "precision": 24,
+     "scale": 3,
+     "@sap.unit": "Currency",
+     "@sap.label": "Gross Amount"
+    },
+    "NetPaymentAmountInPaytCurrency": {
+     "type": "cds.Decimal",
+     "precision": 24,
+     "scale": 3,
+     "@sap.unit": "Currency",
+     "@sap.label": "Payment Amount",
+     "@sap.quickinfo": "Net Payment Amount with +/- Sign"
+    },
+    "CashDiscountAmountInPaytCrcy": {
+     "type": "cds.Decimal",
+     "precision": 24,
+     "scale": 3,
+     "@sap.unit": "Currency",
+     "@sap.label": "Cash Discount",
+     "@sap.quickinfo": "Cash Discount Amount with +/- Sign"
+    },
+    "FiscalYear": {
+     "type": "cds.String",
+     "length": 4,
+     "@sap.display.format": "NonNegative",
+     "@sap.label": "Fiscal Year"
+    },
+    "AccountingDocumentItem": {
+     "type": "cds.String",
+     "length": 3,
+     "@sap.display.format": "NonNegative",
+     "@sap.label": "Posting View Item"
+    },
+    "PaymentAdviceAltvAccountType": {
+     "type": "cds.String",
+     "length": 1,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Alternative Account Type",
+     "@sap.quickinfo": "Account Type"
+    },
+    "CashDiscountPercent": {
+     "type": "cds.Decimal",
+     "precision": 5,
+     "scale": 3,
+     "@sap.label": "Cash Discount % Rate",
+     "@sap.quickinfo": "Selected Cash Discount Percentage Rate"
+    },
+    "CashDiscountDays": {
+     "type": "cds.Decimal",
+     "precision": 3,
+     "scale": 0,
+     "@sap.label": "Cash Discount Days",
+     "@sap.quickinfo": "Selected Cash Discount Days"
+    },
+    "DifferenceAmountInCoCodeCrcy": {
+     "type": "cds.Decimal",
+     "precision": 24,
+     "scale": 3,
+     "@sap.unit": "CompanyCodeCurrency",
+     "@sap.label": "Amount Difference in Local Currency"
+    },
+    "DifferenceAmount": {
+     "type": "cds.Decimal",
+     "precision": 24,
+     "scale": 3,
+     "@sap.unit": "Currency",
+     "@sap.label": "Amount Difference in Foreign Currency"
+    },
+    "DiffAmtInAdditionalCurrency1": {
+     "type": "cds.Decimal",
+     "precision": 24,
+     "scale": 3,
+     "@sap.unit": "AdditionalCurrency1",
+     "@sap.label": "Amount Diff. in Second Local Currency",
+     "@sap.quickinfo": "Amount Difference in Second Local Currency"
+    },
+    "DiffAmtInAdditionalCurrency2": {
+     "type": "cds.Decimal",
+     "precision": 24,
+     "scale": 3,
+     "@sap.unit": "AdditionalCurrency2",
+     "@sap.label": "Amount Diff. in Third Local Currency",
+     "@sap.quickinfo": "Amount Difference in Third Local Currency"
+    },
+    "ItemIsActivated": {
+     "type": "cds.Boolean",
+     "@sap.label": "Items Active",
+     "@sap.quickinfo": "Indicator: Items Activated?"
+    },
+    "CashDiscountIsActivated": {
+     "type": "cds.Boolean",
+     "@sap.label": "Cash Discount Activated",
+     "@sap.quickinfo": "Flag whether Cash Discount is Active"
+    },
+    "IsPartialPayment": {
+     "type": "cds.Boolean",
+     "@sap.label": "Partial Payments",
+     "@sap.quickinfo": "Indicator: Partial Payments"
+    },
+    "PaytDiffRsdlBalIsCarriedFwd": {
+     "type": "cds.Boolean",
+     "@sap.label": "Carryforward for Payment Difference",
+     "@sap.quickinfo": "Indicator: Carryforward Residual Bal. for Payt Difference?"
+    },
+    "PaymentDifferenceReason": {
+     "type": "cds.String",
+     "length": 3,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Reason Code",
+     "@sap.quickinfo": "Reason Code for Payments"
+    },
+    "Currency": {
+     "type": "cds.String",
+     "length": 5,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Currency",
+     "@sap.quickinfo": "Currency Key",
+     "@sap.semantics": "currency-code"
+    },
+    "Reference1IDByBusinessPartner": {
+     "type": "cds.String",
+     "length": 12,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Reference Key 1",
+     "@sap.quickinfo": "Business Partner Reference Key 1"
+    },
+    "Reference2IDByBusinessPartner": {
+     "type": "cds.String",
+     "length": 12,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Reference Key 2",
+     "@sap.quickinfo": "Business Partner Reference Key 2"
+    },
+    "DeliveryDocument": {
+     "type": "cds.String",
+     "length": 10,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Delivery"
+    },
+    "InvoiceDate": {
+     "type": "cds.Date",
+     "@sap.display.format": "Date",
+     "@sap.label": "Document Date"
+    },
+    "PurchasingDocReferenceByCust": {
+     "type": "cds.String",
+     "length": 20,
+     "@sap.label": "Customer Reference"
+    },
+    "IsPostedOnAccount": {
+     "type": "cds.Boolean",
+     "@sap.label": "On Account",
+     "@sap.quickinfo": "Indicator: Posting on Account"
+    },
+    "PaymentAdviceStatus": {
+     "type": "cds.String",
+     "length": 1,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Payment Advice Status"
+    },
+    "DeductionAmountInPaytCurrency": {
+     "type": "cds.Decimal",
+     "precision": 24,
+     "scale": 3,
+     "@sap.unit": "Currency",
+     "@sap.label": "Deduction Amount"
+    },
+    "PaymentReference": {
+     "type": "cds.String",
+     "length": 30,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Payment Reference"
+    },
+    "PaymentAdviceSelectionField": {
+     "type": "cds.String",
+     "length": 30,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Selection Field",
+     "@sap.quickinfo": "Name of Selection Field"
+    },
+    "PaymentAdviceSelectionValue": {
+     "type": "cds.String",
+     "length": 30,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Value",
+     "@sap.quickinfo": "Selection Value (Payment Advice Management)"
+    },
+    "PaytAdvcExternalSelectionField": {
+     "type": "cds.String",
+     "length": 30,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "External Selection",
+     "@sap.quickinfo": "Name of External Selection Field Specified"
+    },
+    "TaxCalculationProcedure": {
+     "type": "cds.String",
+     "length": 6,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Tax Procedure",
+     "@sap.quickinfo": "Procedure (Pricing, Output Control, Acct. Det., Costing,...)",
+     "@sap.creatable": "false",
+     "@sap.updatable": "false"
+    },
+    "AdditionalCurrency1": {
+     "type": "cds.String",
+     "length": 5,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Additional Crcy 1",
+     "@sap.quickinfo": "Additional Currency 1",
+     "@sap.semantics": "currency-code"
+    },
+    "AdditionalCurrency2": {
+     "type": "cds.String",
+     "length": 5,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Additional Crcy 2",
+     "@sap.quickinfo": "Additional Currency 2",
+     "@sap.semantics": "currency-code"
+    },
+    "CompanyCodeCurrency": {
+     "type": "cds.String",
+     "length": 5,
+     "@sap.display.format": "UpperCase",
+     "@sap.label": "Currency",
+     "@sap.quickinfo": "Currency Key",
+     "@sap.semantics": "currency-code"
+    }
+   }
+  }
+ }
+}

@@ -237,3 +237,28 @@ entity CompanyCode{
       description   : String(100);
 }
 
+entity PaymentOrders : cuid, managed {
+  supplierID         : String(20);
+
+  paymentAdvice      : String(30);
+  companyCode        : String(4);
+  paymentDate        : Date;
+  amount             : Decimal(15,2);
+  currency           : String(3);
+  status             : String(20);
+
+  lastSeenAt         : Timestamp;
+
+  refs : Composition of many PaymentOrderRefs
+    on refs.parent = $self;
+}
+entity PaymentOrderRefs : cuid {
+  parent             : Association to PaymentOrders;
+
+  accountingDocument : String(30);
+  fiscalYear         : String(4);
+  // opcional: item si aplica
+  accountingDocumentItem : String(10);
+}
+
+

@@ -12,6 +12,13 @@ using { A_BusinessPartner as prt } from './external/A_BusinessPartner/A_Business
 // Material Document
 using { A_MaterialDocument as mat } from './external/A_MaterialDocument/A_MaterialDocument.csn';
 
+//Payment Advice Service
+using { API_PAYMENT_ADVICE_SRV as pay } from './external/A_PaymentAdvice/API_PAYMENT_ADVICE_SRV.csn';
+
+//Payment Item Advice Service
+using { API_OPLACCTGDOCITEMCUBE_SRV as acc } from './external/A_PaymentAccountingDocument/API_OPLACCTGDOCITEMCUBE_SRV.csn';
+
+
 // View agregados con totales
 using {
   PurchaseOrderNetAmount      as VirtualPONet,
@@ -89,6 +96,8 @@ service SupplierPortalService
     entity InvoiceGLAccounts      as projection on supplierPortalGD.InvoiceGLAccounts;
     entity InvoiceAttachmentItems as projection on supplierPortalGD.InvoiceAttachmentItems;
     entity InvoiceStatus          as projection on supplierPortalGD.InvoiceStatus;
+    entity PaymentOrders          as projection on supplierPortalGD.PaymentOrders;
+    entity PaymentOrderRefs      as projection on supplierPortalGD.PaymentOrderRefs;
 
     @cds.redirection.target
     @readonly
@@ -535,6 +544,44 @@ service SupplierPortalService
         bp.to_BusinessPartner,
         bp.to_BusinessPartnerAddress
     }
+    // Payment Advice Service Entities
+    @readonly
+      entity PaymentAdviceExt as select from pay.A_PaymentAdvice as h {
+        key h.PaymentAdvice,                 // N° OP
+        h.CompanyCode,
+        h.PaymentDate,
+        h.PaymentCurrency,
+        h.PaidAmountInPaytCurrency as Amount,
+        h.PaymentAdviceStatus,
+        h.BusinessPartnerName
+      };
+      @readonly
+      entity PaymentAdviceItemExt as select from pay.A_PaymentAdviceItem as i {
+        key i.CompanyCode,
+        key i.PaymentAdvice,
+        key i.PaymentAdviceItem,
+
+        i.AccountingDocument,
+        i.FiscalYear,
+        i.AccountingDocumentItem,
+        i.NetPaymentAmountInPaytCurrency,
+        i.Currency
+      };
+    // Accounting Document Items
+      @readonly
+      entity AccountingDocItemsExt as select from acc.A_OperationalAcctgDocItemCube as acci {
+        key acci.CompanyCode,
+        key acci.FiscalYear,
+        key acci.AccountingDocument,
+        key acci.AccountingDocumentItem,
+        acci.PostingDate,
+        acci.DocumentDate,
+        acci.Supplier,
+        acci.AmountInTransactionCurrency,
+        acci.TransactionCurrency,
+        acci.ClearingDate,
+        acci.IsCleared
+      };
 
 
     // Exponiendo vistas Virtuales
