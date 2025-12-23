@@ -851,8 +851,11 @@ this.on('READ', 'PaymentOrders', async (req, next) => {
     : (supplierIDsRaw ? [supplierIDsRaw] : []);
 
   if (!userSupplierIDs.length) {
-    return req.reject(403, 'El usuario no cuenta con supplierID.');
+    // No hay contexto funcional todavía
+    // No rompas UX ni batch
+    return next(); // devuelve lo persistido en HANA (o vacío)
   }
+
 
   // 2) Hoy: deploy sin S/4 listo => no sincroniza, solo devuelve lo persistido en HANA
   if (!SYNC_PAYMENTS) {
