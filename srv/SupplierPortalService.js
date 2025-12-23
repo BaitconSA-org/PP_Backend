@@ -841,169 +841,189 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
     }
 });
 // Payment Orders Handler
+// Payment Orders Handler (clean)
 this.on('READ', 'PaymentOrders', async (req, next) => {
   const { PaymentOrders, PaymentOrderRefs } = this.entities;
 
-  // 1) SupplierIDs desde JWT (CF/XSUAA). Sin JWT => 403 (correcto).
+  // ------------------------------------------------
+  // 1) Contexto de usuario (base neutra)
+  // ------------------------------------------------
   const supplierIDsRaw = req.user?.attr?.supplierID;
   const userSupplierIDs = Array.isArray(supplierIDsRaw)
     ? supplierIDsRaw
-    : (supplierIDsRaw ? [supplierIDsRaw] : []);
+    : supplierIDsRaw ? [supplierIDsRaw] : [];
 
-  if (!userSupplierIDs.length) {
-    // No hay contexto funcional todavía
-    // No rompas UX ni batch
-    return next(); // devuelve lo persistido en HANA (o vacío)
-  }
-
-
-  // 2) Hoy: deploy sin S/4 listo => no sincroniza, solo devuelve lo persistido en HANA
-  if (!SYNC_PAYMENTS) {
+  // 👉 Base del proyecto:
+  // - sin sync o sin contexto → delegamos al framework
+  if (!SYNC_PAYMENTS || !userSupplierIDs.length) {
     return next();
   }
 
-  // 3) Sync desde S/4 (solo cuando SYNC_PAYMENTS=true)
-  let paySrv;
+  // ------------------------------------------------
+  // 2) Sync externo + persistencia
+  // ------------------------------------------------
   try {
-    // OJO: debe coincidir con la KEY del requires en package.json
-    paySrv = await cds.connect.to('API_PAYMENT_ADVICE_SRV');
-  } catch (e) {
-    console.error('[PaymentOrders] No se pudo conectar al remote API_PAYMENT_ADVICE_SRV:', e.message);
-    // No rompas la app por un externo: devolvé HANA
+    // 2.1 Conexión a S/4
+    const paySrv = await cds.connect.to('API_PAYMENT_ADVICE_SRV');
+
+    // 2.2 Headers
+    const headers = await paySrv.run(
+      SELECT.from('A_PaymentAdvice')
+        .columns([
+          'PaymentAdvice',
+          'CompanyCode',
+          'PaymentDate',
+          'PaymentCurrency',
+          'PaidAmountInPaytCurrency',
+          'PaymentAdviceStatus',
+          'BusinessPartnerName',
+          'PaymentAdviceAccount'
+        ])
+        .where({ PaymentAdviceAccount: { in: userSupplierIDs } })
+        .limit(1000)
+    );
+
+    if (!headers?.length) {
+      return [];
+    }
+
+    const adviceNumbers = headers.map(h => h.PaymentAdvice);
+
+    // 2.3 Items
+    const items = await paySrv.run(
+      SELECT.from('A_PaymentAdviceItem')
+        .columns([
+          'CompanyCode',
+          'PaymentAdvice',
+          'PaymentAdviceItem',
+          'AccountingDocument',
+          'FiscalYear',
+          'AccountingDocumentItem',
+          'NetPaymentAmountInPaytCurrency',
+          'Currency'
+        ])
+        .where({ PaymentAdvice: { in: adviceNumbers } })
+        .limit(5000)
+    );
+
+    // ------------------------------------------------
+    // 3) Persistencia en HANA
+    // ------------------------------------------------
+    const tx = cds.transaction(req);
+    const now = new Date().toISOString();
+
+    const existing = await tx.run(
+      SELECT.from(PaymentOrders)
+        .columns(['ID', 'supplierID', 'companyCode', 'paymentAdvice'])
+        .where({
+          supplierID: { in: userSupplierIDs },
+          paymentAdvice: { in: adviceNumbers }
+        })
+    );
+
+    const existingMap = new Map(
+      existing.map(e => [`${e.supplierID}|${e.companyCode}|${e.paymentAdvice}`, e.ID])
+    );
+
+    const toInsert = [];
+    const toUpdate = [];
+
+    for (const h of headers) {
+      const supplierID = h.PaymentAdviceAccount;
+      const key = `${supplierID}|${h.CompanyCode}|${h.PaymentAdvice}`;
+
+      const payload = {
+        supplierID,
+        paymentAdvice: h.PaymentAdvice,
+        companyCode: h.CompanyCode,
+        paymentDate: h.PaymentDate,
+        amount: h.PaidAmountInPaytCurrency,
+        currency: h.PaymentCurrency,
+        status: h.PaymentAdviceStatus,
+        lastSeenAt: now
+      };
+
+      const id = existingMap.get(key);
+      if (id) {
+        toUpdate.push({ ID: id, ...payload });
+      } else {
+        toInsert.push(payload);
+      }
+    }
+
+    if (toInsert.length) {
+      await tx.run(INSERT.into(PaymentOrders).entries(toInsert));
+    }
+
+    for (const row of toUpdate) {
+      const { ID, ...data } = row;
+      await tx.run(UPDATE(PaymentOrders).set(data).where({ ID }));
+    }
+
+    // ------------------------------------------------
+    // 4) Refs
+    // ------------------------------------------------
+    const refreshed = await tx.run(
+      SELECT.from(PaymentOrders)
+        .columns(['ID', 'supplierID', 'companyCode', 'paymentAdvice'])
+        .where({
+          supplierID: { in: userSupplierIDs },
+          paymentAdvice: { in: adviceNumbers }
+        })
+    );
+
+    const idMap = new Map(
+      refreshed.map(r => [`${r.supplierID}|${r.companyCode}|${r.paymentAdvice}`, r.ID])
+    );
+
+    const ids = refreshed.map(r => r.ID);
+    if (ids.length) {
+      await tx.run(
+        DELETE.from(PaymentOrderRefs).where({ parent_ID: { in: ids } })
+      );
+    }
+
+    const hdrMap = new Map(
+      headers.map(h => [`${h.CompanyCode}|${h.PaymentAdvice}`, h])
+    );
+
+    const refRows = [];
+    for (const it of items || []) {
+      const hdr = hdrMap.get(`${it.CompanyCode}|${it.PaymentAdvice}`);
+      if (!hdr) continue;
+
+      const parentID = idMap.get(
+        `${hdr.PaymentAdviceAccount}|${it.CompanyCode}|${it.PaymentAdvice}`
+      );
+      if (!parentID) continue;
+      if (!it.AccountingDocument || !it.FiscalYear) continue;
+
+      refRows.push({
+        parent_ID: parentID,
+        accountingDocument: it.AccountingDocument,
+        fiscalYear: it.FiscalYear,
+        accountingDocumentItem: it.AccountingDocumentItem
+      });
+    }
+
+    if (refRows.length) {
+      await tx.run(INSERT.into(PaymentOrderRefs).entries(refRows));
+    }
+
+    // ------------------------------------------------
+    // 5) Respuesta final (READ real)
+    // ------------------------------------------------
+    return SELECT.from(PaymentOrders)
+      .where({ supplierID: { in: userSupplierIDs } });
+
+  } catch (err) {
+    // ------------------------------------------------
+    // Fallback limpio: nunca romper UX
+    // ------------------------------------------------
+    console.error('[PaymentOrders READ] Sync error:', err);
     return next();
   }
-
-  const headers = await paySrv.run(
-    SELECT.from('A_PaymentAdvice')
-      .columns([
-        'PaymentAdvice',
-        'CompanyCode',
-        'PaymentDate',
-        'PaymentCurrency',
-        'PaidAmountInPaytCurrency',
-        'PaymentAdviceStatus',
-        'BusinessPartnerName',
-        'PaymentAdviceAccount'
-      ])
-      .where({ PaymentAdviceAccount: { in: userSupplierIDs } })
-      .limit(1000)
-  );
-
-  if (!headers?.length) {
-    return next();
-  }
-
-  const adviceNumbers = headers.map(h => h.PaymentAdvice);
-
-  const items = await paySrv.run(
-    SELECT.from('A_PaymentAdviceItem')
-      .columns([
-        'CompanyCode',
-        'PaymentAdvice',
-        'PaymentAdviceItem',
-        'AccountingDocument',
-        'FiscalYear',
-        'AccountingDocumentItem',
-        'NetPaymentAmountInPaytCurrency',
-        'Currency'
-      ])
-      .where({ PaymentAdvice: { in: adviceNumbers } })
-      .limit(5000)
-  );
-
-  const tx = cds.transaction(req);
-  const now = new Date().toISOString();
-
-  // Upsert por (supplierID + companyCode + paymentAdvice)
-  const existing = await tx.run(
-    SELECT.from(PaymentOrders)
-      .columns(['ID', 'supplierID', 'companyCode', 'paymentAdvice'])
-      .where({
-        supplierID: { in: userSupplierIDs },
-        paymentAdvice: { in: adviceNumbers }
-      })
-  );
-
-  const existingMap = new Map(
-    existing.map(e => [`${e.supplierID}|${e.companyCode}|${e.paymentAdvice}`, e.ID])
-  );
-
-  const toInsert = [];
-  const toUpdate = [];
-
-  for (const h of headers) {
-    const supplierID = h.PaymentAdviceAccount;
-    const key = `${supplierID}|${h.CompanyCode}|${h.PaymentAdvice}`;
-
-    const payload = {
-      supplierID,
-      paymentAdvice: h.PaymentAdvice,
-      companyCode: h.CompanyCode,
-      paymentDate: h.PaymentDate,
-      amount: h.PaidAmountInPaytCurrency,
-      currency: h.PaymentCurrency,
-      status: h.PaymentAdviceStatus,
-      lastSeenAt: now
-    };
-
-    const id = existingMap.get(key);
-    if (id) toUpdate.push({ ID: id, ...payload });
-    else toInsert.push(payload);
-  }
-
-  if (toInsert.length) await tx.run(INSERT.into(PaymentOrders).entries(toInsert));
-
-  for (const row of toUpdate) {
-    const { ID, ...data } = row;
-    await tx.run(UPDATE(PaymentOrders).set(data).where({ ID }));
-  }
-
-  // Releer IDs para refs
-  const refreshed = await tx.run(
-    SELECT.from(PaymentOrders)
-      .columns(['ID', 'supplierID', 'companyCode', 'paymentAdvice'])
-      .where({
-        supplierID: { in: userSupplierIDs },
-        paymentAdvice: { in: adviceNumbers }
-      })
-  );
-
-  const idMap = new Map(
-    refreshed.map(r => [`${r.supplierID}|${r.companyCode}|${r.paymentAdvice}`, r.ID])
-  );
-
-  // Limpio refs existentes y vuelvo a cargar
-  const ids = refreshed.map(r => r.ID);
-  if (ids.length) {
-    await tx.run(DELETE.from(PaymentOrderRefs).where({ parent_ID: { in: ids } }));
-  }
-
-  const hdrMap = new Map(headers.map(h => [`${h.CompanyCode}|${h.PaymentAdvice}`, h]));
-
-  const refRows = [];
-  for (const it of items || []) {
-    const hdr = hdrMap.get(`${it.CompanyCode}|${it.PaymentAdvice}`);
-    if (!hdr) continue;
-
-    const parentID = idMap.get(`${hdr.PaymentAdviceAccount}|${it.CompanyCode}|${it.PaymentAdvice}`);
-    if (!parentID) continue;
-
-    if (!it.AccountingDocument || !it.FiscalYear) continue;
-
-    refRows.push({
-      parent_ID: parentID,
-      accountingDocument: it.AccountingDocument,
-      fiscalYear: it.FiscalYear,
-      accountingDocumentItem: it.AccountingDocumentItem
-    });
-  }
-
-  if (refRows.length) await tx.run(INSERT.into(PaymentOrderRefs).entries(refRows));
-
-  // devuelve el READ real contra HANA (respeta $top/$skip/$filter)
-  return next();
 });
-
 
 this.on('getUserRoles', req => {
   console.log("JWT SCOPES:", req.user?.scopes);
