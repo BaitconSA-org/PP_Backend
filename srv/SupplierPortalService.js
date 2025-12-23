@@ -840,189 +840,24 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
         req.reject(500, 'Error al leer documentos de material desde S/4HANA');
     }
 });
-// Payment Orders Handler
-// Payment Orders Handler (clean)
-this.on('READ', 'PaymentOrders', async (req, next) => {
-  const { PaymentOrders, PaymentOrderRefs } = this.entities;
+// PaymentOrders - READ limpio
+this.on('READ', 'PaymentOrders', async (req) => {
+  const { PaymentOrders } = this.entities;
 
-  // ------------------------------------------------
-  // 1) Contexto de usuario (base neutra)
-  // ------------------------------------------------
+  // Contexto base (opcional)
   const supplierIDsRaw = req.user?.attr?.supplierID;
-  const userSupplierIDs = Array.isArray(supplierIDsRaw)
+  const supplierIDs = Array.isArray(supplierIDsRaw)
     ? supplierIDsRaw
     : supplierIDsRaw ? [supplierIDsRaw] : [];
 
-  // 👉 Base del proyecto:
-  // - sin sync o sin contexto → delegamos al framework
-  if (!SYNC_PAYMENTS || !userSupplierIDs.length) {
-    return next();
-  }
-
-  // ------------------------------------------------
-  // 2) Sync externo + persistencia
-  // ------------------------------------------------
-  try {
-    // 2.1 Conexión a S/4
-    const paySrv = await cds.connect.to('API_PAYMENT_ADVICE_SRV');
-
-    // 2.2 Headers
-    const headers = await paySrv.run(
-      SELECT.from('A_PaymentAdvice')
-        .columns([
-          'PaymentAdvice',
-          'CompanyCode',
-          'PaymentDate',
-          'PaymentCurrency',
-          'PaidAmountInPaytCurrency',
-          'PaymentAdviceStatus',
-          'BusinessPartnerName',
-          'PaymentAdviceAccount'
-        ])
-        .where({ PaymentAdviceAccount: { in: userSupplierIDs } })
-        .limit(1000)
-    );
-
-    if (!headers?.length) {
-      return [];
-    }
-
-    const adviceNumbers = headers.map(h => h.PaymentAdvice);
-
-    // 2.3 Items
-    const items = await paySrv.run(
-      SELECT.from('A_PaymentAdviceItem')
-        .columns([
-          'CompanyCode',
-          'PaymentAdvice',
-          'PaymentAdviceItem',
-          'AccountingDocument',
-          'FiscalYear',
-          'AccountingDocumentItem',
-          'NetPaymentAmountInPaytCurrency',
-          'Currency'
-        ])
-        .where({ PaymentAdvice: { in: adviceNumbers } })
-        .limit(5000)
-    );
-
-    // ------------------------------------------------
-    // 3) Persistencia en HANA
-    // ------------------------------------------------
-    const tx = cds.transaction(req);
-    const now = new Date().toISOString();
-
-    const existing = await tx.run(
-      SELECT.from(PaymentOrders)
-        .columns(['ID', 'supplierID', 'companyCode', 'paymentAdvice'])
-        .where({
-          supplierID: { in: userSupplierIDs },
-          paymentAdvice: { in: adviceNumbers }
-        })
-    );
-
-    const existingMap = new Map(
-      existing.map(e => [`${e.supplierID}|${e.companyCode}|${e.paymentAdvice}`, e.ID])
-    );
-
-    const toInsert = [];
-    const toUpdate = [];
-
-    for (const h of headers) {
-      const supplierID = h.PaymentAdviceAccount;
-      const key = `${supplierID}|${h.CompanyCode}|${h.PaymentAdvice}`;
-
-      const payload = {
-        supplierID,
-        paymentAdvice: h.PaymentAdvice,
-        companyCode: h.CompanyCode,
-        paymentDate: h.PaymentDate,
-        amount: h.PaidAmountInPaytCurrency,
-        currency: h.PaymentCurrency,
-        status: h.PaymentAdviceStatus,
-        lastSeenAt: now
-      };
-
-      const id = existingMap.get(key);
-      if (id) {
-        toUpdate.push({ ID: id, ...payload });
-      } else {
-        toInsert.push(payload);
-      }
-    }
-
-    if (toInsert.length) {
-      await tx.run(INSERT.into(PaymentOrders).entries(toInsert));
-    }
-
-    for (const row of toUpdate) {
-      const { ID, ...data } = row;
-      await tx.run(UPDATE(PaymentOrders).set(data).where({ ID }));
-    }
-
-    // ------------------------------------------------
-    // 4) Refs
-    // ------------------------------------------------
-    const refreshed = await tx.run(
-      SELECT.from(PaymentOrders)
-        .columns(['ID', 'supplierID', 'companyCode', 'paymentAdvice'])
-        .where({
-          supplierID: { in: userSupplierIDs },
-          paymentAdvice: { in: adviceNumbers }
-        })
-    );
-
-    const idMap = new Map(
-      refreshed.map(r => [`${r.supplierID}|${r.companyCode}|${r.paymentAdvice}`, r.ID])
-    );
-
-    const ids = refreshed.map(r => r.ID);
-    if (ids.length) {
-      await tx.run(
-        DELETE.from(PaymentOrderRefs).where({ parent_ID: { in: ids } })
-      );
-    }
-
-    const hdrMap = new Map(
-      headers.map(h => [`${h.CompanyCode}|${h.PaymentAdvice}`, h])
-    );
-
-    const refRows = [];
-    for (const it of items || []) {
-      const hdr = hdrMap.get(`${it.CompanyCode}|${it.PaymentAdvice}`);
-      if (!hdr) continue;
-
-      const parentID = idMap.get(
-        `${hdr.PaymentAdviceAccount}|${it.CompanyCode}|${it.PaymentAdvice}`
-      );
-      if (!parentID) continue;
-      if (!it.AccountingDocument || !it.FiscalYear) continue;
-
-      refRows.push({
-        parent_ID: parentID,
-        accountingDocument: it.AccountingDocument,
-        fiscalYear: it.FiscalYear,
-        accountingDocumentItem: it.AccountingDocumentItem
-      });
-    }
-
-    if (refRows.length) {
-      await tx.run(INSERT.into(PaymentOrderRefs).entries(refRows));
-    }
-
-    // ------------------------------------------------
-    // 5) Respuesta final (READ real)
-    // ------------------------------------------------
+  // Si hay supplierID, filtrás
+  if (supplierIDs.length) {
     return SELECT.from(PaymentOrders)
-      .where({ supplierID: { in: userSupplierIDs } });
-
-  } catch (err) {
-    // ------------------------------------------------
-    // Fallback limpio: nunca romper UX
-    // ------------------------------------------------
-    console.error('[PaymentOrders READ] Sync error:', err);
-    return next();
+      .where({ supplierID: { in: supplierIDs } });
   }
+
+  // Base neutra: devolvés todo
+  return SELECT.from(PaymentOrders);
 });
 
 this.on('getUserRoles', req => {
