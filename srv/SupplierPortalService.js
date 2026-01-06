@@ -400,11 +400,18 @@ module.exports = cds.service.impl(async function () {
     }
 
     req._batchCache = req._batchCache || {};
-    const isCountEndpoint = req.http?.req?.originalUrl?.includes('/$count');
+    const wantsInlineCount = req.query?.SELECT?.count === true;
 
-    // Si ya se procesó antes en el batch
+    const limit = req.query?.SELECT?.limit;
+    const top = Number(limit?.rows?.val ?? limit?.rows ?? 0);
+    const skip = Number(limit?.offset?.val ?? limit?.offset ?? 0);
+
+    const isCountEndpoint =
+      req.http?.req?.originalUrl?.includes('/$count') ||
+      (req.query?.SELECT?.columns?.length === 1 && req.query.SELECT.columns[0].as === '$count');
+
     if (isCountEndpoint && req._batchCache.poHeaders) {
-      return req._batchCache.poHeaders.length;
+      return [{ $count: req._batchCache.poHeaders.length }];
     }
 
     let query;
@@ -432,6 +439,8 @@ module.exports = cds.service.impl(async function () {
       // Eliminar count/columns si es $count=true
       if (req.query?.SELECT?.count) delete query.SELECT.count;
       if (query.SELECT?.columns?.some(c => c.func === 'count')) delete query.SELECT.columns;
+      if (query.SELECT?.limit) delete query.SELECT.limit;
+      if (!query.SELECT?.orderBy || query.SELECT.orderBy.length === 0) query.SELECT.orderBy = [{ ref: ['PurchaseOrder'], sort: 'asc' }];
     }
 
     let poHeaders = await s4Purchase.run(query);
@@ -528,15 +537,20 @@ module.exports = cds.service.impl(async function () {
 
     poHeaders = applyCalculatedFilters(poHeaders, originalWhere, rawFilter);
 
-    // Guardar en cache por si en este mismo batch viene /$count
+    const total = poHeaders.length;
+
     req._batchCache.poHeaders = poHeaders;
 
-    // Si justo era $count → devolver la cantidad
     if (isCountEndpoint) {
-      return poHeaders.length;
+      return [{ $count: total }];
     }
 
-    return poHeaders;
+    let result = poHeaders;
+    if (top > 0) result = result.slice(skip, skip + top);
+    if (wantsInlineCount) result.$count = total;
+
+    return result;
+
   });
   /* ------------------------------------------------------------------ */
   /* Helpers                                                             */
