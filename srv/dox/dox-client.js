@@ -98,18 +98,11 @@ async function uploadPdf(
   buffer,
   filename,
   {
-    // OJO: en DOX el clientId NO suele ser "default". En QAS probablemente sea "c_00".
-    clientId = process.env.DOX_CLIENT_ID || 'default',
-
-    documentType = process.env.DOX_DOCUMENT_TYPE || 'invoice',
-    schemaName = process.env.DOX_SCHEMA_NAME || 'invoice_portal',
-
-    // templateId hardcodeado te puede funcionar en DEV y romper en QAS.
-    // Si no existe en QAS, el POST puede devolver 404.
-    templateId = process.env.DOX_TEMPLATE_ID || 'c54b624a-343f-4251-bed9-4c70e2300b45',
-
-    // tenant: usar el tenant real de CAP si aplica multitenancy
-    tenant = process.env.DOX_TENANT || cds.context?.tenant,
+    clientId     = process.env.DOX_CLIENT_ID || 'default',
+    documentType = 'invoice',
+    schemaName   = 'invoice_portal',
+    templateId   = process.env.DOX_TEMPLATE_ID,
+    tenant       = process.env.DOX_TENANT || cds.context?.tenant, 
   } = {},
 ) {
   if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
@@ -135,7 +128,6 @@ async function uploadPdf(
     disableXTenant: process.env.DOX_DISABLE_X_TENANT === 'true',
   });
 
-  // si querés aislar el problema de schemaId, podés saltarte esto y mandar schemaName directo (ver nota debajo)
   const schemaId = await _getSchemaId({
     baseURL,
     token,
@@ -145,8 +137,10 @@ async function uploadPdf(
   });
 
   const form = new FormData();
+  const options = { clientId, documentType, schemaId };
+  if (templateId) options.templateId = templateId;
   form.append('file', buffer, { filename, contentType: 'application/pdf' });
-  form.append('options', JSON.stringify({ clientId, documentType, schemaId, templateId }, null, 2));
+  form.append('options', JSON.stringify(options, null, 2));
 
   const headers = {
     ...form.getHeaders(),
