@@ -15,8 +15,8 @@ using { A_MaterialDocument as mat } from './external/A_MaterialDocument/A_Materi
 //Payment Advice Service
 using { API_PAYMENT_ADVICE_SRV as pay } from './external/A_PaymentAdvice/API_PAYMENT_ADVICE_SRV.csn';
 
-//Payment Item Advice Service
-using { API_OPLACCTGDOCITEMCUBE_SRV as acc } from './external/A_PaymentAccountingDocument/API_OPLACCTGDOCITEMCUBE_SRV.csn';
+//Payment Orders Service
+using { API_OPLACCTGDOCITEMCUBE_SRV as acc } from './external/API_OPLACCTGDOCITEMCUBE/API_OPLACCTGDOCITEMCUBE_SRV.csn';
 
 
 // View agregados con totales
@@ -568,19 +568,25 @@ service SupplierPortalService
         i.Currency
       };
     // Accounting Document Items
-      @readonly
-      entity AccountingDocItemsExt as select from acc.A_OperationalAcctgDocItemCube as acci {
-        key acci.CompanyCode,
-        key acci.FiscalYear,
-        key acci.AccountingDocument,
-        key acci.AccountingDocumentItem,
-        acci.PostingDate,
-        acci.DocumentDate,
-        acci.Supplier,
-        acci.AmountInTransactionCurrency,
-        acci.TransactionCurrency,
-        acci.ClearingDate,
-        acci.IsCleared
+     @readonly
+      entity PaymentOrderItems as projection on acc.A_OperationalAcctgDocItemCube {
+        key CompanyCode,
+        key FiscalYear,
+        key AccountingDocument,
+        key AccountingDocumentItem,
+
+        Supplier,
+        SupplierName,
+        PostingDate,
+        DocumentDate,
+        AccountingDocumentType,
+        AmountInCompanyCodeCurrency,
+        CompanyCodeCurrency,
+
+        // Campos que te pueden ayudar a “identificar” pagos/OP (validar en tu dato real):
+        IsUsedInPaymentTransaction,
+        HasPaymentOrder,
+        PaymentReference
       };
 
 

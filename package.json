@@ -87,7 +87,7 @@
       },
       "API_OPLACCTGDOCITEMCUBE_SRV": {
         "kind": "odata-v2",
-        "model": "srv/external/A_PaymentAccountingDocument/API_OPLACCTGDOCITEMCUBE_SRV",
+        "model": "srv/external/API_OPLACCTGDOCITEMCUBE/API_OPLACCTGDOCITEMCUBE_SRV.csn",
          "csrf": true,
         "csrfInBatch": true,
         "credentials": {

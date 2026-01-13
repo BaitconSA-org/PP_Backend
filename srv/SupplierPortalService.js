@@ -52,6 +52,8 @@ module.exports = cds.service.impl(async function () {
   const s4Purchase = await cds.connect.to('purchaseorder_edmx');
   const s4Invoices = await cds.connect.to('A_SupplierInvoice_edmx');
   const s4bp = await cds.connect.to('A_BusinessPartner');
+  const s4op = await cds.connect.to('API_OPLACCTGDOCITEMCUBE_SRV');
+  const s4pay = await cds.connect.to('API_PAYMENT_ADVICE_SRV');
 
   /**************** InvoiceReport Handler */
   // --- READ InvoiceReport (solo facturas aprobadas status = '5') ---
@@ -840,7 +842,7 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
             return items.map(item => ({
                 ...item,
                 to_MaterialDocumentHeader: headers.find(h =>
-                    h.MaterialDocument === item.MaterialDocument &&
+                    h.MaterialDocument === item.MaterialDogitcument &&
                     h.MaterialDocumentYear === item.MaterialDocumentYear
                 ) || null
             }));
@@ -872,7 +874,13 @@ this.on('READ', 'PaymentOrders', async (req) => {
 
   // Base neutra: devolvés todo
   return SELECT.from(PaymentOrders);
+
 });
+
+this.on('READ', 'PaymentOrderItems', (req) => {
+      // delegación directa de la query (incluye $filter por Supplier desde el List Report)
+    return s4op.run(req.query)
+  })
 
 this.on('getUserRoles', req => {
   console.log("JWT SCOPES:", req.user?.scopes);
