@@ -856,17 +856,30 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
         req.reject(500, 'Error al leer documentos de material desde S/4HANA');
     }
 });
-// PaymentOrders - READ limpio
+const S4_UI_BASE = process.env.S4_UI_BASE || 'https://my420896.s4hana.cloud.sap'
+const APPL_TYPE = 'FFO_PAYM_LIST'
+
+function buildPdfUrl(applObjectId) {
+  if (!applObjectId) return null
+
+  // Si ya viene URL-encoded (típico: contiene %20), evitamos doble encode
+  const alreadyEncoded = /%[0-9A-Fa-f]{2}/.test(applObjectId)
+  const idForUrl = alreadyEncoded
+    ? applObjectId
+    : encodeURIComponent(String(applObjectId).replace(/'/g, "''"))
+
+  return `${S4_UI_BASE}/sap/opu/odata/SAP/CA_OC_OUTPUT_REQUEST_SRV/` +
+    `Roots(ApplObjectType='${APPL_TYPE}',ApplObjectId='${idForUrl}')/Preview/$value`
+}
+
 this.on('READ', 'PaymentOrders', async (req) => {
   const { PaymentOrders } = this.entities;
 
-  // Contexto base (opcional)
   const supplierIDsRaw = req.user?.attr?.supplierID;
   const supplierIDs = Array.isArray(supplierIDsRaw)
     ? supplierIDsRaw
     : supplierIDsRaw ? [supplierIDsRaw] : [];
 
-  // Si hay supplierID, filtrás
   if (supplierIDs.length) {
     return SELECT.from(PaymentOrders)
       .where({ supplierID: { in: supplierIDs } });
@@ -876,6 +889,14 @@ this.on('READ', 'PaymentOrders', async (req) => {
   return SELECT.from(PaymentOrders);
 
 });
+// PaymentOrders - after READ (añadir pdfUrl y pdfText)
+this.after('READ', 'PaymentOrders', (rows /*, req */) => {
+    const arr = Array.isArray(rows) ? rows : [rows]
+    for (const r of arr) {
+      r.pdfText = 'PDF'
+      r.pdfUrl = r.applObjectId ? buildPdfUrl(r.applObjectId) : null
+    }
+  })
 
 this.on('READ', 'PaymentOrderItems', (req) => {
       // delegación directa de la query (incluye $filter por Supplier desde el List Report)

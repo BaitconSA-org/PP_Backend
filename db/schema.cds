@@ -247,18 +247,25 @@ entity PaymentOrders : cuid, managed {
   currency           : String(3);
   status             : String(20);
 
+  
+     // Output Management
+  applObjectType : String(30) default 'FFO_PAYM_LIST';
+  applObjectId   : String(255);          // este es el dato “clave” para el PDF
+
+  virtual pdfUrl  : String(500);
+  virtual pdfText : String(10);
+
   lastSeenAt         : Timestamp;
 
   refs : Composition of many PaymentOrderRefs
     on refs.parent = $self;
 }
-entity PaymentOrderRefs : cuid {
-  parent             : Association to PaymentOrders;
+entity PaymentOrderRefs : cuid, managed {
+  parent : Association to PaymentOrders;
 
-  accountingDocument : String(30);
-  fiscalYear         : String(4);
-  // opcional: item si aplica
-  accountingDocumentItem : String(10);
+  companyCode             : String(4);    // recomendado
+  fiscalYear              : String(4);
+  accountingDocument      : String(10);
+  accountingDocumentItem  : String(3);    // opcional, pero mejor acotar
 }
-
 
