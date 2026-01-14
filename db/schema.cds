@@ -243,6 +243,8 @@ entity PaymentOrders : cuid, managed {
   paymentAdvice      : String(30);
   companyCode        : String(4);
   paymentDate        : Date;
+  paymentDocument   : String(100);
+  paymentFiscalYear  : String(100);
   amount             : Decimal(15,2);
   currency           : String(3);
   status             : String(20);

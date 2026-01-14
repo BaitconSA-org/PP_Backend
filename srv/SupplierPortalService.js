@@ -868,6 +868,7 @@ const APPL_TYPE = 'FFO_PAYM_LIST'
 
 function buildPdfUrl(applObjectId) {
   if (!applObjectId) return null
+
   const alreadyEncoded = /%[0-9A-Fa-f]{2}/.test(applObjectId)
   const idForUrl = alreadyEncoded
     ? applObjectId
@@ -880,6 +881,10 @@ function buildPdfUrl(applObjectId) {
 module.exports = cds.service.impl(async function () {
   const s4op = await cds.connect.to('s4op')
   const { PaymentOrders } = this.entities
+
+  /* =========================================================
+   *  PaymentOrders (TABLA FÍSICA - solo soporte/mapeo/estado)
+   * ========================================================= */
 
   this.before(['CREATE', 'UPDATE'], 'PaymentOrders', (req) => {
     if (req.data?.supplierID) req.data.supplierID = normalizeSupplierId(req.data.supplierID)
@@ -905,9 +910,11 @@ module.exports = cds.service.impl(async function () {
     }
   })
 
-  this.on('READ', 'PaymentOrderItems', (req) => s4op.run(req.query))
+  /* =========================================================
+   *  PaymentOrdersExt (LIST REPORT) - CABECERAS AGREGADAS
+   *  + soporta $expand=to_Items(...)
+   * ========================================================= */
 
-  })
   this.on('READ', 'PaymentOrdersExt', async (req) => {
     // --- supplier scope ---
     const raw = req.user?.attr?.supplierID
@@ -932,18 +939,24 @@ module.exports = cds.service.impl(async function () {
     const top = Number(limit?.rows?.val ?? limit?.rows ?? 0)
     const skip = Number(limit?.offset?.val ?? limit?.offset ?? 0)
 
-    // --- Traer items desde S/4 (mínimo para cabecera + lo que el expand pide) ---
+    /* =========================================================
+     * IMPORTANTE:
+     * - Acá NO usamos SELECT.from('PaymentOrderItems') porque en S/4 no existe ese entity set.
+     * - Usamos el entity set REAL del OData de S/4: A_OperationalAcctgDocItemCube
+     * ========================================================= */
+
     const itemCols = [
       'CompanyCode',
       'Supplier',
       'SupplierName',
       'CompanyCodeCurrency',
       'AmountInCompanyCodeCurrency',
+
       'ClearingAccountingDocument',
       'ClearingDocFiscalYear',
       'ClearingDate',
 
-      // columnas típicas que FE te pide en el expand
+      // para expand (lo que FE te pide)
       'FiscalYear',
       'AccountingDocument',
       'AccountingDocumentItem',
@@ -951,7 +964,7 @@ module.exports = cds.service.impl(async function () {
     ]
 
     const items = await s4op.run(
-      SELECT.from('PaymentOrderItems')
+      SELECT.from('A_OperationalAcctgDocItemCube')
         .columns(...itemCols)
         .where({
           Supplier: { in: scopedSuppliers },
@@ -1006,35 +1019,50 @@ module.exports = cds.service.impl(async function () {
       }
     }
 
-    // --- Ahora cruzamos con la tabla física PaymentOrders para recuperar applObjectId ---
     const headersAll = Array.from(headersByKey.values())
 
-    const companyCodes = [...new Set(headersAll.map(h => h.CompanyCode))]
-    const clearingYears = [...new Set(headersAll.map(h => h.ClearingDocFiscalYear))]
-    const clearingDocs = [...new Set(headersAll.map(h => h.ClearingAccountingDocument))]
-    const suppliers = [...new Set(headersAll.map(h => h.Supplier))]
-
-    const links = await cds.tx(req).run(
-      SELECT.from(PaymentOrders)
-        .columns('companyCode', 'paymentFiscalYear', 'paymentDocument', 'supplierID', 'applObjectId')
-        .where({
-          companyCode: { in: companyCodes },
-          paymentFiscalYear: { in: clearingYears },
-          paymentDocument: { in: clearingDocs },
-          supplierID: { in: suppliers }
-        })
+    // --- Orden ---
+    headersAll.sort((a, b) =>
+      String(b.ClearingDate || '').localeCompare(String(a.ClearingDate || ''))
     )
 
-    const linkMap = new Map(
-      links.map(l => [`${l.companyCode}::${l.paymentFiscalYear}::${l.paymentDocument}::${l.supplierID}`, l.applObjectId])
-    )
-
-    // --- Orden y paging ---
-    headersAll.sort((a, b) => String(b.ClearingDate || '').localeCompare(String(a.ClearingDate || '')))
     const total = headersAll.length
 
+    // --- Paging ---
     let page = headersAll
     if (top > 0) page = headersAll.slice(skip, skip + top)
+
+    // --- Lookup PDF desde tabla física (si tenés mapeo)
+    //     Nota: Si tu tabla PaymentOrders NO tiene paymentFiscalYear/paymentDocument, esto no rompe:
+    //     capturamos el error y seguimos sin PDF.
+    let linkMap = new Map()
+    try {
+      const companyCodes = [...new Set(headersAll.map(h => h.CompanyCode))]
+      const clearingYears = [...new Set(headersAll.map(h => h.ClearingDocFiscalYear))]
+      const clearingDocs = [...new Set(headersAll.map(h => h.ClearingAccountingDocument))]
+      const suppliers = [...new Set(headersAll.map(h => h.Supplier))]
+
+      const links = await cds.tx(req).run(
+        SELECT.from(PaymentOrders)
+          .columns('companyCode', 'paymentFiscalYear', 'paymentDocument', 'supplierID', 'applObjectId')
+          .where({
+            companyCode: { in: companyCodes },
+            paymentFiscalYear: { in: clearingYears },
+            paymentDocument: { in: clearingDocs },
+            supplierID: { in: suppliers }
+          })
+      )
+
+      linkMap = new Map(
+        links.map(l => [
+          `${l.companyCode}::${l.paymentFiscalYear}::${l.paymentDocument}::${l.supplierID}`,
+          l.applObjectId
+        ])
+      )
+    } catch (e) {
+      // Si tu tabla no tiene esos campos todavía, no frenamos la app:
+      linkMap = new Map()
+    }
 
     // --- Adjuntar pdfUrl y expand ---
     for (const r of page) {
@@ -1053,6 +1081,7 @@ module.exports = cds.service.impl(async function () {
     if (wantsInlineCount) page.$count = total
     return page
   })
+})
 
 this.on('getUserRoles', req => {
   console.log("JWT SCOPES:", req.user?.scopes);
