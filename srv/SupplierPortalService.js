@@ -872,23 +872,25 @@ function buildPdfUrl(applObjectId) {
     `Roots(ApplObjectType='${APPL_TYPE}',ApplObjectId='${idForUrl}')/Preview/$value`
 }
 
-this.on('READ', 'PaymentOrders', async (req) => {
-  const { PaymentOrders } = this.entities;
+ this.before(['CREATE', 'UPDATE'], 'PaymentOrders', (req) => {
+    if (req.data?.supplierID) req.data.supplierID = normalizeSupplierId(req.data.supplierID)
+  })
 
-  const supplierIDsRaw = req.user?.attr?.supplierID;
-  const supplierIDs = Array.isArray(supplierIDsRaw)
-    ? supplierIDsRaw
-    : supplierIDsRaw ? [supplierIDsRaw] : [];
+  // READ: SIEMPRE ejecutar req.query (para que FE dibuje)
+  this.on('READ', 'PaymentOrders', async (req) => {
+    const raw = req.user?.attr?.supplierID
+    const supplierIDs = (Array.isArray(raw) ? raw : raw ? [raw] : [])
+      .map(normalizeSupplierId)
+      .filter(Boolean)
 
-  if (supplierIDs.length) {
-    return SELECT.from(PaymentOrders)
-      .where({ supplierID: { in: supplierIDs } });
-  }
+    const q = req.query // importante: no lo ignores
 
-  // Base neutra: devolvés todo
-  return SELECT.from(PaymentOrders);
+    if (supplierIDs.length) {
+      q.where({ supplierID: { in: supplierIDs } })
+    }
 
-});
+    return cds.tx(req).run(q)
+  })
 // PaymentOrders - after READ (añadir pdfUrl y pdfText)
 this.after('READ', 'PaymentOrders', (rows /*, req */) => {
     const arr = Array.isArray(rows) ? rows : [rows]

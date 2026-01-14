@@ -570,25 +570,28 @@ service SupplierPortalService
     // Accounting Document Items
      @readonly
       entity PaymentOrderItems as projection on acc.A_OperationalAcctgDocItemCube {
-        key CompanyCode,
-        key FiscalYear,
-        key AccountingDocument,
-        key AccountingDocumentItem,
+       key CompanyCode,
+       key FiscalYear,
+      key AccountingDocument,
+      key AccountingDocumentItem,
 
-        Supplier,
-        SupplierName,
-        PostingDate,
-        DocumentDate,
-        AccountingDocumentType,
-        AmountInCompanyCodeCurrency,
-        CompanyCodeCurrency,
+      Supplier,
+      SupplierName,
+      PostingDate,
+      DocumentDate,
+      AccountingDocumentType,
+      AmountInCompanyCodeCurrency,
+      CompanyCodeCurrency,
 
-        // Campos que te pueden ayudar a “identificar” pagos/OP (validar en tu dato real):
-        IsUsedInPaymentTransaction,
-        HasPaymentOrder,
-        PaymentReference
-      };
+      // Identificación del pago / OP (necesarios para agrupar)
+      ClearingAccountingDocument,
+      ClearingDocFiscalYear,
+      ClearingDate,
 
+      IsUsedInPaymentTransaction,
+      HasPaymentOrder,
+      PaymentReference
+    };
 
     // Exponiendo vistas Virtuales
     @readonly
@@ -625,6 +628,48 @@ service SupplierPortalService
     _SupplierInvoices: Composition of many PO_SI
       on _SupplierInvoices.PurchaseOrder = $self.PurchaseOrder
   }
+
+  //Proyección para Payment Orders Cabecera
+
+  @readonly
+  @cds.persistence.skip
+  entity PaymentOrdersExt {
+    key CompanyCode              : String(4);
+    key ClearingDocFiscalYear    : String(4);
+    key ClearingAccountingDocument : String(10);
+
+    PaymentOrderNumber : String(35);   // ej: PaymentReference si corresponde
+    ClearingDate       : Date;
+
+    Supplier           : String(20);
+    SupplierName       : String(80);
+
+    CompanyCodeName    : String(80);
+
+    Amount             : Decimal(15,2);
+    Currency           : String(3);
+
+    // Cabecera enriquecida BP
+    SupplierFullAddress: String(255);
+    SupplierCUIT       : String(20);
+    SupplierEmail      : String(255);
+    SupplierCBU        : String(40);
+
+    // Empresa (si no lo trae API, mantenelo local)
+    CompanyCUIT        : String(20);
+    CompanyIIBB        : String(40);
+    CompanyAddress     : String(255);
+
+    virtual pdfUrl     : String(500);
+    virtual pdfText    : String(10);
+
+    // Navegación a items (para Object Page)
+    to_Items : Association to many PaymentOrderItems
+      on to_Items.CompanyCode = CompanyCode
+    and to_Items.ClearingDocFiscalYear = ClearingDocFiscalYear
+    and to_Items.ClearingAccountingDocument = ClearingAccountingDocument;
+  }
+
 
   // ----> DOX
   action uploadPdf(
