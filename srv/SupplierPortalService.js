@@ -856,13 +856,18 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
         req.reject(500, 'Error al leer documentos de material desde S/4HANA');
     }
 });
+function normalizeSupplierId(v) {
+  if (v == null) return null
+  const s = String(v).trim()
+  if (/^\d+$/.test(s) && s.length <= 10) return s.padStart(10, '0')
+  return s
+}
+
 const S4_UI_BASE = process.env.S4_UI_BASE || 'https://my420896.s4hana.cloud.sap'
 const APPL_TYPE = 'FFO_PAYM_LIST'
 
 function buildPdfUrl(applObjectId) {
   if (!applObjectId) return null
-
-  // Si ya viene URL-encoded (típico: contiene %20), evitamos doble encode
   const alreadyEncoded = /%[0-9A-Fa-f]{2}/.test(applObjectId)
   const idForUrl = alreadyEncoded
     ? applObjectId
@@ -872,27 +877,27 @@ function buildPdfUrl(applObjectId) {
     `Roots(ApplObjectType='${APPL_TYPE}',ApplObjectId='${idForUrl}')/Preview/$value`
 }
 
- this.before(['CREATE', 'UPDATE'], 'PaymentOrders', (req) => {
+module.exports = cds.service.impl(async function () {
+  const s4op = await cds.connect.to('s4op')
+  const { PaymentOrders } = this.entities
+
+  this.before(['CREATE', 'UPDATE'], 'PaymentOrders', (req) => {
     if (req.data?.supplierID) req.data.supplierID = normalizeSupplierId(req.data.supplierID)
   })
 
-  // READ: SIEMPRE ejecutar req.query (para que FE dibuje)
   this.on('READ', 'PaymentOrders', async (req) => {
     const raw = req.user?.attr?.supplierID
     const supplierIDs = (Array.isArray(raw) ? raw : raw ? [raw] : [])
       .map(normalizeSupplierId)
       .filter(Boolean)
 
-    const q = req.query // importante: no lo ignores
-
-    if (supplierIDs.length) {
-      q.where({ supplierID: { in: supplierIDs } })
-    }
+    const q = cds.ql.clone(req.query)
+    if (supplierIDs.length) q.where({ supplierID: { in: supplierIDs } })
 
     return cds.tx(req).run(q)
   })
-// PaymentOrders - after READ (añadir pdfUrl y pdfText)
-this.after('READ', 'PaymentOrders', (rows /*, req */) => {
+
+  this.after('READ', 'PaymentOrders', (rows) => {
     const arr = Array.isArray(rows) ? rows : [rows]
     for (const r of arr) {
       r.pdfText = 'PDF'
@@ -900,9 +905,153 @@ this.after('READ', 'PaymentOrders', (rows /*, req */) => {
     }
   })
 
-this.on('READ', 'PaymentOrderItems', (req) => {
-      // delegación directa de la query (incluye $filter por Supplier desde el List Report)
-    return s4op.run(req.query)
+  this.on('READ', 'PaymentOrderItems', (req) => s4op.run(req.query))
+
+  })
+  this.on('READ', 'PaymentOrdersExt', async (req) => {
+    // --- supplier scope ---
+    const raw = req.user?.attr?.supplierID
+    const supplierIDs = (Array.isArray(raw) ? raw : raw ? [raw] : [])
+      .map(normalizeSupplierId)
+      .filter(Boolean)
+
+    const isLocal =
+      req.user?.id === 'system' ||
+      req.user?.id === 'anonymous' ||
+      cds.env.profile?.includes?.('development')
+
+    const scopedSuppliers = supplierIDs.length ? supplierIDs : (isLocal ? ['0031300001'] : null)
+    if (!scopedSuppliers) return req.reject(403, 'El usuario no cuenta con supplierID')
+
+    // --- detect expand to_Items ---
+    const wantsExpandItems = !!req.query?.SELECT?.expand?.some(e => e?.ref?.[0] === 'to_Items')
+
+    // --- paging/count ---
+    const wantsInlineCount = req.query?.SELECT?.count === true
+    const limit = req.query?.SELECT?.limit
+    const top = Number(limit?.rows?.val ?? limit?.rows ?? 0)
+    const skip = Number(limit?.offset?.val ?? limit?.offset ?? 0)
+
+    // --- Traer items desde S/4 (mínimo para cabecera + lo que el expand pide) ---
+    const itemCols = [
+      'CompanyCode',
+      'Supplier',
+      'SupplierName',
+      'CompanyCodeCurrency',
+      'AmountInCompanyCodeCurrency',
+      'ClearingAccountingDocument',
+      'ClearingDocFiscalYear',
+      'ClearingDate',
+
+      // columnas típicas que FE te pide en el expand
+      'FiscalYear',
+      'AccountingDocument',
+      'AccountingDocumentItem',
+      'PaymentReference'
+    ]
+
+    const items = await s4op.run(
+      SELECT.from('PaymentOrderItems')
+        .columns(...itemCols)
+        .where({
+          Supplier: { in: scopedSuppliers },
+          ClearingAccountingDocument: { '!=': '' }
+        })
+    )
+
+    if (!items?.length) return []
+
+    // --- Agrupar a cabeceras ---
+    const headersByKey = new Map()
+    const itemsByKey = new Map()
+
+    for (const it of items) {
+      const ccyYear = String(it.ClearingDocFiscalYear || '').padStart(4, '0')
+      const key = `${it.CompanyCode}::${ccyYear}::${it.ClearingAccountingDocument}`
+
+      let h = headersByKey.get(key)
+      if (!h) {
+        h = {
+          CompanyCode: it.CompanyCode,
+          ClearingDocFiscalYear: ccyYear,
+          ClearingAccountingDocument: it.ClearingAccountingDocument,
+          ClearingDate: it.ClearingDate,
+
+          Supplier: it.Supplier,
+          SupplierName: it.SupplierName,
+
+          Amount: 0,
+          Currency: it.CompanyCodeCurrency,
+
+          pdfText: '',
+          pdfUrl: null
+        }
+        headersByKey.set(key, h)
+      }
+
+      h.Amount += Number(it.AmountInCompanyCodeCurrency || 0)
+
+      if (wantsExpandItems) {
+        const arr = itemsByKey.get(key) || []
+        arr.push({
+          CompanyCode: it.CompanyCode,
+          FiscalYear: it.FiscalYear,
+          AccountingDocument: it.AccountingDocument,
+          AccountingDocumentItem: it.AccountingDocumentItem,
+          AmountInCompanyCodeCurrency: it.AmountInCompanyCodeCurrency,
+          CompanyCodeCurrency: it.CompanyCodeCurrency,
+          PaymentReference: it.PaymentReference
+        })
+        itemsByKey.set(key, arr)
+      }
+    }
+
+    // --- Ahora cruzamos con la tabla física PaymentOrders para recuperar applObjectId ---
+    const headersAll = Array.from(headersByKey.values())
+
+    const companyCodes = [...new Set(headersAll.map(h => h.CompanyCode))]
+    const clearingYears = [...new Set(headersAll.map(h => h.ClearingDocFiscalYear))]
+    const clearingDocs = [...new Set(headersAll.map(h => h.ClearingAccountingDocument))]
+    const suppliers = [...new Set(headersAll.map(h => h.Supplier))]
+
+    const links = await cds.tx(req).run(
+      SELECT.from(PaymentOrders)
+        .columns('companyCode', 'paymentFiscalYear', 'paymentDocument', 'supplierID', 'applObjectId')
+        .where({
+          companyCode: { in: companyCodes },
+          paymentFiscalYear: { in: clearingYears },
+          paymentDocument: { in: clearingDocs },
+          supplierID: { in: suppliers }
+        })
+    )
+
+    const linkMap = new Map(
+      links.map(l => [`${l.companyCode}::${l.paymentFiscalYear}::${l.paymentDocument}::${l.supplierID}`, l.applObjectId])
+    )
+
+    // --- Orden y paging ---
+    headersAll.sort((a, b) => String(b.ClearingDate || '').localeCompare(String(a.ClearingDate || '')))
+    const total = headersAll.length
+
+    let page = headersAll
+    if (top > 0) page = headersAll.slice(skip, skip + top)
+
+    // --- Adjuntar pdfUrl y expand ---
+    for (const r of page) {
+      const lk = `${r.CompanyCode}::${r.ClearingDocFiscalYear}::${r.ClearingAccountingDocument}::${r.Supplier}`
+      const applObjectId = linkMap.get(lk)
+
+      r.pdfText = applObjectId ? 'PDF' : ''
+      r.pdfUrl = applObjectId ? buildPdfUrl(applObjectId) : null
+
+      if (wantsExpandItems) {
+        const key = `${r.CompanyCode}::${r.ClearingDocFiscalYear}::${r.ClearingAccountingDocument}`
+        r.to_Items = itemsByKey.get(key) || []
+      }
+    }
+
+    if (wantsInlineCount) page.$count = total
+    return page
   })
 
 this.on('getUserRoles', req => {
