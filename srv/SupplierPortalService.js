@@ -879,11 +879,15 @@ function buildPdfUrl(applObjectId) {
 }
 
 module.exports = cds.service.impl(async function () {
+  // IMPORTANTE: esto tiene que apuntar a tu destino que consume API_OPLACCTGDOCITEMCUBE_SRV
   const s4op = await cds.connect.to('s4op')
+
   const { PaymentOrders } = this.entities
+  const { SELECT } = cds.ql
 
   /* =========================================================
-   *  PaymentOrders (TABLA FÍSICA - solo soporte/mapeo/estado)
+   * PaymentOrders (TABLA FÍSICA)
+   * - solo soporte: guardar applObjectId / estado / mapping
    * ========================================================= */
 
   this.before(['CREATE', 'UPDATE'], 'PaymentOrders', (req) => {
@@ -911,12 +915,13 @@ module.exports = cds.service.impl(async function () {
   })
 
   /* =========================================================
-   *  PaymentOrdersExt (LIST REPORT) - CABECERAS AGREGADAS
-   *  + soporta $expand=to_Items(...)
+   * PaymentOrdersExt (LIST REPORT)
+   * - CABECERA agregada por OP/pago
+   * - SOPORTA expand to_Items manualmente (sin que CAP lo intente)
    * ========================================================= */
 
   this.on('READ', 'PaymentOrdersExt', async (req) => {
-    // --- supplier scope ---
+    // ---- supplier scope ----
     const raw = req.user?.attr?.supplierID
     const supplierIDs = (Array.isArray(raw) ? raw : raw ? [raw] : [])
       .map(normalizeSupplierId)
@@ -930,20 +935,21 @@ module.exports = cds.service.impl(async function () {
     const scopedSuppliers = supplierIDs.length ? supplierIDs : (isLocal ? ['0031300001'] : null)
     if (!scopedSuppliers) return req.reject(403, 'El usuario no cuenta con supplierID')
 
-    // --- detect expand to_Items ---
-    const wantsExpandItems = !!req.query?.SELECT?.expand?.some(e => e?.ref?.[0] === 'to_Items')
+    // ---- detectar expand (FORMA CORRECTA) ----
+    const cols = req.query?.SELECT?.columns || []
+    const expandCol = cols.find(c => c?.ref?.[0] === 'to_Items' && Array.isArray(c.expand))
+    const wantsExpandItems = !!expandCol
 
-    // --- paging/count ---
+    // ---- paging/count ----
     const wantsInlineCount = req.query?.SELECT?.count === true
     const limit = req.query?.SELECT?.limit
     const top = Number(limit?.rows?.val ?? limit?.rows ?? 0)
     const skip = Number(limit?.offset?.val ?? limit?.offset ?? 0)
 
-    /* =========================================================
-     * IMPORTANTE:
-     * - Acá NO usamos SELECT.from('PaymentOrderItems') porque en S/4 no existe ese entity set.
-     * - Usamos el entity set REAL del OData de S/4: A_OperationalAcctgDocItemCube
-     * ========================================================= */
+    // =========================================================
+    // 1) Leer de S/4: ENTITY SET REAL
+    //    NO uses "PaymentOrderItems" acá.
+    // =========================================================
 
     const itemCols = [
       'CompanyCode',
@@ -956,37 +962,40 @@ module.exports = cds.service.impl(async function () {
       'ClearingDocFiscalYear',
       'ClearingDate',
 
-      // para expand (lo que FE te pide)
+      // para devolver items cuando expand
       'FiscalYear',
       'AccountingDocument',
       'AccountingDocumentItem',
       'PaymentReference'
     ]
 
-    const items = await s4op.run(
+    // ✅ evitamos filtros “raros” (ne '') en el remoto: filtramos en JS
+    const rawItems = await s4op.run(
       SELECT.from('A_OperationalAcctgDocItemCube')
         .columns(...itemCols)
-        .where({
-          Supplier: { in: scopedSuppliers },
-          ClearingAccountingDocument: { '!=': '' }
-        })
+        .where({ Supplier: { in: scopedSuppliers } })
     )
 
-    if (!items?.length) return []
+    // Filtrar solo los que efectivamente pertenecen a pagos
+    const items = (rawItems || []).filter(i => i?.ClearingAccountingDocument)
 
-    // --- Agrupar a cabeceras ---
+    if (!items.length) return []
+
+    // =========================================================
+    // 2) Agrupar a cabeceras
+    // =========================================================
     const headersByKey = new Map()
     const itemsByKey = new Map()
 
     for (const it of items) {
-      const ccyYear = String(it.ClearingDocFiscalYear || '').padStart(4, '0')
-      const key = `${it.CompanyCode}::${ccyYear}::${it.ClearingAccountingDocument}`
+      const year = String(it.ClearingDocFiscalYear || '').padStart(4, '0')
+      const key = `${it.CompanyCode}::${year}::${it.ClearingAccountingDocument}`
 
       let h = headersByKey.get(key)
       if (!h) {
         h = {
           CompanyCode: it.CompanyCode,
-          ClearingDocFiscalYear: ccyYear,
+          ClearingDocFiscalYear: year,
           ClearingAccountingDocument: it.ClearingAccountingDocument,
           ClearingDate: it.ClearingDate,
 
@@ -1019,22 +1028,22 @@ module.exports = cds.service.impl(async function () {
       }
     }
 
-    const headersAll = Array.from(headersByKey.values())
+    let headersAll = Array.from(headersByKey.values())
 
-    // --- Orden ---
+    // Orden por fecha desc
     headersAll.sort((a, b) =>
       String(b.ClearingDate || '').localeCompare(String(a.ClearingDate || ''))
     )
 
     const total = headersAll.length
 
-    // --- Paging ---
+    // paging
     let page = headersAll
     if (top > 0) page = headersAll.slice(skip, skip + top)
 
-    // --- Lookup PDF desde tabla física (si tenés mapeo)
-    //     Nota: Si tu tabla PaymentOrders NO tiene paymentFiscalYear/paymentDocument, esto no rompe:
-    //     capturamos el error y seguimos sin PDF.
+    // =========================================================
+    // 3) PDF: lookup en tabla física PaymentOrders (si existe mapping)
+    // =========================================================
     let linkMap = new Map()
     try {
       const companyCodes = [...new Set(headersAll.map(h => h.CompanyCode))]
@@ -1060,11 +1069,12 @@ module.exports = cds.service.impl(async function () {
         ])
       )
     } catch (e) {
-      // Si tu tabla no tiene esos campos todavía, no frenamos la app:
-      linkMap = new Map()
+      linkMap = new Map() // si no está el schema, no rompemos
     }
 
-    // --- Adjuntar pdfUrl y expand ---
+    // =========================================================
+    // 4) Adjuntar pdf + expand (MANUAL)
+    // =========================================================
     for (const r of page) {
       const lk = `${r.CompanyCode}::${r.ClearingDocFiscalYear}::${r.ClearingAccountingDocument}::${r.Supplier}`
       const applObjectId = linkMap.get(lk)
@@ -1072,6 +1082,7 @@ module.exports = cds.service.impl(async function () {
       r.pdfText = applObjectId ? 'PDF' : ''
       r.pdfUrl = applObjectId ? buildPdfUrl(applObjectId) : null
 
+      // 🔥 expand manual (así CAP no intenta expandir y NO devuelve 501)
       if (wantsExpandItems) {
         const key = `${r.CompanyCode}::${r.ClearingDocFiscalYear}::${r.ClearingAccountingDocument}`
         r.to_Items = itemsByKey.get(key) || []
