@@ -886,29 +886,17 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
     const sType = String(sourceType || "").toUpperCase().trim();
     const sId = String(sourceId || "").trim();
 
-    if (!sType || !sId) return req.reject(400, "sourceType y sourceId son obligatorios");
     if (sType === "PO") {
-  // ✅ Siempre en action: usar tx(req) para llamadas remotas
-  const s4Purchase = await cds.connect.to("purchaseorder_edmx");
-  const s4Invoices = await cds.connect.to("A_SupplierInvoice_edmx");
+  // ✅ Usá la MISMA conexión que ya te funciona en READ handlers
+  // Si NO la tenés en scope, usá:
+  // const s4Purchase = await cds.connect.to("purchaseorder_edmx");
+  // const s4Invoices = await cds.connect.to("A_SupplierInvoice_edmx");
+
+  // ✅ Muy importante: ejecutar en tx(req) para no perder contexto
   const txPurchase = s4Purchase.tx(req);
   const txInvoices = s4Invoices.tx(req);
 
-  // (Opcional pero MUY recomendable) validar ownership de la OC por supplier,
-  // para no devolver [] silencioso si es otra OC.
-  // Si tu entity "PurchaseOrder" tiene Supplier (como en tu READ header), hacelo:
-  const hdr = await txPurchase.run(
-    SELECT.one.from("PurchaseOrder")
-      .columns(["PurchaseOrder", "Supplier"])
-      .where({ PurchaseOrder: sId })
-  );
-
-  if (!hdr) return req.reject(404, `OC ${sId} inexistente`);
-  if (hdr.Supplier && !supplierIDs.includes(String(hdr.Supplier))) {
-    return req.reject(403, "No autorizado: la OC no pertenece al proveedor logueado");
-  }
-
-  // ✅ MISMO entityset que vos ya usás en tu handler READ PurchaseOrderItemExt
+  // 1) Traer items de la OC (entityset REAL que usás: PurchaseOrderItem)
   const poItemsRaw = await txPurchase.run(
     SELECT.from("PurchaseOrderItem")
       .columns([
@@ -917,31 +905,33 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
         "Material",
         "PurchaseOrderItemText",
         "OrderQuantity"
+        // si necesitás unidad: "PurchaseOrderQuantityUnit"
       ])
       .where({ PurchaseOrder: sId })
   );
 
   const poItems = Array.isArray(poItemsRaw) ? poItemsRaw : (poItemsRaw ? [poItemsRaw] : []);
 
-  // 🔥 Fail fast: si esto está vacío, NO es “no candidates”: es que no estás trayendo items.
+  // 🔥 Fail fast: si esto es 0, no hay nada que mapear
   if (!poItems.length) {
-    console.log("[getPrecertCandidates][PO] 0 items", { sId, supplierIDs, hdr });
-    return req.reject(404, `OC ${sId}: 0 posiciones (PurchaseOrderItem vacío / auth / destino)`);
+    return req.reject(404, `OC ${sId}: 0 posiciones (PurchaseOrderItem no devolvió datos)`);
   }
 
-  // Cantidad facturada por ítem (para availableQty)
-  const refs = await txInvoices.run(
+  // 2) Cantidad facturada por ítem (tu fuente real)
+  const invoiceItemsRef = await txInvoices.run(
     SELECT.from("A_SuplrInvcItemPurOrdRef")
       .columns(["PurchaseOrder", "PurchaseOrderItem", "QuantityInPurchaseOrderUnit"])
       .where({ PurchaseOrder: sId })
   );
 
   const invQtyByKey = {};
-  for (const r of (refs || [])) {
-    const k = `${r.PurchaseOrder}-${r.PurchaseOrderItem}`;
-    invQtyByKey[k] = (invQtyByKey[k] || 0) + (r.QuantityInPurchaseOrderUnit ? parseFloat(r.QuantityInPurchaseOrderUnit) : 0);
+  for (const item of (invoiceItemsRef || [])) {
+    const key = `${item.PurchaseOrder}-${item.PurchaseOrderItem}`;
+    const qty = item.QuantityInPurchaseOrderUnit;
+    invQtyByKey[key] = (invQtyByKey[key] || 0) + (qty ? parseFloat(qty) : 0);
   }
 
+  // 3) Devolver “candidates” = posiciones de OC candidatas (con cantidades, sin importes)
   return poItems.map((it) => {
     const key = `${it.PurchaseOrder}-${it.PurchaseOrderItem}`;
     const ordered = parseFloat(it.OrderQuantity || 0);
@@ -953,7 +943,7 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
       sourceId: it.PurchaseOrder,
       itemId: String(it.PurchaseOrderItem || ""),
       material: it.Material || "",
-      description: it.PurchaseOrderItemText || "",
+      description: it.PurchaseOrderItemText || it.Material || "",
       orderedQty: ordered,
       invoicedQty: invoiced,
       availableQty: available
