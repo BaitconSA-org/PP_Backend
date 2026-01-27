@@ -877,45 +877,109 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
 
     return supplierIDs;
   }
+  })
 
 this.on("getPrecertCandidates", async (req) => {
   const supplierIDs = getScopedSupplierIDs(req);
-  if (!supplierIDs) return;
+  if (!Array.isArray(supplierIDs) || supplierIDs.length === 0) {
+    return req.reject(403, "El usuario no cuenta con supplierID");
+  }
 
   const { sourceType, sourceId } = req.data || {};
   const sType = String(sourceType || "").toUpperCase().trim();
-  const sId   = String(sourceId || "").trim();
+  const sId = String(sourceId || "").trim();
 
   if (!sType || !sId) return req.reject(400, "sourceType y sourceId son obligatorios");
   if (sType !== "PO" && sType !== "CM") return req.reject(400, "sourceType debe ser PO o CM");
 
   try {
-    if (sType === "PO") {
-      // ✅ Reusar tu handler que YA funciona y ya trae qty facturada (QuantityInPurchaseOrderUnit)
-      const tx = this.tx(req);
+    // Conexiones remotas (las mismas que ya usás en otros handlers)
+    const s4Purchase = await cds.connect.to("purchaseorder_edmx");
+    const s4Invoices = await cds.connect.to("A_SupplierInvoice_edmx");
 
-      const poItems = await tx.run(
-        SELECT.from("PurchaseOrderItemExt")
-          .columns([
-            "PurchaseOrder",
-            "PurchaseOrderItem",
-            "Material",
-            "PurchaseOrderItemText",
-            "OrderQuantity",
-            "PurchaseOrderQuantityUnit",
-            "QuantityInPurchaseOrderUnit" // <- vos lo llenás en PurchaseOrderItemExt
-          ])
+    const { PurchaseContractExt, PurchaseContractItemExt } = this.entities;
+
+    // ==========================
+    // PO
+    // ==========================
+    if (sType === "PO") {
+      // (Opcional pero recomendable) validar ownership del PO por supplier
+      // Si no querés bloquear por supplier, podés comentar este bloque.
+      let poHeader = null;
+      try {
+        poHeader = await s4Purchase.run(
+          SELECT.one.from("PurchaseOrder").columns(["PurchaseOrder", "Supplier"]).where({ PurchaseOrder: sId })
+        );
+      } catch (e) {
+        // fallback por si tu EDMX usa A_PurchaseOrder
+        try {
+          poHeader = await s4Purchase.run(
+            SELECT.one.from("A_PurchaseOrder").columns(["PurchaseOrder", "Supplier"]).where({ PurchaseOrder: sId })
+          );
+        } catch (e2) {}
+      }
+
+      if (!poHeader) {
+        // si no existe / no accesible, devolvemos vacío (para tu UX de "no candidates")
+        return [];
+      }
+
+      const poSupplier = String(poHeader.Supplier || "").trim();
+      if (poSupplier && !supplierIDs.includes(poSupplier)) {
+        return req.reject(403, "No autorizado: la Purchase Order no pertenece al proveedor logueado");
+      }
+
+      // 1) Items OC desde S/4
+      let poItemsRaw;
+      try {
+        poItemsRaw = await s4Purchase.run(
+          SELECT.from("PurchaseOrderItem")
+            .columns([
+              "PurchaseOrder",
+              "PurchaseOrderItem",
+              "Material",
+              "PurchaseOrderItemText",
+              "OrderQuantity",
+            ])
+            .where({ PurchaseOrder: sId })
+        );
+      } catch (e) {
+        // fallback por si tu EDMX usa A_PurchaseOrderItem
+        poItemsRaw = await s4Purchase.run(
+          SELECT.from("A_PurchaseOrderItem")
+            .columns([
+              "PurchaseOrder",
+              "PurchaseOrderItem",
+              "Material",
+              "PurchaseOrderItemText",
+              "OrderQuantity",
+            ])
+            .where({ PurchaseOrder: sId })
+        );
+      }
+
+      const poItems = Array.isArray(poItemsRaw) ? poItemsRaw : (poItemsRaw ? [poItemsRaw] : []);
+      if (!poItems.length) return [];
+
+      // 2) Qty facturada por item (referencias de factura)
+      const refs = await s4Invoices.run(
+        SELECT.from("A_SuplrInvcItemPurOrdRef")
+          .columns(["PurchaseOrder", "PurchaseOrderItem", "QuantityInPurchaseOrderUnit"])
           .where({ PurchaseOrder: sId })
       );
 
-      const a = Array.isArray(poItems) ? poItems : (poItems ? [poItems] : []);
+      const invQtyByKey = {};
+      for (const r of refs || []) {
+        const k = `${r.PurchaseOrder}-${r.PurchaseOrderItem}`;
+        const qty = r.QuantityInPurchaseOrderUnit;
+        invQtyByKey[k] = (invQtyByKey[k] || 0) + (qty ? parseFloat(qty) : 0);
+      }
 
-      // Si acá da 0, el problema NO es el action: es que tu PurchaseOrderItemExt no devolvió nada para ese PO
-      if (!a.length) return [];
-
-      return a.map((it) => {
-        const ordered  = Number(it.OrderQuantity || 0);
-        const invoiced = Number(it.QuantityInPurchaseOrderUnit || 0);
+      // 3) Map a PrecertItemCandidate
+      return poItems.map((it) => {
+        const key = `${it.PurchaseOrder}-${it.PurchaseOrderItem}`;
+        const ordered = parseFloat(it.OrderQuantity || 0);
+        const invoiced = parseFloat(invQtyByKey[key] || 0);
         const available = Math.max(0, ordered - invoiced);
 
         return {
@@ -923,74 +987,62 @@ this.on("getPrecertCandidates", async (req) => {
           sourceId: it.PurchaseOrder,
           itemId: String(it.PurchaseOrderItem || ""),
           material: it.Material || "",
-          description: it.PurchaseOrderItemText || it.Material || "",
+          description: it.PurchaseOrderItemText || "",
           orderedQty: ordered,
           invoicedQty: invoiced,
-          availableQty: available
+          availableQty: available,
         };
       });
     }
 
-    // TODO: CM branch (cuando lo encares)
-    return [];
-  } catch (e) {
-    console.error("[getPrecertCandidates] error:", e);
-    return req.reject(500, "Error al obtener posiciones para precertificación");
-  }
-})
-
-
-      // ==========================
-      // ✅ sType === "CM" (CON CAP)
-      // ==========================
-
-      // 1) Validar que el Contrato Marco pertenece al supplier logueado
+    // ==========================
+    // CM
+    // ==========================
+    if (sType === "CM") {
+      // Validar que el contrato pertenece al supplier del token
       const cmHeader = await SELECT.one.from(PurchaseContractExt)
         .columns(["PurchaseContract", "Supplier"])
         .where({
           PurchaseContract: sId,
-          Supplier: { in: supplierIDs }
+          Supplier: { in: supplierIDs },
         });
 
-      if (!cmHeader) {
-        return req.reject(404, "Contrato Marco inexistente o no autorizado para el proveedor logueado");
-      }
+      if (!cmHeader) return [];
 
-      // 2) Traer items desde TU proyección (ya viene sin precios)
       const cmItems = await SELECT.from(PurchaseContractItemExt)
         .columns([
           "PurchaseContract",
           "PurchaseContractItem",
-          "PurchasingDocumentItemCategory",
           "Material",
           "PurchaseContractItemText",
           "TargetQuantity",
-          "OrderQuantityUnit",
-          "Plant"
         ])
         .where({ PurchaseContract: sId });
 
-      // 3) Formato final
       return (cmItems || []).map((it) => {
         const ordered = parseFloat(it.TargetQuantity || 0);
-        const invoiced = 0; // opcional: si calculás consumos del contrato, va acá
+        const invoiced = 0;
         const available = Math.max(0, ordered - invoiced);
 
         return {
           sourceType: "CM",
           sourceId: it.PurchaseContract,
-          itemId: it.PurchaseContractItem,
-          itemCategory: it.PurchasingDocumentItemCategory || "",
+          itemId: String(it.PurchaseContractItem || ""),
           material: it.Material || "",
           description: it.PurchaseContractItemText || "",
           orderedQty: ordered,
           invoicedQty: invoiced,
           availableQty: available,
-          plant: it.Plant || "",
-          uom: it.OrderQuantityUnit || ""
         };
       });
-  });
+    }
+
+    return [];
+  } catch (e) {
+    console.error("[getPrecertCandidates] error:", e);
+    return req.reject(500, "Error al obtener posiciones para precertificación");
+  }
+});
   async function assertSourceOwnership(req, supplierIDs, srv) {
   const sType = String(req.data?.sourceType || "").toUpperCase().trim();
   const sId   = String(req.data?.sourceId || "").trim();
@@ -1202,251 +1254,10 @@ this.before("READ", "PrecertTicketItems", async (req) => {
     }
   });
 });
-
-
-
-/*function normalizeSupplierId(v) {
-  if (v == null) return null
-  const s = String(v).trim()
-  if (/^\d+$/.test(s) && s.length <= 10) return s.padStart(10, '0')
-  return s
-}
-
-const S4_UI_BASE = process.env.S4_UI_BASE || 'https://my420896.s4hana.cloud.sap'
-const APPL_TYPE = 'FFO_PAYM_LIST'
-
-function buildPdfUrl(applObjectId) {
-  if (!applObjectId) return null
-
-  const alreadyEncoded = /%[0-9A-Fa-f]{2}/.test(applObjectId)
-  const idForUrl = alreadyEncoded
-    ? applObjectId
-    : encodeURIComponent(String(applObjectId).replace(/'/g, "''"))
-
-  return `${S4_UI_BASE}/sap/opu/odata/SAP/CA_OC_OUTPUT_REQUEST_SRV/` +
-    `Roots(ApplObjectType='${APPL_TYPE}',ApplObjectId='${idForUrl}')/Preview/$value`
-}
-
-module.exports = cds.service.impl(async function () {
-  // IMPORTANTE: esto tiene que apuntar a tu destino que consume API_OPLACCTGDOCITEMCUBE_SRV
-  const s4op = await cds.connect.to('s4op')
-
-  const { PaymentOrders } = this.entities
-  const { SELECT } = cds.ql
-
-  /* =========================================================
-   * PaymentOrders (TABLA FÍSICA)
-   * - solo soporte: guardar applObjectId / estado / mapping
-   * ========================================================= */
-
-  /*this.before(['CREATE', 'UPDATE'], 'PaymentOrders', (req) => {
-    if (req.data?.supplierID) req.data.supplierID = normalizeSupplierId(req.data.supplierID)
-  })
-
-  this.on('READ', 'PaymentOrders', async (req) => {
-    const raw = req.user?.attr?.supplierID
-    const supplierIDs = (Array.isArray(raw) ? raw : raw ? [raw] : [])
-      .map(normalizeSupplierId)
-      .filter(Boolean)
-
-    const q = cds.ql.clone(req.query)
-    if (supplierIDs.length) q.where({ supplierID: { in: supplierIDs } })
-
-    return cds.tx(req).run(q)
-  })
-
-  this.after('READ', 'PaymentOrders', (rows) => {
-    const arr = Array.isArray(rows) ? rows : [rows]
-    for (const r of arr) {
-      r.pdfText = 'PDF'
-      r.pdfUrl = r.applObjectId ? buildPdfUrl(r.applObjectId) : null
-    }
-  })
-
-  /* =========================================================
-   * PaymentOrdersExt (LIST REPORT)
-   * - CABECERA agregada por OP/pago
-   * - SOPORTA expand to_Items manualmente (sin que CAP lo intente)
-   * ========================================================= */
-/*
-  this.on('READ', 'PaymentOrdersExt', async (req) => {
-    // ---- supplier scope ----
-    const raw = req.user?.attr?.supplierID
-    const supplierIDs = (Array.isArray(raw) ? raw : raw ? [raw] : [])
-      .map(normalizeSupplierId)
-      .filter(Boolean)
-
-    const isLocal =
-      req.user?.id === 'system' ||
-      req.user?.id === 'anonymous' ||
-      cds.env.profile?.includes?.('development')
-
-    const scopedSuppliers = supplierIDs.length ? supplierIDs : (isLocal ? ['0031300001'] : null)
-    if (!scopedSuppliers) return req.reject(403, 'El usuario no cuenta con supplierID')
-
-    // ---- detectar expand (FORMA CORRECTA) ----
-    const cols = req.query?.SELECT?.columns || []
-    const expandCol = cols.find(c => c?.ref?.[0] === 'to_Items' && Array.isArray(c.expand))
-    const wantsExpandItems = !!expandCol
-
-    // ---- paging/count ----
-    const wantsInlineCount = req.query?.SELECT?.count === true
-    const limit = req.query?.SELECT?.limit
-    const top = Number(limit?.rows?.val ?? limit?.rows ?? 0)
-    const skip = Number(limit?.offset?.val ?? limit?.offset ?? 0)
-
-    // =========================================================
-    // 1) Leer de S/4: ENTITY SET REAL
-    //    NO uses "PaymentOrderItems" acá.
-    // =========================================================
-
-    const itemCols = [
-      'CompanyCode',
-      'Supplier',
-      'SupplierName',
-      'CompanyCodeCurrency',
-      'AmountInCompanyCodeCurrency',
-
-      'ClearingAccountingDocument',
-      'ClearingDocFiscalYear',
-      'ClearingDate',
-
-      // para devolver items cuando expand
-      'FiscalYear',
-      'AccountingDocument',
-      'AccountingDocumentItem',
-      'PaymentReference'
-    ]
-
-    // ✅ evitamos filtros “raros” (ne '') en el remoto: filtramos en JS
-    const rawItems = await s4op.run(
-      SELECT.from('A_OperationalAcctgDocItemCube')
-        .columns(...itemCols)
-        .where({ Supplier: { in: scopedSuppliers } })
-    )
-
-    // Filtrar solo los que efectivamente pertenecen a pagos
-    const items = (rawItems || []).filter(i => i?.ClearingAccountingDocument)
-
-    if (!items.length) return []
-
-    // =========================================================
-    // 2) Agrupar a cabeceras
-    // =========================================================
-    const headersByKey = new Map()
-    const itemsByKey = new Map()
-
-    for (const it of items) {
-      const year = String(it.ClearingDocFiscalYear || '').padStart(4, '0')
-      const key = `${it.CompanyCode}::${year}::${it.ClearingAccountingDocument}`
-
-      let h = headersByKey.get(key)
-      if (!h) {
-        h = {
-          CompanyCode: it.CompanyCode,
-          ClearingDocFiscalYear: year,
-          ClearingAccountingDocument: it.ClearingAccountingDocument,
-          ClearingDate: it.ClearingDate,
-
-          Supplier: it.Supplier,
-          SupplierName: it.SupplierName,
-
-          Amount: 0,
-          Currency: it.CompanyCodeCurrency,
-
-          pdfText: '',
-          pdfUrl: null
-        }
-        headersByKey.set(key, h)
-      }
-
-      h.Amount += Number(it.AmountInCompanyCodeCurrency || 0)
-
-      if (wantsExpandItems) {
-        const arr = itemsByKey.get(key) || []
-        arr.push({
-          CompanyCode: it.CompanyCode,
-          FiscalYear: it.FiscalYear,
-          AccountingDocument: it.AccountingDocument,
-          AccountingDocumentItem: it.AccountingDocumentItem,
-          AmountInCompanyCodeCurrency: it.AmountInCompanyCodeCurrency,
-          CompanyCodeCurrency: it.CompanyCodeCurrency,
-          PaymentReference: it.PaymentReference
-        })
-        itemsByKey.set(key, arr)
-      }
-    }
-
-    let headersAll = Array.from(headersByKey.values())
-
-    // Orden por fecha desc
-    headersAll.sort((a, b) =>
-      String(b.ClearingDate || '').localeCompare(String(a.ClearingDate || ''))
-    )
-
-    const total = headersAll.length
-
-    // paging
-    let page = headersAll
-    if (top > 0) page = headersAll.slice(skip, skip + top)
-
-    // =========================================================
-    // 3) PDF: lookup en tabla física PaymentOrders (si existe mapping)
-    // =========================================================
-    let linkMap = new Map()
-    try {
-      const companyCodes = [...new Set(headersAll.map(h => h.CompanyCode))]
-      const clearingYears = [...new Set(headersAll.map(h => h.ClearingDocFiscalYear))]
-      const clearingDocs = [...new Set(headersAll.map(h => h.ClearingAccountingDocument))]
-      const suppliers = [...new Set(headersAll.map(h => h.Supplier))]
-
-      const links = await cds.tx(req).run(
-        SELECT.from(PaymentOrders)
-          .columns('companyCode', 'paymentFiscalYear', 'paymentDocument', 'supplierID', 'applObjectId')
-          .where({
-            companyCode: { in: companyCodes },
-            paymentFiscalYear: { in: clearingYears },
-            paymentDocument: { in: clearingDocs },
-            supplierID: { in: suppliers }
-          })
-      )
-
-      linkMap = new Map(
-        links.map(l => [
-          `${l.companyCode}::${l.paymentFiscalYear}::${l.paymentDocument}::${l.supplierID}`,
-          l.applObjectId
-        ])
-      )
-    } catch (e) {
-      linkMap = new Map() // si no está el schema, no rompemos
-    }
-
-    // =========================================================
-    // 4) Adjuntar pdf + expand (MANUAL)
-    // =========================================================
-    for (const r of page) {
-      const lk = `${r.CompanyCode}::${r.ClearingDocFiscalYear}::${r.ClearingAccountingDocument}::${r.Supplier}`
-      const applObjectId = linkMap.get(lk)
-
-      r.pdfText = applObjectId ? 'PDF' : ''
-      r.pdfUrl = applObjectId ? buildPdfUrl(applObjectId) : null
-
-      // 🔥 expand manual (así CAP no intenta expandir y NO devuelve 501)
-      if (wantsExpandItems) {
-        const key = `${r.CompanyCode}::${r.ClearingDocFiscalYear}::${r.ClearingAccountingDocument}`
-        r.to_Items = itemsByKey.get(key) || []
-      }
-    }
-
-    if (wantsInlineCount) page.$count = total
-    return page
-  })
-})
-*/
 this.on('getUserRoles', req => {
   console.log("JWT SCOPES:", req.user?.scopes);
   console.log("JWT ATTRS:", req.user?.attr);
   console.log("RAW USER:", req.user);
   return { roles: req.user?.roles || [] };
 });
-});
+})
