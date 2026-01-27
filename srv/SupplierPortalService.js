@@ -856,7 +856,8 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
         console.error('[MaterialDocumentItemExt] Error:', error);
         req.reject(500, 'Error al leer documentos de material desde S/4HANA');
     }
-    function getScopedSupplierIDs(req) {
+  })
+   function getScopedSupplierIDs(req) {
     const raw = req.user?.attr?.supplierID;
     const supplierIDs = (Array.isArray(raw) ? raw : raw ? [raw] : [])
       .map(v => String(v).trim())
@@ -877,9 +878,9 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
 
     return supplierIDs;
   }
-  })
 
 this.on("getPrecertCandidates", async (req) => {
+  
   const supplierIDs = getScopedSupplierIDs(req);
   if (!Array.isArray(supplierIDs) || supplierIDs.length === 0) {
     return req.reject(403, "El usuario no cuenta con supplierID");
