@@ -887,64 +887,51 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
     const sId = String(sourceId || "").trim();
 
     if (!sType || !sId) return req.reject(400, "sourceType y sourceId son obligatorios");
-    if (sType !== "PO" && sType !== "CM") return req.reject(400, "sourceType debe ser PO o CM");
+    if (sType === "PO") {
+    const s4Purchase = await cds.connect.to("purchaseorder_edmx");
+    const s4Invoices = await cds.connect.to("A_SupplierInvoice_edmx");
 
-    try {
-      // Tus conexiones existentes
-      // const s4Purchase = await cds.connect.to('purchaseorder_edmx');
-      // const s4Invoices = await cds.connect.to('A_SupplierInvoice_edmx');
+    const poItemsRaw = await s4Purchase.run(
+      SELECT.from("PurchaseOrderItem")
+        .columns(["PurchaseOrder","PurchaseOrderItem","Material","PurchaseOrderItemText","OrderQuantity"])
+        .where({ PurchaseOrder: sId })
+    );
 
-      // ⚠️ Importante: usar entidades locales CAP (projections) cuando aplica
-      const {
-        PurchaseContractExt,
-        PurchaseContractItemExt,
-      } = this.entities;
+    const poItems = Array.isArray(poItemsRaw) ? poItemsRaw : (poItemsRaw ? [poItemsRaw] : []);
+    if (!poItems.length) {
+      return req.reject(404, `OC ${sId}: no se encontraron posiciones`);
+    }
 
-      if (sType === "PO") {
-        // --- TU LÓGICA PO TAL CUAL (la dejo igual) ---
-        const poItems = await s4Purchase.run(
-          SELECT.from("A_PurchaseOrderItem")
-            .columns([
-              "PurchaseOrder",
-              "PurchaseOrderItem",
-              "Material",
-              "PurchaseOrderItemText",
-              "OrderQuantity"
-            ])
-            .where({ PurchaseOrder: sId })
-        );
+    const refs = await s4Invoices.run(
+      SELECT.from("A_SuplrInvcItemPurOrdRef")
+        .columns(["PurchaseOrder","PurchaseOrderItem","QuantityInPurchaseOrderUnit"])
+        .where({ PurchaseOrder: sId })
+    );
 
-        const refs = await s4Invoices.run(
-          SELECT.from("A_SuplrInvcItemPurOrdRef")
-            .columns(["PurchaseOrder", "PurchaseOrderItem", "QuantityInPurchaseOrderUnit"])
-            .where({ PurchaseOrder: sId })
-        );
+    const invQtyByKey = {};
+    for (const r of (refs || [])) {
+      const k = `${r.PurchaseOrder}-${r.PurchaseOrderItem}`;
+      invQtyByKey[k] = (invQtyByKey[k] || 0) + (r.QuantityInPurchaseOrderUnit ? parseFloat(r.QuantityInPurchaseOrderUnit) : 0);
+    }
 
-        const invQtyByKey = {};
-        for (const r of (refs || [])) {
-          const k = `${r.PurchaseOrder}-${r.PurchaseOrderItem}`;
-          const qty = r.QuantityInPurchaseOrderUnit;
-          invQtyByKey[k] = (invQtyByKey[k] || 0) + (qty ? parseFloat(qty) : 0);
-        }
+    return poItems.map(it => {
+      const key = `${it.PurchaseOrder}-${it.PurchaseOrderItem}`;
+      const ordered = parseFloat(it.OrderQuantity || 0);
+      const invoiced = parseFloat(invQtyByKey[key] || 0);
+      const available = Math.max(0, ordered - invoiced);
 
-        return (poItems || []).map((it) => {
-          const key = `${it.PurchaseOrder}-${it.PurchaseOrderItem}`;
-          const ordered = parseFloat(it.OrderQuantity || 0);
-          const invoiced = parseFloat(invQtyByKey[key] || 0);
-          const available = Math.max(0, ordered - invoiced);
-
-          return {
-            sourceType: "PO",
-            sourceId: it.PurchaseOrder,
-            itemId: it.PurchaseOrderItem,
-            material: it.Material || "",
-            description: it.PurchaseOrderItemText || "",
-            orderedQty: ordered,
-            invoicedQty: invoiced,
-            availableQty: available
-          };
-        });
-      }
+      return {
+        sourceType: "PO",
+        sourceId: it.PurchaseOrder,
+        itemId: String(it.PurchaseOrderItem || ""),
+        material: it.Material || "",
+        description: it.PurchaseOrderItemText || "",
+        orderedQty: ordered,
+        invoicedQty: invoiced,
+        availableQty: available
+      };
+    });
+  }
 
       // ==========================
       // ✅ sType === "CM" (CON CAP)
@@ -996,11 +983,6 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
           uom: it.OrderQuantityUnit || ""
         };
       });
-
-    } catch (e) {
-      console.error("[getPrecertCandidates] error:", e);
-      return req.reject(500, "Error al obtener posiciones para precertificación");
-    }
   });
   async function assertSourceOwnership(req, supplierIDs, srv) {
   const sType = String(req.data?.sourceType || "").toUpperCase().trim();
