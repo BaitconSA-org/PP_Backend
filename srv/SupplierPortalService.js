@@ -54,6 +54,7 @@ module.exports = cds.service.impl(async function () {
   const s4bp = await cds.connect.to('A_BusinessPartner');
   const s4op = await cds.connect.to('API_OPLACCTGDOCITEMCUBE_SRV');
   const s4pay = await cds.connect.to('API_PAYMENT_ADVICE_SRV');
+  const s4Contract = await cds.connect.to('API_PURCHASECONTRACT_PROCESS_SRV_0002');
 
   /**************** InvoiceReport Handler */
   // --- READ InvoiceReport (solo facturas aprobadas status = '5') ---
@@ -855,8 +856,367 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
         console.error('[MaterialDocumentItemExt] Error:', error);
         req.reject(500, 'Error al leer documentos de material desde S/4HANA');
     }
+    function getScopedSupplierIDs(req) {
+    const raw = req.user?.attr?.supplierID;
+    const supplierIDs = (Array.isArray(raw) ? raw : raw ? [raw] : [])
+      .map(v => String(v).trim())
+      .filter(Boolean);
+
+    const isLocal =
+      req.user?.id === "system" ||
+      req.user?.id === "anonymous" ||
+      cds.env.profile?.includes?.("development");
+
+    if (!supplierIDs.length && isLocal) return ["0031300001"];
+
+    if (!supplierIDs.length) {
+      console.log("[AUTH] Missing supplierID attribute. user=", req.user?.id, "attrs=", req.user?.attr);
+      req.reject(403, "El usuario no cuenta con supplierID");
+      return null;
+    }
+
+    return supplierIDs;
+  }
+
+  this.on("getPrecertCandidates", async (req) => {
+    const supplierIDs = getScopedSupplierIDs(req);
+    if (!supplierIDs) return;
+
+    const { sourceType, sourceId } = req.data || {};
+    const sType = String(sourceType || "").toUpperCase().trim();
+    const sId = String(sourceId || "").trim();
+
+    if (!sType || !sId) return req.reject(400, "sourceType y sourceId son obligatorios");
+    if (sType !== "PO" && sType !== "CM") return req.reject(400, "sourceType debe ser PO o CM");
+
+    try {
+      // Tus conexiones existentes
+      // const s4Purchase = await cds.connect.to('purchaseorder_edmx');
+      // const s4Invoices = await cds.connect.to('A_SupplierInvoice_edmx');
+
+      // ⚠️ Importante: usar entidades locales CAP (projections) cuando aplica
+      const {
+        PurchaseContractExt,
+        PurchaseContractItemExt,
+      } = this.entities;
+
+      if (sType === "PO") {
+        // --- TU LÓGICA PO TAL CUAL (la dejo igual) ---
+        const poItems = await s4Purchase.run(
+          SELECT.from("A_PurchaseOrderItem")
+            .columns([
+              "PurchaseOrder",
+              "PurchaseOrderItem",
+              "Material",
+              "PurchaseOrderItemText",
+              "OrderQuantity"
+            ])
+            .where({ PurchaseOrder: sId })
+        );
+
+        const refs = await s4Invoices.run(
+          SELECT.from("A_SuplrInvcItemPurOrdRef")
+            .columns(["PurchaseOrder", "PurchaseOrderItem", "QuantityInPurchaseOrderUnit"])
+            .where({ PurchaseOrder: sId })
+        );
+
+        const invQtyByKey = {};
+        for (const r of (refs || [])) {
+          const k = `${r.PurchaseOrder}-${r.PurchaseOrderItem}`;
+          const qty = r.QuantityInPurchaseOrderUnit;
+          invQtyByKey[k] = (invQtyByKey[k] || 0) + (qty ? parseFloat(qty) : 0);
+        }
+
+        return (poItems || []).map((it) => {
+          const key = `${it.PurchaseOrder}-${it.PurchaseOrderItem}`;
+          const ordered = parseFloat(it.OrderQuantity || 0);
+          const invoiced = parseFloat(invQtyByKey[key] || 0);
+          const available = Math.max(0, ordered - invoiced);
+
+          return {
+            sourceType: "PO",
+            sourceId: it.PurchaseOrder,
+            itemId: it.PurchaseOrderItem,
+            material: it.Material || "",
+            description: it.PurchaseOrderItemText || "",
+            orderedQty: ordered,
+            invoicedQty: invoiced,
+            availableQty: available
+          };
+        });
+      }
+
+      // ==========================
+      // ✅ sType === "CM" (CON CAP)
+      // ==========================
+
+      // 1) Validar que el Contrato Marco pertenece al supplier logueado
+      const cmHeader = await SELECT.one.from(PurchaseContractExt)
+        .columns(["PurchaseContract", "Supplier"])
+        .where({
+          PurchaseContract: sId,
+          Supplier: { in: supplierIDs }
+        });
+
+      if (!cmHeader) {
+        return req.reject(404, "Contrato Marco inexistente o no autorizado para el proveedor logueado");
+      }
+
+      // 2) Traer items desde TU proyección (ya viene sin precios)
+      const cmItems = await SELECT.from(PurchaseContractItemExt)
+        .columns([
+          "PurchaseContract",
+          "PurchaseContractItem",
+          "PurchasingDocumentItemCategory",
+          "Material",
+          "PurchaseContractItemText",
+          "TargetQuantity",
+          "OrderQuantityUnit",
+          "Plant"
+        ])
+        .where({ PurchaseContract: sId });
+
+      // 3) Formato final
+      return (cmItems || []).map((it) => {
+        const ordered = parseFloat(it.TargetQuantity || 0);
+        const invoiced = 0; // opcional: si calculás consumos del contrato, va acá
+        const available = Math.max(0, ordered - invoiced);
+
+        return {
+          sourceType: "CM",
+          sourceId: it.PurchaseContract,
+          itemId: it.PurchaseContractItem,
+          itemCategory: it.PurchasingDocumentItemCategory || "",
+          material: it.Material || "",
+          description: it.PurchaseContractItemText || "",
+          orderedQty: ordered,
+          invoicedQty: invoiced,
+          availableQty: available,
+          plant: it.Plant || "",
+          uom: it.OrderQuantityUnit || ""
+        };
+      });
+
+    } catch (e) {
+      console.error("[getPrecertCandidates] error:", e);
+      return req.reject(500, "Error al obtener posiciones para precertificación");
+    }
+  });
+  async function assertSourceOwnership(req, supplierIDs, srv) {
+  const sType = String(req.data?.sourceType || "").toUpperCase().trim();
+  const sId   = String(req.data?.sourceId || "").trim();
+
+  if (!sType || !sId) req.reject(400, "sourceType y sourceId son obligatorios");
+  if (sType !== "PO" && sType !== "CM") req.reject(400, "sourceType debe ser PO o CM");
+
+  // ----- CM: validar con CAP projection -----
+  if (sType === "CM") {
+    const { PurchaseContractExt } = srv.entities;
+
+    const ok = await SELECT.one.from(PurchaseContractExt)
+      .columns(["PurchaseContract"])
+      .where({
+        PurchaseContract: sId,
+        Supplier: { in: supplierIDs }
+      });
+
+    if (!ok) req.reject(403, "No autorizado: el Contrato Marco no pertenece al proveedor logueado");
+    return;
+  }
+
+  // ----- PO: validar contra S/4 (si no tenés PO header proyectado local) -----
+  const s4Purchase = await cds.connect.to("purchaseorder_edmx");
+
+  const poHeader = await s4Purchase.run(
+    SELECT.one.from("A_PurchaseOrder")
+      .columns(["PurchaseOrder", "Supplier"])
+      .where({ PurchaseOrder: sId })
+  );
+
+  if (!poHeader) req.reject(404, "Purchase Order inexistente");
+
+  const poSupplier = String(poHeader.Supplier || "").trim();
+  if (!supplierIDs.includes(poSupplier)) {
+    req.reject(403, "No autorizado: la Purchase Order no pertenece al proveedor logueado");
+  }
+}
+
+function getTicketKeyWhere(req) {
+  const id =
+    req.data?.ID ||
+    req.params?.[0]?.ID ||       // CAP suele poner la key acá en requests OData
+    req.params?.[0]?.Id ||
+    req.params?.[0]?.id;
+
+  if (!id) return null;
+  return { ID: id };
+}
+
+
+
+  this.before("CREATE", "PrecertTickets", async (req) => {
+  const supplierIDs = getScopedSupplierIDs(req);
+  if (!supplierIDs) return;
+
+  // 1) Seguridad: ownership del documento
+  await assertSourceOwnership(req, supplierIDs, this);
+
+  // 2) Seteo controlado
+  req.data.supplierID = supplierIDs[0];
+  req.data.status = req.data.status || "CREATED";
+
+  console.log(
+    "[PrecertTickets.CREATE] supplierID=",
+    req.data.supplierID,
+    "sourceType=",
+    req.data.sourceType,
+    "sourceId=",
+    req.data.sourceId
+  );
 });
-function normalizeSupplierId(v) {
+this.before("DELETE", "PrecertTickets", async (req) => {
+  const supplierIDs = getScopedSupplierIDs(req);
+  if (!supplierIDs) return;
+
+  const { PrecertTickets } = this.entities;
+
+  const where = getTicketKeyWhere(req);
+  if (!where) return req.reject(400, "No se pudo determinar la key del ticket (ajustar getTicketKeyWhere)");
+
+  const existing = await SELECT.one.from(PrecertTickets)
+    .columns(["supplierID"])
+    .where(where);
+
+  if (!existing) return req.reject(404, "Ticket inexistente");
+
+  if (!supplierIDs.includes(String(existing.supplierID || "").trim())) {
+    return req.reject(403, "No autorizado: ticket de otro proveedor");
+  }
+});
+
+this.before("READ", "PrecertTickets", (req) => {
+  const supplierIDs = getScopedSupplierIDs(req);
+  if (!supplierIDs) return;
+
+  req.query.where({ supplierID: { in: supplierIDs } });
+});
+
+
+  this.before("READ", "PurchaseContractExt", (req) => {
+  const supplierIDs = getScopedSupplierIDs(req);
+  if (!supplierIDs) return;
+
+  // Fuerza scope por Supplier
+  req.query.where({ Supplier: { in: supplierIDs } });
+});
+
+this.before("READ", "PurchaseContractItemExt", async (req) => {
+  const supplierIDs = getScopedSupplierIDs(req);
+  if (!supplierIDs) return;
+
+  const pc = req.data?.PurchaseContract; // viene si es READ por key
+  if (!pc) {
+    // si no viene por key, exigí filtro
+    return req.reject(400, "Debe filtrar por PurchaseContract");
+  }
+
+  const ok = await SELECT.one.from(this.entities.PurchaseContractExt)
+    .columns(["PurchaseContract"])
+    .where({ PurchaseContract: pc, Supplier: { in: supplierIDs } });
+
+  if (!ok) return req.reject(403, "No autorizado");
+});
+this.before(["UPDATE", "PATCH"], "PrecertTickets", async (req) => {
+  const supplierIDs = getScopedSupplierIDs(req);
+  if (!supplierIDs) return;
+
+  const { PrecertTickets } = this.entities;
+
+  const where = getTicketKeyWhere(req);
+  if (!where) return req.reject(400, "No se pudo determinar la key ID del ticket");
+
+  const existing = await SELECT.one.from(PrecertTickets)
+    .columns(["ID", "supplierID", "sourceType", "sourceId", "status"])
+    .where(where);
+
+  if (!existing) return req.reject(404, "Ticket inexistente");
+
+  // Ownership del ticket
+  const owner = String(existing.supplierID || "").trim();
+  if (!supplierIDs.includes(owner)) {
+    return req.reject(403, "No autorizado: ticket de otro proveedor");
+  }
+
+  // Inmutabilidad de campos críticos
+  const immutable = ["sourceType", "sourceId", "supplierID"];
+  for (const f of immutable) {
+    if (req.data[f] !== undefined && String(req.data[f]) !== String(existing[f] || "")) {
+      return req.reject(400, `No se permite modificar ${f} en un ticket existente`);
+    }
+  }
+
+  // Validación opcional de transición de estado (ajustá a tu flujo real)
+  if (req.data.status !== undefined) {
+    const from = String(existing.status || "").toUpperCase();
+    const to   = String(req.data.status || "").toUpperCase();
+
+    const allowed = {
+      CREATED:    new Set(["CREATED", "SUBMITTED", "CANCELLED"]),
+      SUBMITTED:  new Set(["SUBMITTED", "APPROVED", "REJECTED"]),
+      APPROVED:   new Set(["APPROVED"]),
+      REJECTED:   new Set(["REJECTED"]),
+      CANCELLED:  new Set(["CANCELLED"])
+    };
+
+    if (allowed[from] && !allowed[from].has(to)) {
+      return req.reject(400, `Transición de status no permitida: ${from} -> ${to}`);
+    }
+  }
+});
+
+this.before("DELETE", "PrecertTickets", async (req) => {
+  const supplierIDs = getScopedSupplierIDs(req);
+  if (!supplierIDs) return;
+
+  const { PrecertTickets } = this.entities;
+
+  const where = getTicketKeyWhere(req);
+  if (!where) return req.reject(400, "No se pudo determinar la key ID del ticket");
+
+  const existing = await SELECT.one.from(PrecertTickets)
+    .columns(["ID", "supplierID"])
+    .where(where);
+
+  if (!existing) return req.reject(404, "Ticket inexistente");
+
+  if (!supplierIDs.includes(String(existing.supplierID || "").trim())) {
+    return req.reject(403, "No autorizado: ticket de otro proveedor");
+  }
+});
+
+this.before("READ", "PrecertTickets", (req) => {
+  const supplierIDs = getScopedSupplierIDs(req);
+  if (!supplierIDs) return;
+
+  req.query.where({ supplierID: { in: supplierIDs } });
+});
+this.before("READ", "PrecertTicketItems", async (req) => {
+  const supplierIDs = getScopedSupplierIDs(req);
+  if (!supplierIDs) return;
+
+  const { PrecertTickets } = this.entities;
+
+  // Filtra items por tickets del supplier logueado
+  req.query.where({
+    ticket_ID: {
+      in: SELECT.from(PrecertTickets).columns("ID").where({ supplierID: { in: supplierIDs } })
+    }
+  });
+});
+
+
+
+/*function normalizeSupplierId(v) {
   if (v == null) return null
   const s = String(v).trim()
   if (/^\d+$/.test(s) && s.length <= 10) return s.padStart(10, '0')
@@ -890,7 +1250,7 @@ module.exports = cds.service.impl(async function () {
    * - solo soporte: guardar applObjectId / estado / mapping
    * ========================================================= */
 
-  this.before(['CREATE', 'UPDATE'], 'PaymentOrders', (req) => {
+  /*this.before(['CREATE', 'UPDATE'], 'PaymentOrders', (req) => {
     if (req.data?.supplierID) req.data.supplierID = normalizeSupplierId(req.data.supplierID)
   })
 
@@ -919,7 +1279,7 @@ module.exports = cds.service.impl(async function () {
    * - CABECERA agregada por OP/pago
    * - SOPORTA expand to_Items manualmente (sin que CAP lo intente)
    * ========================================================= */
-
+/*
   this.on('READ', 'PaymentOrdersExt', async (req) => {
     // ---- supplier scope ----
     const raw = req.user?.attr?.supplierID
@@ -1093,7 +1453,7 @@ module.exports = cds.service.impl(async function () {
     return page
   })
 })
-
+*/
 this.on('getUserRoles', req => {
   console.log("JWT SCOPES:", req.user?.scopes);
   console.log("JWT ATTRS:", req.user?.attr);
@@ -1101,3 +1461,4 @@ this.on('getUserRoles', req => {
   return { roles: req.user?.roles || [] };
 });
 });
+})

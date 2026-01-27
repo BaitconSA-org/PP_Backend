@@ -236,7 +236,7 @@ entity CompanyCode{
   key CompanyCode   : String(4);
       description   : String(100);
 }
-
+/*
 entity PaymentOrders : cuid, managed {
   supplierID         : String(20);
 
@@ -270,4 +270,37 @@ entity PaymentOrderRefs : cuid, managed {
   accountingDocument      : String(10);
   accountingDocumentItem  : String(3);    // opcional, pero mejor acotar
 }
+*/
+entity PrecertItemCandidate @readonly {
+    key sourceType        : String(10);   // "PO" | "CM" | "NONE"
+    key sourceId          : String(20);   // PurchaseOrder o PurchaseContract (o vacío)
+    key itemId            : String(10);   // PurchaseOrderItem o ContractItem (o incremental)
+    material             : String(60);
+    description          : String(255);
 
+    // IMPORTANTE: al proveedor solo le damos cantidades (sin importes)
+    orderedQty           : Decimal(13,3);
+    invoicedQty          : Decimal(13,3);
+    availableQty         : Decimal(13,3);
+  }
+
+  /** -----------------------------
+   *  Ticket (persistente)
+   *  ----------------------------- */
+  entity PrecertTickets : cuid, managed {
+    sourceType    : String(10);         // "PO" | "CM" | "NONE"
+    sourceId      : String(20);         // nro OC o CM o vacío
+    supplierID    : String(20);
+    status        : String(30);         // CREATED / SUBMITTED / APPROVED / REJECTED
+    items         : Composition of many PrecertTicketItems
+                    on items.ticket = $self;
+  }
+
+  entity PrecertTicketItems : cuid, managed {
+    ticket        : Association to PrecertTickets;
+    itemId        : String(10);
+    material      : String(60);
+    description   : String(255);
+
+    requestedQty  : Decimal(13,3);      // cantidad a certificar (lo que carga proveedor)
+  }

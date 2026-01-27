@@ -12,14 +12,18 @@ using { A_BusinessPartner as prt } from './external/A_BusinessPartner/A_Business
 // Material Document
 using { A_MaterialDocument as mat } from './external/A_MaterialDocument/A_MaterialDocument.csn';
 
+// Purchase Contract Service
+using { API_PURCHASECONTRACT_PROCESS_SRV_0002 as PCAPI } from './external/PurchaseContract/API_PURCHASECONTRACT_PROCESS_SRV_0002.csn';
+
+
 //Payment Advice Service
-using { API_PAYMENT_ADVICE_SRV as pay } from './external/A_PaymentAdvice/API_PAYMENT_ADVICE_SRV.csn';
+//using { API_PAYMENT_ADVICE_SRV as pay } from './external/A_PaymentAdvice/API_PAYMENT_ADVICE_SRV.csn';
 
 //Payment Orders Service
-using { API_OPLACCTGDOCITEMCUBE_SRV as acc } from './external/API_OPLACCTGDOCITEMCUBE/API_OPLACCTGDOCITEMCUBE_SRV.csn';
+//using { API_OPLACCTGDOCITEMCUBE_SRV as acc } from './external/API_OPLACCTGDOCITEMCUBE/API_OPLACCTGDOCITEMCUBE_SRV.csn';
 
 
-// View agregados con totales
+// View agregados con totales 
 using {
   PurchaseOrderNetAmount      as VirtualPONet,
   PurchaseOrderSupplierInvoiceAmount as VirtualSuppInv,
@@ -96,8 +100,8 @@ service SupplierPortalService
     entity InvoiceGLAccounts      as projection on supplierPortalGD.InvoiceGLAccounts;
     entity InvoiceAttachmentItems as projection on supplierPortalGD.InvoiceAttachmentItems;
     entity InvoiceStatus          as projection on supplierPortalGD.InvoiceStatus;
-    entity PaymentOrders          as projection on supplierPortalGD.PaymentOrders;
-    entity PaymentOrderRefs      as projection on supplierPortalGD.PaymentOrderRefs;
+    //entity PaymentOrders          as projection on supplierPortalGD.PaymentOrders;
+    //entity PaymentOrderRefs      as projection on supplierPortalGD.PaymentOrderRefs;
 
     @cds.redirection.target
     @readonly
@@ -545,6 +549,7 @@ service SupplierPortalService
         bp.to_BusinessPartnerAddress
     }
     // Payment Advice Service Entities
+    /*
     @readonly
       entity PaymentAdviceExt as select from pay.A_PaymentAdvice as h {
         key h.PaymentAdvice,                 // N° OP
@@ -591,7 +596,7 @@ service SupplierPortalService
       IsUsedInPaymentTransaction,
       HasPaymentOrder,
       PaymentReference
-    };
+    };*/
 
     // Exponiendo vistas Virtuales
     @readonly
@@ -630,7 +635,7 @@ service SupplierPortalService
   }
 
   //Proyección para Payment Orders Cabecera
-
+  /*
   @readonly
   @cds.persistence.skip
   entity PaymentOrdersExt {
@@ -669,8 +674,58 @@ service SupplierPortalService
     and to_Items.ClearingDocFiscalYear = ClearingDocFiscalYear
     and to_Items.ClearingAccountingDocument = ClearingAccountingDocument;
   }
+*/
 
+  // -------- PRECERTIFICACION VISTA --------//
+      entity PrecertTickets as projection on supplierPortalGD.PrecertTickets;
+      entity PrecertItemCandidate as projection on supplierPortalGD.PrecertItemCandidate;
 
+      @readonly
+  entity PurchaseContractExt
+    as projection on PCAPI.A_PurchaseContract
+  {
+    key PurchaseContract,
+        CompanyCode,
+        PurchasingOrganization,
+        PurchasingGroup,
+        Supplier,
+        DocumentCurrency,
+        ValidityStartDate,
+        ValidityEndDate,
+        CreationDate,
+        CreatedByUser,
+        LastChangeDateTime,
+
+        to_PurchaseContractItem as _PurchaseContractItem : redirected to PurchaseContractItemExt,
+        to_PurchaseContractItem as Items : redirected to PurchaseContractItemExt
+
+  };
+
+  @readonly
+  entity PurchaseContractItemExt
+    as projection on PCAPI.A_PurchaseContractItem
+  {
+    key PurchaseContract,
+    key PurchaseContractItem,
+
+        PurchasingDocumentItemCategory,
+        Material,
+        PurchaseContractItemText,
+        Plant,
+        TargetQuantity,
+        OrderQuantityUnit,
+        SupplierMaterialNumber,
+        MaterialGroup
+  };
+
+   
+  // ACTION PRECERT
+
+   action getPrecertCandidates(
+    sourceType : String(10),   // "PO" | "CM"
+    sourceId   : String(20)
+  ) returns array of PrecertItemCandidate;
+  
   // ----> DOX
   action uploadPdf(
     supplierId       : String(20),

@@ -88,19 +88,29 @@
       "API_OPLACCTGDOCITEMCUBE_SRV": {
         "kind": "odata-v2",
         "model": "srv/external/API_OPLACCTGDOCITEMCUBE/API_OPLACCTGDOCITEMCUBE_SRV.csn",
-         "csrf": true,
+        "csrf": true,
         "csrfInBatch": true,
         "credentials": {
           "destination": "S4HANA",
           "path": "/sap/opu/odata/sap/API_OPLACCTGDOCITEMCUBE_SRV"
         }
       },
+      "API_PURCHASECONTRACT_PROCESS_SRV_0002": {
+        "kind": "odata-v2",
+        "model": "srv/external/PurchaseContract/API_PURCHASECONTRACT_PROCESS_SRV_0002",
+        "csrf": true,
+        "csrfInBatch": true,
+        "credentials": {
+          "destination": "S4HANA",
+          "path": "/sap/opu/odata/sap/API_PURCHASECONTRACT_PROCESS_SRV;v=0002"
+        }
+      },
       "db": {
         "kind": "hana"
       },
       "auth": {
-        "kind":  "xsuaa"
-}
+        "kind": "xsuaa"
+      }
     }
   },
   "main": "generate-env.js",
