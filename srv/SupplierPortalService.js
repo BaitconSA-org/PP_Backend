@@ -888,50 +888,79 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
 
     if (!sType || !sId) return req.reject(400, "sourceType y sourceId son obligatorios");
     if (sType === "PO") {
-    const s4Purchase = await cds.connect.to("purchaseorder_edmx");
-    const s4Invoices = await cds.connect.to("A_SupplierInvoice_edmx");
+  // ✅ Siempre en action: usar tx(req) para llamadas remotas
+  const s4Purchase = await cds.connect.to("purchaseorder_edmx");
+  const s4Invoices = await cds.connect.to("A_SupplierInvoice_edmx");
+  const txPurchase = s4Purchase.tx(req);
+  const txInvoices = s4Invoices.tx(req);
 
-    const poItemsRaw = await s4Purchase.run(
-      SELECT.from("PurchaseOrderItem")
-        .columns(["PurchaseOrder","PurchaseOrderItem","Material","PurchaseOrderItemText","OrderQuantity"])
-        .where({ PurchaseOrder: sId })
-    );
+  // (Opcional pero MUY recomendable) validar ownership de la OC por supplier,
+  // para no devolver [] silencioso si es otra OC.
+  // Si tu entity "PurchaseOrder" tiene Supplier (como en tu READ header), hacelo:
+  const hdr = await txPurchase.run(
+    SELECT.one.from("PurchaseOrder")
+      .columns(["PurchaseOrder", "Supplier"])
+      .where({ PurchaseOrder: sId })
+  );
 
-    const poItems = Array.isArray(poItemsRaw) ? poItemsRaw : (poItemsRaw ? [poItemsRaw] : []);
-    if (!poItems.length) {
-      return req.reject(404, `OC ${sId}: no se encontraron posiciones`);
-    }
-
-    const refs = await s4Invoices.run(
-      SELECT.from("A_SuplrInvcItemPurOrdRef")
-        .columns(["PurchaseOrder","PurchaseOrderItem","QuantityInPurchaseOrderUnit"])
-        .where({ PurchaseOrder: sId })
-    );
-
-    const invQtyByKey = {};
-    for (const r of (refs || [])) {
-      const k = `${r.PurchaseOrder}-${r.PurchaseOrderItem}`;
-      invQtyByKey[k] = (invQtyByKey[k] || 0) + (r.QuantityInPurchaseOrderUnit ? parseFloat(r.QuantityInPurchaseOrderUnit) : 0);
-    }
-
-    return poItems.map(it => {
-      const key = `${it.PurchaseOrder}-${it.PurchaseOrderItem}`;
-      const ordered = parseFloat(it.OrderQuantity || 0);
-      const invoiced = parseFloat(invQtyByKey[key] || 0);
-      const available = Math.max(0, ordered - invoiced);
-
-      return {
-        sourceType: "PO",
-        sourceId: it.PurchaseOrder,
-        itemId: String(it.PurchaseOrderItem || ""),
-        material: it.Material || "",
-        description: it.PurchaseOrderItemText || "",
-        orderedQty: ordered,
-        invoicedQty: invoiced,
-        availableQty: available
-      };
-    });
+  if (!hdr) return req.reject(404, `OC ${sId} inexistente`);
+  if (hdr.Supplier && !supplierIDs.includes(String(hdr.Supplier))) {
+    return req.reject(403, "No autorizado: la OC no pertenece al proveedor logueado");
   }
+
+  // ✅ MISMO entityset que vos ya usás en tu handler READ PurchaseOrderItemExt
+  const poItemsRaw = await txPurchase.run(
+    SELECT.from("PurchaseOrderItem")
+      .columns([
+        "PurchaseOrder",
+        "PurchaseOrderItem",
+        "Material",
+        "PurchaseOrderItemText",
+        "OrderQuantity"
+      ])
+      .where({ PurchaseOrder: sId })
+  );
+
+  const poItems = Array.isArray(poItemsRaw) ? poItemsRaw : (poItemsRaw ? [poItemsRaw] : []);
+
+  // 🔥 Fail fast: si esto está vacío, NO es “no candidates”: es que no estás trayendo items.
+  if (!poItems.length) {
+    console.log("[getPrecertCandidates][PO] 0 items", { sId, supplierIDs, hdr });
+    return req.reject(404, `OC ${sId}: 0 posiciones (PurchaseOrderItem vacío / auth / destino)`);
+  }
+
+  // Cantidad facturada por ítem (para availableQty)
+  const refs = await txInvoices.run(
+    SELECT.from("A_SuplrInvcItemPurOrdRef")
+      .columns(["PurchaseOrder", "PurchaseOrderItem", "QuantityInPurchaseOrderUnit"])
+      .where({ PurchaseOrder: sId })
+  );
+
+  const invQtyByKey = {};
+  for (const r of (refs || [])) {
+    const k = `${r.PurchaseOrder}-${r.PurchaseOrderItem}`;
+    invQtyByKey[k] = (invQtyByKey[k] || 0) + (r.QuantityInPurchaseOrderUnit ? parseFloat(r.QuantityInPurchaseOrderUnit) : 0);
+  }
+
+  return poItems.map((it) => {
+    const key = `${it.PurchaseOrder}-${it.PurchaseOrderItem}`;
+    const ordered = parseFloat(it.OrderQuantity || 0);
+    const invoiced = parseFloat(invQtyByKey[key] || 0);
+    const available = Math.max(0, ordered - invoiced);
+
+    return {
+      sourceType: "PO",
+      sourceId: it.PurchaseOrder,
+      itemId: String(it.PurchaseOrderItem || ""),
+      material: it.Material || "",
+      description: it.PurchaseOrderItemText || "",
+      orderedQty: ordered,
+      invoicedQty: invoiced,
+      availableQty: available
+    };
+  });
+}
+
 
       // ==========================
       // ✅ sType === "CM" (CON CAP)
