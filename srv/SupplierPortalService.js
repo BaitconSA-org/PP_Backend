@@ -878,78 +878,66 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
     return supplierIDs;
   }
 
-  this.on("getPrecertCandidates", async (req) => {
-    const supplierIDs = getScopedSupplierIDs(req);
-    if (!supplierIDs) return;
+this.on("getPrecertCandidates", async (req) => {
+  const supplierIDs = getScopedSupplierIDs(req);
+  if (!supplierIDs) return;
 
-    const { sourceType, sourceId } = req.data || {};
-    const sType = String(sourceType || "").toUpperCase().trim();
-    const sId = String(sourceId || "").trim();
+  const { sourceType, sourceId } = req.data || {};
+  const sType = String(sourceType || "").toUpperCase().trim();
+  const sId   = String(sourceId || "").trim();
 
+  if (!sType || !sId) return req.reject(400, "sourceType y sourceId son obligatorios");
+  if (sType !== "PO" && sType !== "CM") return req.reject(400, "sourceType debe ser PO o CM");
+
+  try {
     if (sType === "PO") {
-  // ✅ Usá la MISMA conexión que ya te funciona en READ handlers
-  // Si NO la tenés en scope, usá:
-  // const s4Purchase = await cds.connect.to("purchaseorder_edmx");
-  // const s4Invoices = await cds.connect.to("A_SupplierInvoice_edmx");
+      // ✅ Reusar tu handler que YA funciona y ya trae qty facturada (QuantityInPurchaseOrderUnit)
+      const tx = this.tx(req);
 
-  // ✅ Muy importante: ejecutar en tx(req) para no perder contexto
-  const txPurchase = s4Purchase.tx(req);
-  const txInvoices = s4Invoices.tx(req);
+      const poItems = await tx.run(
+        SELECT.from("PurchaseOrderItemExt")
+          .columns([
+            "PurchaseOrder",
+            "PurchaseOrderItem",
+            "Material",
+            "PurchaseOrderItemText",
+            "OrderQuantity",
+            "PurchaseOrderQuantityUnit",
+            "QuantityInPurchaseOrderUnit" // <- vos lo llenás en PurchaseOrderItemExt
+          ])
+          .where({ PurchaseOrder: sId })
+      );
 
-  // 1) Traer items de la OC (entityset REAL que usás: PurchaseOrderItem)
-  const poItemsRaw = await txPurchase.run(
-    SELECT.from("PurchaseOrderItem")
-      .columns([
-        "PurchaseOrder",
-        "PurchaseOrderItem",
-        "Material",
-        "PurchaseOrderItemText",
-        "OrderQuantity"
-        // si necesitás unidad: "PurchaseOrderQuantityUnit"
-      ])
-      .where({ PurchaseOrder: sId })
-  );
+      const a = Array.isArray(poItems) ? poItems : (poItems ? [poItems] : []);
 
-  const poItems = Array.isArray(poItemsRaw) ? poItemsRaw : (poItemsRaw ? [poItemsRaw] : []);
+      // Si acá da 0, el problema NO es el action: es que tu PurchaseOrderItemExt no devolvió nada para ese PO
+      if (!a.length) return [];
 
-  // 🔥 Fail fast: si esto es 0, no hay nada que mapear
-  if (!poItems.length) {
-    return req.reject(404, `OC ${sId}: 0 posiciones (PurchaseOrderItem no devolvió datos)`);
+      return a.map((it) => {
+        const ordered  = Number(it.OrderQuantity || 0);
+        const invoiced = Number(it.QuantityInPurchaseOrderUnit || 0);
+        const available = Math.max(0, ordered - invoiced);
+
+        return {
+          sourceType: "PO",
+          sourceId: it.PurchaseOrder,
+          itemId: String(it.PurchaseOrderItem || ""),
+          material: it.Material || "",
+          description: it.PurchaseOrderItemText || it.Material || "",
+          orderedQty: ordered,
+          invoicedQty: invoiced,
+          availableQty: available
+        };
+      });
+    }
+
+    // TODO: CM branch (cuando lo encares)
+    return [];
+  } catch (e) {
+    console.error("[getPrecertCandidates] error:", e);
+    return req.reject(500, "Error al obtener posiciones para precertificación");
   }
-
-  // 2) Cantidad facturada por ítem (tu fuente real)
-  const invoiceItemsRef = await txInvoices.run(
-    SELECT.from("A_SuplrInvcItemPurOrdRef")
-      .columns(["PurchaseOrder", "PurchaseOrderItem", "QuantityInPurchaseOrderUnit"])
-      .where({ PurchaseOrder: sId })
-  );
-
-  const invQtyByKey = {};
-  for (const item of (invoiceItemsRef || [])) {
-    const key = `${item.PurchaseOrder}-${item.PurchaseOrderItem}`;
-    const qty = item.QuantityInPurchaseOrderUnit;
-    invQtyByKey[key] = (invQtyByKey[key] || 0) + (qty ? parseFloat(qty) : 0);
-  }
-
-  // 3) Devolver “candidates” = posiciones de OC candidatas (con cantidades, sin importes)
-  return poItems.map((it) => {
-    const key = `${it.PurchaseOrder}-${it.PurchaseOrderItem}`;
-    const ordered = parseFloat(it.OrderQuantity || 0);
-    const invoiced = parseFloat(invQtyByKey[key] || 0);
-    const available = Math.max(0, ordered - invoiced);
-
-    return {
-      sourceType: "PO",
-      sourceId: it.PurchaseOrder,
-      itemId: String(it.PurchaseOrderItem || ""),
-      material: it.Material || "",
-      description: it.PurchaseOrderItemText || it.Material || "",
-      orderedQty: ordered,
-      invoicedQty: invoiced,
-      availableQty: available
-    };
-  });
-}
+})
 
 
       // ==========================
@@ -1462,4 +1450,3 @@ this.on('getUserRoles', req => {
   return { roles: req.user?.roles || [] };
 });
 });
-})
