@@ -271,17 +271,36 @@ entity PaymentOrderRefs : cuid, managed {
   accountingDocumentItem  : String(3);    // opcional, pero mejor acotar
 }
 */
-entity PrecertItemCandidate @readonly {
-    key sourceType        : String(10);   // "PO" | "CM" | "NONE"
-    key sourceId          : String(20);   // PurchaseOrder o PurchaseContract (o vacío)
-    key itemId            : String(10);   // PurchaseOrderItem o ContractItem (o incremental)
+  entity PrecertItemCandidate @readonly {
+    key sourceType       : String(10);   // "SPOT" "CONTRATO MARCO"
+    key sourceId         : String(20);   // OC
+    key itemId           : String(10);   // Posición OC
+    key lineId           : String(20);   // NUEVO: sub-línea / renglón dentro de la posición
+
+    // No editables para proveedor
+    service             : String(80);
+    subService          : String(80);
+    status              : String(30);    // "Pendiente" (o derivado)
+
+    // Editables por proveedor
+    qtyToCertify         : Decimal(13,3);
+    placeOfService       : String(20);
+    dateFrom             : Date;
+    dateTo               : Date;
+
+    // Para validar
+    availableQty         : Decimal(13,3);
+    uom                  : String(3);
+
+    
+    orderedQty           : Decimal(13,3);
+    invoicedQty          : Decimal(13,3);
     material             : String(60);
     description          : String(255);
 
-    // IMPORTANTE: al proveedor solo le damos cantidades (sin importes)
-    orderedQty           : Decimal(13,3);
-    invoicedQty          : Decimal(13,3);
-    availableQty         : Decimal(13,3);
+   @readonly currency     : String(3);
+   @readonly unitPrice    : Decimal(15,6);  // más precisión
+  @readonly lineAmount   : Decimal(15,2);  // qtyToCertify * unitPrice (redondeado)
   }
 
   /** -----------------------------
@@ -292,15 +311,31 @@ entity PrecertItemCandidate @readonly {
     sourceId      : String(20);         // nro OC o CM o vacío
     supplierID    : String(20);
     status        : String(30);         // CREATED / SUBMITTED / APPROVED / REJECTED
+    currency      : String(3);
+    totalAmount   : Decimal(15,2);
     items         : Composition of many PrecertTicketItems
                     on items.ticket = $self;
   }
 
   entity PrecertTicketItems : cuid, managed {
-    ticket        : Association to PrecertTickets;
-    itemId        : String(10);
-    material      : String(60);
-    description   : String(255);
+  ticket : Association to PrecertTickets;
 
-    requestedQty  : Decimal(13,3);      // cantidad a certificar (lo que carga proveedor)
-  }
+  // Identificación del item en la OC
+  itemId : String(10);      // PurchaseOrderItem
+  // lineId : String(20);
+
+  @readonly service    : String(80);
+  @readonly subService : String(80);
+  @readonly status     : String(30);
+
+  // editables
+  qtyToCertify   : Decimal(13,3);
+  placeOfService : String(20);
+  dateFrom       : Date;
+  dateTo         : Date;
+
+  // para validar (podés persistirlo o recalcular al submit)
+  availableQty   : Decimal(13,3);
+  uom            : String(3);
+}
+

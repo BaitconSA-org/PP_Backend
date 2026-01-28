@@ -725,7 +725,17 @@ service SupplierPortalService
     sourceType : String(10),   // "PO" | "CM"
     sourceId   : String(20)
   ) returns array of PrecertItemCandidate;
-  
+
+    type SubmitPrecertResult {
+    ticketId    : UUID;
+    status      : String(30);
+    currency    : String(3);
+    totalAmount : Decimal(15,2);
+  }
+
+    action submitPrecertTicket(ID : UUID) returns SubmitPrecertResult;
+
+    
   // ----> DOX
   action uploadPdf(
     supplierId       : String(20),

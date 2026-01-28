@@ -1093,6 +1093,223 @@ function getTicketKeyWhere(req) {
   if (!id) return null;
   return { ID: id };
 }
+function n(v) {
+  const x = Number(v);
+  return Number.isFinite(x) ? x : 0;
+}
+function round2(v) {
+  return Math.round(n(v) * 100) / 100;
+}
+function round6(v) {
+  return Math.round(n(v) * 1e6) / 1e6;
+}
+
+// ==== availability por PO item (ordered - invoiced) ====
+async function fetchAvailableByItem({ s4Purchase, s4Invoices, poId }) {
+  // 1) orderedQty por item
+  let poItems;
+  try {
+    poItems = await s4Purchase.run(
+      SELECT.from("A_PurchaseOrderItem")
+        .columns(["PurchaseOrderItem", "OrderQuantity"])
+        .where({ PurchaseOrder: poId })
+    );
+  } catch (e) {
+    poItems = await s4Purchase.run(
+      SELECT.from("PurchaseOrderItem")
+        .columns(["PurchaseOrderItem", "OrderQuantity"])
+        .where({ PurchaseOrder: poId })
+    );
+  }
+
+  const orderedByItem = new Map();
+  for (const it of poItems || []) {
+    const itemId = String(it.PurchaseOrderItem || "").trim();
+    if (!itemId) continue;
+    orderedByItem.set(itemId, n(it.OrderQuantity));
+  }
+
+  // 2) invoicedQty por item (facturas referenciando PO)
+  const refs = await s4Invoices.run(
+    SELECT.from("A_SuplrInvcItemPurOrdRef")
+      .columns(["PurchaseOrderItem", "QuantityInPurchaseOrderUnit"])
+      .where({ PurchaseOrder: poId })
+  );
+
+  const invoicedByItem = new Map();
+  for (const r of refs || []) {
+    const itemId = String(r.PurchaseOrderItem || "").trim();
+    if (!itemId) continue;
+    invoicedByItem.set(itemId, (invoicedByItem.get(itemId) || 0) + n(r.QuantityInPurchaseOrderUnit));
+  }
+
+  const availableByItem = new Map();
+  for (const [itemId, ordered] of orderedByItem.entries()) {
+    const invoiced = invoicedByItem.get(itemId) || 0;
+    availableByItem.set(itemId, Math.max(0, ordered - invoiced));
+  }
+
+  return availableByItem;
+}
+
+// ==== pricing por PO item ====
+async function fetchPricingByItem({ s4Purchase, poId, itemIds }) {
+ 
+  let rows;
+  try {
+    rows = await s4Purchase.run(
+      SELECT.from("A_PurchaseOrderItem")
+        .columns(["PurchaseOrderItem", "NetPriceAmount", "NetPriceQuantity", "DocumentCurrency"])
+        .where({ PurchaseOrder: poId, PurchaseOrderItem: { in: itemIds } })
+    );
+  } catch (e) {
+    rows = await s4Purchase.run(
+      SELECT.from("PurchaseOrderItem")
+        .columns(["PurchaseOrderItem", "NetPriceAmount", "NetPriceQuantity", "DocumentCurrency"])
+        .where({ PurchaseOrder: poId, PurchaseOrderItem: { in: itemIds } })
+    );
+  }
+
+  const pricing = new Map();
+  for (const r of rows || []) {
+    const itemId = String(r.PurchaseOrderItem || "").trim();
+    if (!itemId) continue;
+
+    const net = n(r.NetPriceAmount);
+    const per = n(r.NetPriceQuantity) || 1;
+    const curr = String(r.DocumentCurrency || "").trim();
+
+    const unitPrice = per > 0 ? net / per : 0;
+    pricing.set(itemId, { currency: curr, unitPrice: round6(unitPrice) });
+  }
+  return pricing;
+}
+
+module.exports = (srv) => {
+  const { PrecertTickets, PrecertTicketItems } = srv.entities;
+
+  // ACTION: submitPrecertTicket(ID: UUID) returns SubmitPrecertResult
+  srv.on("submitPrecertTicket", async (req) => {
+    const supplierIDs = getScopedSupplierIDs(req); 
+    if (!supplierIDs) return;
+
+    const ticketId = req.data?.ID;
+    if (!ticketId) return req.reject(400, "ID es obligatorio");
+
+    const tx = cds.tx(req);
+
+    // 1) Leer ticket + ownership
+    const ticket = await tx.run(
+      SELECT.one.from(PrecertTickets)
+        .columns(["ID", "supplierID", "status", "sourceType", "sourceId"])
+        .where({ ID: ticketId })
+    );
+    if (!ticket) return req.reject(404, "Ticket inexistente");
+
+    const owner = String(ticket.supplierID || "").trim();
+    if (!supplierIDs.includes(owner)) {
+      return req.reject(403, "No autorizado: ticket de otro proveedor");
+    }
+
+    const status = String(ticket.status || "").toUpperCase();
+    if (status !== "CREATED") {
+      return req.reject(400, `Solo se puede enviar en estado CREATED (actual: ${status})`);
+    }
+
+    const sourceType = String(ticket.sourceType || "").toUpperCase().trim();
+    const poId = String(ticket.sourceId || "").trim();
+
+    if (sourceType !== "PO" || !poId) {
+      return req.reject(400, "submitPrecertTicket soporta solo sourceType=PO con sourceId (OC)");
+    }
+
+    // 2) Leer items del ticket
+    const items = await tx.run(
+      SELECT.from(PrecertTicketItems)
+        .columns(["ID", "itemId", "qtyToCertify", "dateFrom", "dateTo"])
+        .where({ ticket_ID: ticketId }) 
+    );
+
+    if (!items?.length) return req.reject(400, "El ticket no tiene items");
+
+    // 3) Validaciones locales (fechas/cantidades)
+    const itemIds = [];
+    for (const it of items) {
+      const itemId = String(it.itemId || "").trim();
+      const qty = n(it.qtyToCertify);
+
+      if (!itemId) return req.reject(400, "Item inválido: falta itemId");
+      if (!(qty > 0)) return req.reject(400, `Cantidad inválida (>0) en item ${itemId}`);
+
+      
+      if (!it.dateFrom || !it.dateTo) {
+        return req.reject(400, `Fechas obligatorias (item ${itemId})`);
+      }
+      if (String(it.dateFrom) > String(it.dateTo)) {
+        return req.reject(400, `Rango de fechas inválido (item ${itemId})`);
+      }
+
+      itemIds.push(itemId);
+    }
+
+    const uniqItemIds = [...new Set(itemIds)];
+
+    // 4) Consultas S/4: availability + pricing (solo al enviar)
+    const s4Purchase = await cds.connect.to("purchaseorder_edmx");
+    const s4Invoices = await cds.connect.to("A_SupplierInvoice_edmx");
+
+    const availableByItem = await fetchAvailableByItem({ s4Purchase, s4Invoices, poId });
+    const pricingByItem = await fetchPricingByItem({ s4Purchase, poId, itemIds: uniqItemIds });
+
+    // 5) Validar qty vs available y calcular total
+    let currency = "";
+    let totalCents = 0;
+
+    for (const it of items) {
+      const itemId = String(it.itemId || "").trim();
+      const qty = n(it.qtyToCertify);
+
+      const available = n(availableByItem.get(itemId));
+      if (qty > available) {
+        return req.reject(400, `Cantidad ${qty} supera disponible ${available} (item ${itemId})`);
+      }
+
+      const p = pricingByItem.get(itemId);
+      if (!p) return req.reject(400, `No se pudo determinar precio/moneda para item ${itemId}`);
+      if (!p.currency) return req.reject(400, `Moneda vacía para item ${itemId}`);
+
+      if (!currency) currency = p.currency;
+      if (currency !== p.currency) {
+        return req.reject(400, `Moneda inconsistente: ${currency} vs ${p.currency} (item ${itemId})`);
+      }
+
+      // lineAmount redondeado a 2 decimales y sumado en centavos
+      const lineAmount = round2(qty * n(p.unitPrice));
+      totalCents += Math.round(lineAmount * 100);
+    }
+
+    const totalAmount = totalCents / 100;
+
+    // 6) Persistir estado + total 
+    await tx.run(
+      UPDATE(PrecertTickets)
+        .set({
+          status: "SUBMITTED",
+          currency: currency,
+          totalAmount: totalAmount
+        })
+        .where({ ID: ticketId })
+    );
+
+    // 7) Respuesta para el popup
+    return {
+      ticketId: ticketId,
+      status: "SUBMITTED",
+      currency: currency,
+      totalAmount: totalAmount
+    };
+  });
+};
 
 
 
