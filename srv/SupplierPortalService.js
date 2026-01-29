@@ -56,6 +56,10 @@ module.exports = cds.service.impl(async function () {
   const s4pay = await cds.connect.to('API_PAYMENT_ADVICE_SRV');
   const s4Contract = await cds.connect.to('API_PURCHASECONTRACT_PROCESS_SRV_0002');
 
+  const entities = this.entities('SupplierPortalService')
+
+  const { PrecertTickets, PrecertTicketItems } = entities;
+
   /**************** InvoiceReport Handler */
   // --- READ InvoiceReport (solo facturas aprobadas status = '5') ---
   this.on('READ', 'InvoiceReport', async (req) => {
@@ -1053,7 +1057,7 @@ this.on("getPrecertCandidates", async (req) => {
 
   // ----- CM: validar con CAP projection -----
   if (sType === "CM") {
-    const { PurchaseContractExt } = srv.entities;
+    const { PurchaseContractExt } = this.entities;
 
     const ok = await SELECT.one.from(PurchaseContractExt)
       .columns(["PurchaseContract"])
@@ -1348,8 +1352,6 @@ this.before("DELETE", "PrecertTickets", async (req) => {
   const supplierIDs = getScopedSupplierIDs(req);
   if (!supplierIDs) return;
 
-  const { PrecertTickets } = this.entities;
-
   const where = getTicketKeyWhere(req);
   if (!where) return req.reject(400, "No se pudo determinar la key del ticket (ajustar getTicketKeyWhere)");
 
@@ -1400,8 +1402,6 @@ this.before(["UPDATE", "PATCH"], "PrecertTickets", async (req) => {
   const supplierIDs = getScopedSupplierIDs(req);
   if (!supplierIDs) return;
 
-  const { PrecertTickets } = this.entities;
-
   const where = getTicketKeyWhere(req);
   if (!where) return req.reject(400, "No se pudo determinar la key ID del ticket");
 
@@ -1447,8 +1447,6 @@ this.before(["UPDATE", "PATCH"], "PrecertTickets", async (req) => {
 this.before("DELETE", "PrecertTickets", async (req) => {
   const supplierIDs = getScopedSupplierIDs(req);
   if (!supplierIDs) return;
-
-  const { PrecertTickets } = this.entities;
 
   const where = getTicketKeyWhere(req);
   if (!where) return req.reject(400, "No se pudo determinar la key ID del ticket");
