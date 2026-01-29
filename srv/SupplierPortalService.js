@@ -56,7 +56,7 @@ module.exports = cds.service.impl(async function () {
   const s4pay = await cds.connect.to('API_PAYMENT_ADVICE_SRV');
   const s4Contract = await cds.connect.to('API_PURCHASECONTRACT_PROCESS_SRV_0002');
 
-  const { PrecertTickets, PrecertTicketItems } = entities;
+  const { PrecertTickets, PrecertTicketItems } = this.entities;
 
   /**************** InvoiceReport Handler */
   // --- READ InvoiceReport (solo facturas aprobadas status = '5') ---
