@@ -1069,19 +1069,33 @@ this.on("getPrecertCandidates", async (req) => {
   // ----- PO: validar contra S/4 (si no tenés PO header proyectado local) -----
   const s4Purchase = await cds.connect.to("purchaseorder_edmx");
 
-  const poHeader = await s4Purchase.run(
-    SELECT.one.from("A_PurchaseOrder")
+  // ----- PO: validar contra S/4 -----
+let poHeader = null;
+
+try {
+  poHeader = await s4Purchase.run(
+    SELECT.one.from("PurchaseOrder")
       .columns(["PurchaseOrder", "Supplier"])
       .where({ PurchaseOrder: sId })
   );
-
-  if (!poHeader) req.reject(404, "Purchase Order inexistente");
-
-  const poSupplier = String(poHeader.Supplier || "").trim();
-  if (!supplierIDs.includes(poSupplier)) {
-    req.reject(403, "No autorizado: la Purchase Order no pertenece al proveedor logueado");
-  }
+} catch (e) {
+  // fallback por si tu EDMX expone A_PurchaseOrder
+  try {
+    poHeader = await s4Purchase.run(
+      SELECT.one.from("A_PurchaseOrder")
+        .columns(["PurchaseOrder", "Supplier"])
+        .where({ PurchaseOrder: sId })
+    );
+  } catch (e2) {}
 }
+
+if (!poHeader) return req.reject(404, "Purchase Order inexistente");
+
+const poSupplier = String(poHeader.Supplier || "").trim();
+if (!supplierIDs.includes(poSupplier)) {
+  return req.reject(403, "No autorizado: la Purchase Order no pertenece al proveedor logueado");
+}
+  }
 
 function getTicketKeyWhere(req) {
   const id =
@@ -1185,11 +1199,8 @@ async function fetchPricingByItem({ s4Purchase, poId, itemIds }) {
   return pricing;
 }
 
-module.exports = (srv) => {
-  const { PrecertTickets, PrecertTicketItems } = srv.entities;
-
   // ACTION: submitPrecertTicket(ID: UUID) returns SubmitPrecertResult
-  srv.on("submitPrecertTicket", async (req) => {
+  this.on("submitPrecertTicket", async (req) => {
     const supplierIDs = getScopedSupplierIDs(req); 
     if (!supplierIDs) return;
 
@@ -1309,7 +1320,7 @@ module.exports = (srv) => {
       totalAmount: totalAmount
     };
   });
-};
+
 
 
 
