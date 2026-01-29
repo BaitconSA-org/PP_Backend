@@ -56,8 +56,6 @@ module.exports = cds.service.impl(async function () {
   const s4pay = await cds.connect.to('API_PAYMENT_ADVICE_SRV');
   const s4Contract = await cds.connect.to('API_PURCHASECONTRACT_PROCESS_SRV_0002');
 
-  const entities = this.entities('SupplierPortalService')
-
   const { PrecertTickets, PrecertTicketItems } = entities;
 
   /**************** InvoiceReport Handler */
@@ -1471,8 +1469,6 @@ this.before("READ", "PrecertTickets", (req) => {
 this.before("READ", "PrecertTicketItems", async (req) => {
   const supplierIDs = getScopedSupplierIDs(req);
   if (!supplierIDs) return;
-
-  const { PrecertTickets } = this.entities;
 
   // Filtra items por tickets del supplier logueado
   req.query.where({
