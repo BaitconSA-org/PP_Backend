@@ -1214,7 +1214,7 @@ async function fetchPricingByItem({ s4Purchase, poId, itemIds }) {
     // 1) Leer ticket + ownership
     const ticket = await tx.run(
       SELECT.one.from(PrecertTickets)
-        .columns(["ID", "supplierID", "status", "sourceType", "sourceId"])
+        .columns(["ID", "ticketNumero", "supplierID", "status", "sourceType", "sourceId"])
         .where({ ID: ticketId })
     );
     if (!ticket) return req.reject(404, "Ticket inexistente");
@@ -1275,33 +1275,37 @@ async function fetchPricingByItem({ s4Purchase, poId, itemIds }) {
     const pricingByItem = await fetchPricingByItem({ s4Purchase, poId, itemIds: uniqItemIds });
 
     // 5) Validar qty vs available y calcular total
-    let currency = "";
-    let totalCents = 0;
+   let currency = "";
+let totalCents = 0;
+const lines = [];
 
-    for (const it of items) {
-      const itemId = String(it.itemId || "").trim();
-      const qty = n(it.qtyToCertify);
+for (const it of items) {
+  const itemId = String(it.itemId || "").trim();
+  const qty = n(it.qtyToCertify);
 
-      const available = n(availableByItem.get(itemId));
-      if (qty > available) {
-        return req.reject(400, `Cantidad ${qty} supera disponible ${available} (item ${itemId})`);
-      }
+  const available = n(availableByItem.get(itemId));
+  if (qty > available) {
+    return req.reject(400, `Cantidad ${qty} supera disponible ${available} (item ${itemId})`);
+  }
 
-      const p = pricingByItem.get(itemId);
-      if (!p) return req.reject(400, `No se pudo determinar precio/moneda para item ${itemId}`);
-      if (!p.currency) return req.reject(400, `Moneda vacía para item ${itemId}`);
+  const p = pricingByItem.get(itemId);
+  if (!p) return req.reject(400, `No se pudo determinar precio/moneda para item ${itemId}`);
+  if (!p.currency) return req.reject(400, `Moneda vacía para item ${itemId}`);
 
-      if (!currency) currency = p.currency;
-      if (currency !== p.currency) {
-        return req.reject(400, `Moneda inconsistente: ${currency} vs ${p.currency} (item ${itemId})`);
-      }
+  if (!currency) currency = p.currency;
+  if (currency !== p.currency) {
+    return req.reject(400, `Moneda inconsistente: ${currency} vs ${p.currency} (item ${itemId})`);
+  }
 
-      // lineAmount redondeado a 2 decimales y sumado en centavos
-      const lineAmount = round2(qty * n(p.unitPrice));
-      totalCents += Math.round(lineAmount * 100);
-    }
+  const unitPrice = round2(n(p.unitPrice));
+  const lineAmount = round2(qty * unitPrice);
 
-    const totalAmount = totalCents / 100;
+  lines.push({ itemId, qty, unitPrice, lineAmount });
+
+  totalCents += Math.round(lineAmount * 100);
+}
+
+const totalAmount = totalCents / 100;
 
     // 6) Persistir estado + total 
     await tx.run(
@@ -1315,11 +1319,14 @@ async function fetchPricingByItem({ s4Purchase, poId, itemIds }) {
     );
 
     // 7) Respuesta para el popup
+    
     return {
       ticketId: ticketId,
+      ticketNumero: ticket.ticketNumero,
       status: "SUBMITTED",
       currency: currency,
-      totalAmount: totalAmount
+      totalAmount: totalAmount,
+      lines: lines
     };
   });
 
@@ -1333,7 +1340,14 @@ async function fetchPricingByItem({ s4Purchase, poId, itemIds }) {
   // 1) Seguridad: ownership del documento
   await assertSourceOwnership(req, supplierIDs, this);
 
-  // 2) Seteo controlado
+  const tx = cds.tx(req);
+
+  // ✅ ticketNo incremental (display)
+  if (req.data.ticketNumero == null) {
+    const rows = await tx.run(`SELECT PRECERT_TICKET_NO.NEXTVAL AS TICKETNUMERO FROM DUMMY`);
+    req.data.ticketNumero = rows?.[0]?.TICKETNUMERO ?? 0;
+  }
+
   req.data.supplierID = supplierIDs[0];
   req.data.status = req.data.status || "CREATED";
 
@@ -1362,13 +1376,6 @@ this.before("DELETE", "PrecertTickets", async (req) => {
   if (!supplierIDs.includes(String(existing.supplierID || "").trim())) {
     return req.reject(403, "No autorizado: ticket de otro proveedor");
   }
-});
-
-this.before("READ", "PrecertTickets", (req) => {
-  const supplierIDs = getScopedSupplierIDs(req);
-  if (!supplierIDs) return;
-
-  req.query.where({ supplierID: { in: supplierIDs } });
 });
 
 
@@ -1404,7 +1411,7 @@ this.before(["UPDATE", "PATCH"], "PrecertTickets", async (req) => {
   if (!where) return req.reject(400, "No se pudo determinar la key ID del ticket");
 
   const existing = await SELECT.one.from(PrecertTickets)
-    .columns(["ID", "supplierID", "sourceType", "sourceId", "status"])
+    .columns(["ID", "ticketNumero", "supplierID", "sourceType", "sourceId", "status"])
     .where(where);
 
   if (!existing) return req.reject(404, "Ticket inexistente");
@@ -1442,24 +1449,6 @@ this.before(["UPDATE", "PATCH"], "PrecertTickets", async (req) => {
   }
 });
 
-this.before("DELETE", "PrecertTickets", async (req) => {
-  const supplierIDs = getScopedSupplierIDs(req);
-  if (!supplierIDs) return;
-
-  const where = getTicketKeyWhere(req);
-  if (!where) return req.reject(400, "No se pudo determinar la key ID del ticket");
-
-  const existing = await SELECT.one.from(PrecertTickets)
-    .columns(["ID", "supplierID"])
-    .where(where);
-
-  if (!existing) return req.reject(404, "Ticket inexistente");
-
-  if (!supplierIDs.includes(String(existing.supplierID || "").trim())) {
-    return req.reject(403, "No autorizado: ticket de otro proveedor");
-  }
-});
-
 this.before("READ", "PrecertTickets", (req) => {
   const supplierIDs = getScopedSupplierIDs(req);
   if (!supplierIDs) return;
@@ -1470,17 +1459,22 @@ this.before("READ", "PrecertTicketItems", async (req) => {
   const supplierIDs = getScopedSupplierIDs(req);
   if (!supplierIDs) return;
 
-  // Filtra items por tickets del supplier logueado
   req.query.where({
     ticket_ID: {
       in: SELECT.from(PrecertTickets).columns("ID").where({ supplierID: { in: supplierIDs } })
     }
   });
 });
-this.on('getUserRoles', req => {
-  console.log("JWT SCOPES:", req.user?.scopes);
-  console.log("JWT ATTRS:", req.user?.attr);
-  console.log("RAW USER:", req.user);
-  return { roles: req.user?.roles || [] };
+this.on("getUserRoles", (req) => {
+  const xsapp = process.env.XSAPPNAME || "pp-backendServices-001";
+  const scopes = req.user?.scopes || [];
+
+  const isAdmin = scopes.includes(`${xsapp}.Admin`);
+  const isSupplier = scopes.includes(`${xsapp}.Supplier`);
+
+  const supplierIDs = getScopedSupplierIDs(req) || [];
+
+  return { isAdmin, isSupplier, supplierIDs, scopes };
 });
+
 })

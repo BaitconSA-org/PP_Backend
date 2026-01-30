@@ -726,14 +726,24 @@ service SupplierPortalService
     sourceId   : String(20)
   ) returns array of PrecertItemCandidate;
 
+    type SubmitPrecertLine : {
+    itemId     : String(10);
+    qty        : Decimal(15,3);
+    unitPrice  : Decimal(15,2);
+    lineAmount : Decimal(15,2);
+  };
+
     type SubmitPrecertResult {
-    ticketId    : UUID;
-    status      : String(30);
-    currency    : String(3);
-    totalAmount : Decimal(15,2);
+    ticketId     : UUID;
+    ticketNumero : Integer;
+    status       : String(30);
+    currency     : String(3);
+    totalAmount  : Decimal(15,2);
+    lines        : array of SubmitPrecertLine;
   }
 
-    action submitPrecertTicket(ID : UUID) returns SubmitPrecertResult;
+action submitPrecertTicket(ID : UUID) returns SubmitPrecertResult;
+
 
     
   // ----> DOX
@@ -820,9 +830,13 @@ type SyncResult {
   entity Roles as projection on supplierPortalGD.Roles;
 
    type UserRoles : {
-  roles : array of String;
-  }
+    isAdmin    : Boolean;
+    isSupplier : Boolean;
+    supplierIDs: array of String;
+    scopes     : array of String;
+  };
 
   action getUserRoles() returns UserRoles;
-}
+
 //annotate SupplierPortalService with @requires : ['Supplier'];
+}

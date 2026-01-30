@@ -307,6 +307,7 @@ entity PaymentOrderRefs : cuid, managed {
    *  Ticket (persistente)
    *  ----------------------------- */
   entity PrecertTickets : cuid, managed {
+    ticketNumero     : Integer @readonly;
     sourceType    : String(10);         // "PO" | "CM" | "NONE"
     sourceId      : String(20);         // nro OC o CM o vacío
     supplierID    : String(20);
