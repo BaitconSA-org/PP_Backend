@@ -1202,8 +1202,51 @@ async function fetchPricingByItem({ s4Purchase, poId, itemIds }) {
 }
 
   // ACTION: submitPrecertTicket(ID: UUID) returns SubmitPrecertResult
+  async function _nextTicketNumero(tx) {
+  const row = await tx.run(
+    SELECT.one.from(PrecertTickets).columns([
+      { func: "max", args: [{ ref: ["ticketNumero"] }], as: "maxNo" }
+    ])
+  );
+
+  const maxNo = row?.maxNo == null ? -1 : Number(row.maxNo);
+  return maxNo + 1;
+}
+
+// ====== BEFORE CREATE PrecertTickets: asigna ticketNumero incremental ======
+  this.before("CREATE", "PrecertTickets", async (req) => {
+    const supplierIDs = getScopedSupplierIDs(req);
+    if (!supplierIDs) return;
+
+    // 1) Seguridad: ownership del documento
+    await assertSourceOwnership(req, supplierIDs, this);
+
+    const tx = cds.tx(req);
+
+    // ✅ ticketNumero incremental (display) - SIN SEQUENCE
+    if (req.data.ticketNumero == null) {
+      req.data.ticketNumero = await _nextTicketNumero(tx);
+    }
+
+    // controlado por backend
+    req.data.supplierID = supplierIDs[0];
+    req.data.status = req.data.status || "CREATED";
+
+    console.log(
+      "[PrecertTickets.CREATE] supplierID=",
+      req.data.supplierID,
+      "sourceType=",
+      req.data.sourceType,
+      "sourceId=",
+      req.data.sourceId,
+      "ticketNumero=",
+      req.data.ticketNumero
+    );
+  });
+
+  // ====== ACTION: submitPrecertTicket(ID) ======
   this.on("submitPrecertTicket", async (req) => {
-    const supplierIDs = getScopedSupplierIDs(req); 
+    const supplierIDs = getScopedSupplierIDs(req);
     if (!supplierIDs) return;
 
     const ticketId = req.data?.ID;
@@ -1240,7 +1283,7 @@ async function fetchPricingByItem({ s4Purchase, poId, itemIds }) {
     const items = await tx.run(
       SELECT.from(PrecertTicketItems)
         .columns(["ID", "itemId", "qtyToCertify", "dateFrom", "dateTo"])
-        .where({ ticket_ID: ticketId }) 
+        .where({ ticket_ID: ticketId })
     );
 
     if (!items?.length) return req.reject(400, "El ticket no tiene items");
@@ -1254,7 +1297,6 @@ async function fetchPricingByItem({ s4Purchase, poId, itemIds }) {
       if (!itemId) return req.reject(400, "Item inválido: falta itemId");
       if (!(qty > 0)) return req.reject(400, `Cantidad inválida (>0) en item ${itemId}`);
 
-      
       if (!it.dateFrom || !it.dateTo) {
         return req.reject(400, `Fechas obligatorias (item ${itemId})`);
       }
@@ -1274,40 +1316,45 @@ async function fetchPricingByItem({ s4Purchase, poId, itemIds }) {
     const availableByItem = await fetchAvailableByItem({ s4Purchase, s4Invoices, poId });
     const pricingByItem = await fetchPricingByItem({ s4Purchase, poId, itemIds: uniqItemIds });
 
-    // 5) Validar qty vs available y calcular total
-   let currency = "";
-let totalCents = 0;
-const lines = [];
+    // 5) Validar qty vs available y calcular total + lines
+    let currency = "";
+    let totalCents = 0;
+    const lines = [];
 
-for (const it of items) {
-  const itemId = String(it.itemId || "").trim();
-  const qty = n(it.qtyToCertify);
+    for (const it of items) {
+      const itemId = String(it.itemId || "").trim();
+      const qty = n(it.qtyToCertify);
 
-  const available = n(availableByItem.get(itemId));
-  if (qty > available) {
-    return req.reject(400, `Cantidad ${qty} supera disponible ${available} (item ${itemId})`);
-  }
+      const available = n(availableByItem.get(itemId));
+      if (qty > available) {
+        return req.reject(400, `Cantidad ${qty} supera disponible ${available} (item ${itemId})`);
+      }
 
-  const p = pricingByItem.get(itemId);
-  if (!p) return req.reject(400, `No se pudo determinar precio/moneda para item ${itemId}`);
-  if (!p.currency) return req.reject(400, `Moneda vacía para item ${itemId}`);
+      const p = pricingByItem.get(itemId);
+      if (!p) return req.reject(400, `No se pudo determinar precio/moneda para item ${itemId}`);
+      if (!p.currency) return req.reject(400, `Moneda vacía para item ${itemId}`);
 
-  if (!currency) currency = p.currency;
-  if (currency !== p.currency) {
-    return req.reject(400, `Moneda inconsistente: ${currency} vs ${p.currency} (item ${itemId})`);
-  }
+      if (!currency) currency = p.currency;
+      if (currency !== p.currency) {
+        return req.reject(400, `Moneda inconsistente: ${currency} vs ${p.currency} (item ${itemId})`);
+      }
 
-  const unitPrice = round2(n(p.unitPrice));
-  const lineAmount = round2(qty * unitPrice);
+      const unitPrice = round2(n(p.unitPrice));
+      const lineAmount = round2(qty * unitPrice);
 
-  lines.push({ itemId, qty, unitPrice, lineAmount });
+      lines.push({
+        itemId,
+        qty,
+        unitPrice,
+        lineAmount
+      });
 
-  totalCents += Math.round(lineAmount * 100);
-}
+      totalCents += Math.round(lineAmount * 100);
+    }
 
-const totalAmount = totalCents / 100;
+    const totalAmount = totalCents / 100;
 
-    // 6) Persistir estado + total 
+    // 6) Persistir estado + total
     await tx.run(
       UPDATE(PrecertTickets)
         .set({
@@ -1319,7 +1366,6 @@ const totalAmount = totalCents / 100;
     );
 
     // 7) Respuesta para el popup
-    
     return {
       ticketId: ticketId,
       ticketNumero: ticket.ticketNumero,
@@ -1329,37 +1375,6 @@ const totalAmount = totalCents / 100;
       lines: lines
     };
   });
-
-
-
-
-  this.before("CREATE", "PrecertTickets", async (req) => {
-  const supplierIDs = getScopedSupplierIDs(req);
-  if (!supplierIDs) return;
-
-  // 1) Seguridad: ownership del documento
-  await assertSourceOwnership(req, supplierIDs, this);
-
-  const tx = cds.tx(req);
-
-  // ✅ ticketNo incremental (display)
-  if (req.data.ticketNumero == null) {
-    const rows = await tx.run(`SELECT PRECERT_TICKET_NO.NEXTVAL AS TICKETNUMERO FROM DUMMY`);
-    req.data.ticketNumero = rows?.[0]?.TICKETNUMERO ?? 0;
-  }
-
-  req.data.supplierID = supplierIDs[0];
-  req.data.status = req.data.status || "CREATED";
-
-  console.log(
-    "[PrecertTickets.CREATE] supplierID=",
-    req.data.supplierID,
-    "sourceType=",
-    req.data.sourceType,
-    "sourceId=",
-    req.data.sourceId
-  );
-});
 this.before("DELETE", "PrecertTickets", async (req) => {
   const supplierIDs = getScopedSupplierIDs(req);
   if (!supplierIDs) return;
