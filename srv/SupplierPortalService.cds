@@ -742,7 +742,21 @@ service SupplierPortalService
     lines        : array of SubmitPrecertLine;
   }
 
-action submitPrecertTicket(ID : UUID) returns SubmitPrecertResult;
+    type CreatePrecertItem : {
+    itemId        : String(10);
+    qtyToCertify  : Decimal(15,3);
+    placeOfService: String(100);
+    dateFrom      : Date;
+    dateTo        : Date;
+  };
+
+    action createAndSubmitPrecertTicket(
+    sourceType : String(10),
+    sourceId   : String(20),
+    items      : array of CreatePrecertItem
+  ) returns SubmitPrecertResult;
+
+  action submitPrecertTicket(ID : UUID) returns SubmitPrecertResult;
 
 
     

@@ -46,6 +46,53 @@ const { handleStartWorkflow } = require('./workflow/workflow-functions');
 const {
   PurchaseOrderExt,
 } = cds.entities('SupplierPortalService');
+function isAdmin(req) {
+  const xsapp = process.env.XSAPPNAME || "pp-backendServices-001";
+  const scopes = req.user?.scopes || [];
+  return scopes.includes(`${xsapp}.Admin`);
+}
+function getScopedSupplierIDs(req) {
+    const raw = req.user?.attr?.supplierID;
+    const supplierIDs = (Array.isArray(raw) ? raw : raw ? [raw] : [])
+      .map(v => String(v).trim())
+      .filter(Boolean);
+
+    const isLocal =
+      req.user?.id === "system" ||
+      req.user?.id === "anonymous" ||
+      cds.env.profile?.includes?.("development");
+
+    if (!supplierIDs.length && isLocal) return ["0031300001"];
+
+    if (!supplierIDs.length) {
+      console.log("[AUTH] Missing supplierID attribute. user=", req.user?.id, "attrs=", req.user?.attr);
+      req.reject(403, "El usuario no cuenta con supplierID");
+      return null;
+    }
+
+    return supplierIDs;
+  }
+  function getTicketKeyWhere(req) {
+  const id =
+    req.data?.ID ||
+    req.params?.[0]?.ID ||       // CAP suele poner la key acá en requests OData
+    req.params?.[0]?.Id ||
+    req.params?.[0]?.id;
+
+  if (!id) return null;
+  return { ID: id };
+}
+function n(v) {
+  const x = Number(v);
+  return Number.isFinite(x) ? x : 0;
+}
+function round2(v) {
+  return Math.round(n(v) * 100) / 100;
+}
+function round6(v) {
+  return Math.round(n(v) * 1e6) / 1e6;
+}
+
 
 module.exports = cds.service.impl(async function () {
   // Conexiones
@@ -859,28 +906,7 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
         req.reject(500, 'Error al leer documentos de material desde S/4HANA');
     }
   })
-   function getScopedSupplierIDs(req) {
-    const raw = req.user?.attr?.supplierID;
-    const supplierIDs = (Array.isArray(raw) ? raw : raw ? [raw] : [])
-      .map(v => String(v).trim())
-      .filter(Boolean);
-
-    const isLocal =
-      req.user?.id === "system" ||
-      req.user?.id === "anonymous" ||
-      cds.env.profile?.includes?.("development");
-
-    if (!supplierIDs.length && isLocal) return ["0031300001"];
-
-    if (!supplierIDs.length) {
-      console.log("[AUTH] Missing supplierID attribute. user=", req.user?.id, "attrs=", req.user?.attr);
-      req.reject(403, "El usuario no cuenta con supplierID");
-      return null;
-    }
-
-    return supplierIDs;
-  }
-
+   
 this.on("getPrecertCandidates", async (req) => {
   
   const supplierIDs = getScopedSupplierIDs(req);
@@ -1055,7 +1081,7 @@ this.on("getPrecertCandidates", async (req) => {
 
   // ----- CM: validar con CAP projection -----
   if (sType === "CM") {
-    const { PurchaseContractExt } = this.entities;
+    const { PurchaseContractExt } = srv.entities;
 
     const ok = await SELECT.one.from(PurchaseContractExt)
       .columns(["PurchaseContract"])
@@ -1098,27 +1124,6 @@ if (!supplierIDs.includes(poSupplier)) {
   return req.reject(403, "No autorizado: la Purchase Order no pertenece al proveedor logueado");
 }
   }
-
-function getTicketKeyWhere(req) {
-  const id =
-    req.data?.ID ||
-    req.params?.[0]?.ID ||       // CAP suele poner la key acá en requests OData
-    req.params?.[0]?.Id ||
-    req.params?.[0]?.id;
-
-  if (!id) return null;
-  return { ID: id };
-}
-function n(v) {
-  const x = Number(v);
-  return Number.isFinite(x) ? x : 0;
-}
-function round2(v) {
-  return Math.round(n(v) * 100) / 100;
-}
-function round6(v) {
-  return Math.round(n(v) * 1e6) / 1e6;
-}
 
 // ==== availability por PO item (ordered - invoiced) ====
 async function fetchAvailableByItem({ s4Purchase, s4Invoices, poId }) {
@@ -1419,6 +1424,9 @@ this.before("READ", "PurchaseContractItemExt", async (req) => {
   if (!ok) return req.reject(403, "No autorizado");
 });
 this.before(["UPDATE", "PATCH"], "PrecertTickets", async (req) => {
+  
+  if (isAdmin(req)) return;
+
   const supplierIDs = getScopedSupplierIDs(req);
   if (!supplierIDs) return;
 
@@ -1426,16 +1434,16 @@ this.before(["UPDATE", "PATCH"], "PrecertTickets", async (req) => {
   if (!where) return req.reject(400, "No se pudo determinar la key ID del ticket");
 
   const existing = await SELECT.one.from(PrecertTickets)
-    .columns(["ID", "ticketNumero", "supplierID", "sourceType", "sourceId", "status"])
+    .columns(["ID", "supplierID", "sourceType", "sourceId", "status"])
     .where(where);
 
   if (!existing) return req.reject(404, "Ticket inexistente");
 
-  // Ownership del ticket
   const owner = String(existing.supplierID || "").trim();
   if (!supplierIDs.includes(owner)) {
     return req.reject(403, "No autorizado: ticket de otro proveedor");
   }
+
 
   // Inmutabilidad de campos críticos
   const immutable = ["sourceType", "sourceId", "supplierID"];
@@ -1465,12 +1473,18 @@ this.before(["UPDATE", "PATCH"], "PrecertTickets", async (req) => {
 });
 
 this.before("READ", "PrecertTickets", (req) => {
+  //  Admin: 
+  if (isAdmin(req)) return;
+
+  // Supplier:
   const supplierIDs = getScopedSupplierIDs(req);
   if (!supplierIDs) return;
 
   req.query.where({ supplierID: { in: supplierIDs } });
 });
 this.before("READ", "PrecertTicketItems", async (req) => {
+  if (isAdmin(req)) return;
+
   const supplierIDs = getScopedSupplierIDs(req);
   if (!supplierIDs) return;
 
@@ -1491,5 +1505,131 @@ this.on("getUserRoles", (req) => {
 
   return { isAdmin, isSupplier, supplierIDs, scopes };
 });
+
+this.on("createAndSubmitPrecertTicket", async (req) => {
+  const supplierIDs = getScopedSupplierIDs(req);
+  if (!supplierIDs) return;
+
+  const sType = String(req.data?.sourceType || "").toUpperCase().trim();
+  const sId   = String(req.data?.sourceId || "").trim();
+  const inItems = Array.isArray(req.data?.items) ? req.data.items : [];
+
+  if (!sType || !sId) return req.reject(400, "sourceType y sourceId son obligatorios");
+  if (sType !== "PO" && sType !== "CM") return req.reject(400, "sourceType debe ser PO o CM");
+  if (!inItems.length) return req.reject(400, "items es obligatorio (no puede estar vacío)");
+
+  // Seguridad ownership del documento (PO/CM)
+  await assertSourceOwnership(req, supplierIDs, this);
+
+  const tx = cds.tx(req);
+
+  // Validaciones de items (mismas reglas que submit)
+  const itemIds = [];
+  for (const it of inItems) {
+    const itemId = String(it.itemId || "").trim();
+    const qty = n(it.qtyToCertify);
+
+    if (!itemId) return req.reject(400, "Item inválido: falta itemId");
+    if (!(qty > 0)) return req.reject(400, `Cantidad inválida (>0) en item ${itemId}`);
+
+    if (!it.dateFrom || !it.dateTo) {
+      return req.reject(400, `Fechas obligatorias (item ${itemId})`);
+    }
+    if (String(it.dateFrom) > String(it.dateTo)) {
+      return req.reject(400, `Rango de fechas inválido (item ${itemId})`);
+    }
+
+    itemIds.push(itemId);
+  }
+  const uniqItemIds = [...new Set(itemIds)];
+
+  // Pricing + availability (si es PO). Si CM por ahora dejalo igual a tu lógica.
+  if (sType !== "PO") {
+    return req.reject(400, "createAndSubmitPrecertTicket por ahora soporta solo PO (igual que submit)");
+  }
+
+  const s4Purchase = await cds.connect.to("purchaseorder_edmx");
+  const s4Invoices = await cds.connect.to("A_SupplierInvoice_edmx");
+
+  const availableByItem = await fetchAvailableByItem({ s4Purchase, s4Invoices, poId: sId });
+  const pricingByItem = await fetchPricingByItem({ s4Purchase, poId: sId, itemIds: uniqItemIds });
+
+  // Calcular lines + total (mismo que submit)
+  let currency = "";
+  let totalCents = 0;
+  const lines = [];
+
+  for (const it of inItems) {
+    const itemId = String(it.itemId || "").trim();
+    const qty = n(it.qtyToCertify);
+
+    const available = n(availableByItem.get(itemId));
+    if (qty > available) {
+      return req.reject(400, `Cantidad ${qty} supera disponible ${available} (item ${itemId})`);
+    }
+
+    const p = pricingByItem.get(itemId);
+    if (!p) return req.reject(400, `No se pudo determinar precio/moneda para item ${itemId}`);
+    if (!p.currency) return req.reject(400, `Moneda vacía para item ${itemId}`);
+
+    if (!currency) currency = p.currency;
+    if (currency !== p.currency) {
+      return req.reject(400, `Moneda inconsistente: ${currency} vs ${p.currency} (item ${itemId})`);
+    }
+
+    const unitPrice = round2(n(p.unitPrice));
+    const lineAmount = round2(qty * unitPrice);
+
+    lines.push({ itemId, qty, unitPrice, lineAmount });
+    totalCents += Math.round(lineAmount * 100);
+  }
+
+  const totalAmount = totalCents / 100;
+
+  // TicketNumero incremental sin sequence
+  const ticketNumero = await _nextTicketNumero(tx);
+
+  // Crear ticket + items en la misma tx (si algo falla, rollback)
+  const ticketId = cds.utils.uuid();
+
+  await tx.run(
+    INSERT.into(PrecertTickets).entries({
+      ID: ticketId,
+      ticketNumero,
+      sourceType: sType,
+      sourceId: sId,
+      supplierID: supplierIDs[0],
+      status: "SUBMITTED",
+      currency,
+      totalAmount
+    })
+  );
+
+  // Insert items
+  await tx.run(
+    INSERT.into(PrecertTicketItems).entries(
+      inItems.map(it => ({
+        ID: cds.utils.uuid(),
+        ticket_ID: ticketId,
+        itemId: String(it.itemId || "").trim(),
+        qtyToCertify: it.qtyToCertify,
+        placeOfService: String(it.placeOfService || "").trim(),
+        dateFrom: it.dateFrom,
+        dateTo: it.dateTo
+      }))
+    )
+  );
+
+  // Respuesta para popup
+  return {
+    ticketId,
+    ticketNumero,
+    status: "SUBMITTED",
+    currency,
+    totalAmount,
+    lines
+  };
+});
+
 
 })
