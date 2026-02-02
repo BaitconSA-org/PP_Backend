@@ -919,7 +919,7 @@ this.on("getPrecertCandidates", async (req) => {
   const sId = String(sourceId || "").trim();
 
   if (!sType || !sId) return req.reject(400, "sourceType y sourceId son obligatorios");
-  if (sType !== "PO" && sType !== "CM") return req.reject(400, "sourceType debe ser PO o CM");
+  if (sType !== "OC" && sType !== "CM") return req.reject(400, "sourceType debe ser OC o CM");
 
   try {
     // Conexiones remotas (las mismas que ya usás en otros handlers)
@@ -931,7 +931,7 @@ this.on("getPrecertCandidates", async (req) => {
     // ==========================
     // PO
     // ==========================
-    if (sType === "PO") {
+    if (sType === "OC") {
       // (Opcional pero recomendable) validar ownership del PO por supplier
       // Si no querés bloquear por supplier, podés comentar este bloque.
       let poHeader = null;
@@ -1077,7 +1077,7 @@ this.on("getPrecertCandidates", async (req) => {
   const sId   = String(req.data?.sourceId || "").trim();
 
   if (!sType || !sId) req.reject(400, "sourceType y sourceId son obligatorios");
-  if (sType !== "PO" && sType !== "CM") req.reject(400, "sourceType debe ser PO o CM");
+  if (sType !== "OC" && sType !== "CM") req.reject(400, "sourceType debe ser OC o CM");
 
   // ----- CM: validar con CAP projection -----
   if (sType === "CM") {
@@ -1515,10 +1515,10 @@ this.on("createAndSubmitPrecertTicket", async (req) => {
   const inItems = Array.isArray(req.data?.items) ? req.data.items : [];
 
   if (!sType || !sId) return req.reject(400, "sourceType y sourceId son obligatorios");
-  if (sType !== "PO" && sType !== "CM") return req.reject(400, "sourceType debe ser PO o CM");
+  if (sType !== "OC" && sType !== "CM") return req.reject(400, "sourceType debe ser OC o CM");
   if (!inItems.length) return req.reject(400, "items es obligatorio (no puede estar vacío)");
 
-  // Seguridad ownership del documento (PO/CM)
+  // Seguridad ownership del documento (OC/CM)
   await assertSourceOwnership(req, supplierIDs, this);
 
   const tx = cds.tx(req);
@@ -1544,8 +1544,8 @@ this.on("createAndSubmitPrecertTicket", async (req) => {
   const uniqItemIds = [...new Set(itemIds)];
 
   // Pricing + availability (si es PO). Si CM por ahora dejalo igual a tu lógica.
-  if (sType !== "PO") {
-    return req.reject(400, "createAndSubmitPrecertTicket por ahora soporta solo PO (igual que submit)");
+  if (sType !== "OC") {
+    return req.reject(400, "createAndSubmitPrecertTicket por ahora soporta solo OC (igual que submit)");
   }
 
   const s4Purchase = await cds.connect.to("purchaseorder_edmx");
