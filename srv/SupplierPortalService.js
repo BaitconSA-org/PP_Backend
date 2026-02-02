@@ -1235,7 +1235,7 @@ async function fetchPricingByItem({ s4Purchase, poId, itemIds }) {
 
     // controlado por backend
     req.data.supplierID = supplierIDs[0];
-    req.data.status = req.data.status || "CREATED";
+    req.data.status = req.data.status || "CREADO";
 
     console.log(
       "[PrecertTickets.CREATE] supplierID=",
@@ -1273,8 +1273,8 @@ async function fetchPricingByItem({ s4Purchase, poId, itemIds }) {
     }
 
     const status = String(ticket.status || "").toUpperCase();
-    if (status !== "CREATED") {
-      return req.reject(400, `Solo se puede enviar en estado CREATED (actual: ${status})`);
+    if (status !== "CREADO") {
+      return req.reject(400, `Solo se puede enviar en estado CREADO (actual: ${status})`);
     }
 
     const sourceType = String(ticket.sourceType || "").toUpperCase().trim();
@@ -1363,7 +1363,7 @@ async function fetchPricingByItem({ s4Purchase, poId, itemIds }) {
     await tx.run(
       UPDATE(PrecertTickets)
         .set({
-          status: "SUBMITTED",
+          status: "ENVIADO",
           currency: currency,
           totalAmount: totalAmount
         })
@@ -1374,7 +1374,7 @@ async function fetchPricingByItem({ s4Purchase, poId, itemIds }) {
     return {
       ticketId: ticketId,
       ticketNumero: ticket.ticketNumero,
-      status: "SUBMITTED",
+      status: "ENVIADO",
       currency: currency,
       totalAmount: totalAmount,
       lines: lines
@@ -1459,11 +1459,11 @@ this.before(["UPDATE", "PATCH"], "PrecertTickets", async (req) => {
     const to   = String(req.data.status || "").toUpperCase();
 
     const allowed = {
-      CREATED:    new Set(["CREATED", "SUBMITTED", "CANCELLED"]),
-      SUBMITTED:  new Set(["SUBMITTED", "APPROVED", "REJECTED"]),
-      APPROVED:   new Set(["APPROVED"]),
-      REJECTED:   new Set(["REJECTED"]),
-      CANCELLED:  new Set(["CANCELLED"])
+      CREADO:    new Set(["CREADO", "ENVIADO", "CANCELADO"]),
+      ENVIADO:  new Set(["ENVIADO", "APROBADO", "RECHAZADO"]),
+      APROBADO:   new Set(["APROBADO"]),
+      RECHAZADO:   new Set(["RECHAZADO"]),
+      CANCELADO:  new Set(["CANCELADO"])
     };
 
     if (allowed[from] && !allowed[from].has(to)) {
@@ -1599,7 +1599,7 @@ this.on("createAndSubmitPrecertTicket", async (req) => {
       sourceType: sType,
       sourceId: sId,
       supplierID: supplierIDs[0],
-      status: "SUBMITTED",
+      status: "ENVIADO",
       currency,
       totalAmount
     })
@@ -1624,7 +1624,7 @@ this.on("createAndSubmitPrecertTicket", async (req) => {
   return {
     ticketId,
     ticketNumero,
-    status: "SUBMITTED",
+    status: "ENVIADO",
     currency,
     totalAmount,
     lines

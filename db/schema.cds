@@ -311,7 +311,7 @@ entity PaymentOrderRefs : cuid, managed {
     sourceType    : String(10);         // "PO" | "CM" | "NONE"
     sourceId      : String(20);         // nro OC o CM o vacío
     supplierID    : String(20);
-    status        : String(30);         // CREATED / SUBMITTED / APPROVED / REJECTED
+    status        : String(30);         // CREADO / ENVIADO / APROBADO / RECHAZADO
     currency      : String(3);
     totalAmount   : Decimal(15,2);
     items         : Composition of many PrecertTicketItems
