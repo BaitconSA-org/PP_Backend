@@ -323,11 +323,11 @@ entity PaymentOrderRefs : cuid, managed {
 
   // Identificación del item en la OC
   itemId : String(10);      // PurchaseOrderItem
-  // lineId : String(20);
+  lineId : String(20);      // Lineas dentro de la pos 
 
   @readonly service    : String(80);
   @readonly subService : String(80);
-  @readonly status     : String(30);
+   status     : String(30);
 
   // editables
   qtyToCertify   : Decimal(13,3);

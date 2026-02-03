@@ -750,6 +750,17 @@ service SupplierPortalService
     dateTo        : Date;
   };
 
+  type UpdatePrecertItem : {
+  itemId         : String(10);          // Posición
+  lineId         : String(20);          // Sub-línea: "0","1","2"... (split)
+
+  qtyToCertify   : Decimal(15,3);
+  placeOfService : String(100);
+  dateFrom       : Date;
+  dateTo         : Date;
+
+  status         : String(30);          // "ENVIADO" | "APROBADO" | "RECHAZADO"
+  };
     action createAndSubmitPrecertTicket(
     sourceType : String(10),
     sourceId   : String(20),
@@ -757,6 +768,13 @@ service SupplierPortalService
   ) returns SubmitPrecertResult;
 
   action submitPrecertTicket(ID : UUID) returns SubmitPrecertResult;
+
+  action savePrecertTicketItems(
+  ID    : UUID,
+  items : array of UpdatePrecertItem
+) returns SubmitPrecertResult;
+
+  
 
 
     

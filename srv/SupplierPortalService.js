@@ -1702,5 +1702,79 @@ this.on("createAndSubmitPrecertTicket", async (req) => {
   };
 });
 
+this.on('savePrecertTicketApproval', async (req) => {
+  const { ID, items } = req.data;
+
+  // 1) validar ticket existe
+  const ticket = await SELECT.one.from(PrecertTickets).where({ ID });
+  if (!ticket) return req.error(404, 'Ticket no existe');
+
+  // 2) upsert items
+  for (const it of items) {
+    const itemId = String(it.itemId || '').trim();
+    const lineId = String(it.lineId ?? '0').trim(); // default 0
+    const status = String(it.status || 'ENVIADO').toUpperCase();
+
+    // buscar item existente por (ticket,itemId,lineId)
+    const existing = await SELECT.one.from(PrecertTicketItems).where({
+      ticket_ID: ID,
+      itemId,
+      lineId
+    });
+
+    if (existing) {
+      await UPDATE(PrecertTicketItems).set({
+        qtyToCertify: it.qtyToCertify,
+        placeOfService: it.placeOfService,
+        dateFrom: it.dateFrom,
+        dateTo: it.dateTo,
+        status
+      }).where({ ID: existing.ID });
+    } else {
+      // crear split nuevo
+      const created = await INSERT.into(PrecertTicketItems).entries({
+        ticket_ID: ID,
+        itemId,
+        lineId,
+        qtyToCertify: it.qtyToCertify,
+        placeOfService: it.placeOfService,
+        dateFrom: it.dateFrom,
+        dateTo: it.dateTo,
+        status,
+
+        // opcional: copiar availableQty/uom/service/subservice desde el item base lineId=0 o desde Candidate
+      });
+
+      // opcional: log de split si lineId != "0"
+      // INSERT.into(PrecertTicketSplitLog)...
+    }
+  }
+
+  // 3) recalcular estado del ticket (OPEN/CLOSED)
+  const dbItems = await SELECT.from(PrecertTicketItems).where({ ticket_ID: ID });
+
+  const anyPending = dbItems.some(x => (x.status || '').toUpperCase() === 'ENVIADO');
+  const anyApproved = dbItems.some(x => (x.status || '').toUpperCase() === 'APROBADO');
+  const allRejected = dbItems.length && dbItems.every(x => (x.status || '').toUpperCase() === 'RECHAZADO');
+
+  const newTicketStatus =
+    anyPending ? 'ENVIADO'
+    : allRejected ? 'RECHAZADO'
+    : anyApproved ? 'APROBADO'
+    : ticket.status || 'ENVIADO';
+
+  // 4) recalcular totalAmount (si tu unitPrice viene del PO/candidate)
+  // total = SUM(qtyToCertify * unitPrice) por item/line
+  // UPDATE ticket.totalAmount y ticket.status
+
+  await UPDATE(PrecertTickets).set({ status: newTicketStatus /*, totalAmount */ }).where({ ID });
+
+  // 5) devolver ticket expandido
+  return await SELECT.one.from(PrecertTickets).where({ ID }).columns(
+    '*', { items: '*' }
+  );
+});
+
+
 
 })
