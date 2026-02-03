@@ -769,11 +769,10 @@ service SupplierPortalService
 
   action submitPrecertTicket(ID : UUID) returns SubmitPrecertResult;
 
-  action savePrecertTicketItems(
+  action savePrecertTicketApproval(
   ID    : UUID,
   items : array of UpdatePrecertItem
-) returns SubmitPrecertResult;
-
+) returns PrecertTickets;
   
 
 
