@@ -42,7 +42,7 @@
         "csrfInBatch": true,
         "credentials": {
           "destination": "S4HANA",
-          "path": "/sap/opu/odata4/sap/api_purchaseorder_2/srvd_a2x/sap/purchaseorder/0001/"
+          "path": "/sap/opu/odata4/sap/api_purchaseorder_2/srvd_a2x/sap/purchaseorder/0001"
         }
       },
       "A_SupplierInvoice_edmx": {

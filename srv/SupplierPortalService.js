@@ -956,19 +956,11 @@ this.on("getPrecertCandidates", async (req) => {
     if (sType === "OC") {
       // (Opcional pero recomendable) validar ownership del PO por supplier
       // Si no querés bloquear por supplier, podés comentar este bloque.
-      let poHeader = null;
-      try {
-        poHeader = await s4Purchase.run(
-          SELECT.one.from("PurchaseOrder").columns(["PurchaseOrder", "Supplier"]).where({ PurchaseOrder: sId })
-        );
-      } catch (e) {
-        // fallback por si tu EDMX usa A_PurchaseOrder
-        try {
-          poHeader = await s4Purchase.run(
-            SELECT.one.from("A_PurchaseOrder").columns(["PurchaseOrder", "Supplier"]).where({ PurchaseOrder: sId })
-          );
-        } catch (e2) {}
-      }
+      const poHeader = await s4Purchase.run(
+      SELECT.one.from("PurchaseOrder")
+        .columns(["PurchaseOrder", "Supplier"])
+        .where({ PurchaseOrder: sId })
+    );
 
       if (!poHeader) {
         // si no existe / no accesible, devolvemos vacío (para tu UX de "no candidates")
@@ -980,34 +972,17 @@ this.on("getPrecertCandidates", async (req) => {
         return req.reject(403, "No autorizado: la Purchase Order no pertenece al proveedor logueado");
       }
 
-      // 1) Items OC desde S/4
-      let poItemsRaw;
-      try {
-        poItemsRaw = await s4Purchase.run(
-          SELECT.from("PurchaseOrderItem")
-            .columns([
-              "PurchaseOrder",
-              "PurchaseOrderItem",
-              "Material",
-              "PurchaseOrderItemText",
-              "OrderQuantity",
-            ])
-            .where({ PurchaseOrder: sId })
-        );
-      } catch (e) {
-        // fallback por si tu EDMX usa A_PurchaseOrderItem
-        poItemsRaw = await s4Purchase.run(
-          SELECT.from("A_PurchaseOrderItem")
-            .columns([
-              "PurchaseOrder",
-              "PurchaseOrderItem",
-              "Material",
-              "PurchaseOrderItemText",
-              "OrderQuantity",
-            ])
-            .where({ PurchaseOrder: sId })
-        );
-      }
+      const poItemsRaw = await s4Purchase.run(
+      SELECT.from("PurchaseOrderItem")
+        .columns([
+          "PurchaseOrder",
+          "PurchaseOrderItem",
+          "Material",
+          "PurchaseOrderItemText",
+          "OrderQuantity"
+        ])
+        .where({ PurchaseOrder: sId })
+    );
 
       const poItems = Array.isArray(poItemsRaw) ? poItemsRaw : (poItemsRaw ? [poItemsRaw] : []);
       if (!poItems.length) return [];
@@ -1197,21 +1172,14 @@ async function fetchAvailableByItem({ s4Purchase, s4Invoices, poId }) {
 
 // ==== pricing por PO item ====
 async function fetchPricingByItem({ s4Purchase, poId, itemIds }) {
- 
-  let rows;
-  try {
-    rows = await s4Purchase.run(
-      SELECT.from("A_PurchaseOrderItem")
-        .columns(["PurchaseOrderItem", "NetPriceAmount", "NetPriceQuantity", "DocumentCurrency"])
-        .where({ PurchaseOrder: poId, PurchaseOrderItem: { in: itemIds } })
-    );
-  } catch (e) {
-    rows = await s4Purchase.run(
-      SELECT.from("PurchaseOrderItem")
-        .columns(["PurchaseOrderItem", "NetPriceAmount", "NetPriceQuantity", "DocumentCurrency"])
-        .where({ PurchaseOrder: poId, PurchaseOrderItem: { in: itemIds } })
-    );
-  }
+
+  const pad5 = v => String(v || "").padStart(5, "0");
+  itemIds = (itemIds || []).map(pad5);
+  const rows = await s4Purchase.run(
+    SELECT.from("PurchaseOrderItem")
+      .columns(["PurchaseOrderItem", "NetPriceAmount", "NetPriceQuantity", "DocumentCurrency"])
+      .where({ PurchaseOrder: poId, PurchaseOrderItem: { in: itemIds } })
+  );
 
   const pricing = new Map();
   for (const r of rows || []) {
