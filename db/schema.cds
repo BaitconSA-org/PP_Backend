@@ -335,8 +335,16 @@ entity PaymentOrderRefs : cuid, managed {
   dateFrom       : Date;
   dateTo         : Date;
 
-  // para validar (podés persistirlo o recalcular al submit)
   availableQty   : Decimal(13,3);
   uom            : String(3);
+}
+
+entity PrecertTicketSplitLog : cuid, managed {
+  ticket_ID      : UUID;
+  subTicketNo    : Integer;         // 0..N por ticket
+  splitFromItem  : UUID;            // item original
+  newItem        : UUID;            // item nuevo creado
+  changedBy      : String(255);
+  snapshotJson   : LargeString;     // JSON para debug
 }
 

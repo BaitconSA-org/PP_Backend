@@ -93,6 +93,28 @@ function round6(v) {
   return Math.round(n(v) * 1e6) / 1e6;
 }
 
+function n(v){ const x=Number(v); return Number.isFinite(x)?x:0; }
+
+async function nextSplitNo(tx, ticketId){
+  const row = await tx.run(
+    SELECT.one.from("PrecertTicketItems")
+      .columns([{ func: "max", args: [{ ref: ["splitNo"] }], as: "maxNo" }])
+      .where({ ticket_ID: ticketId })
+  );
+  const maxNo = row?.maxNo == null ? -1 : Number(row.maxNo);
+  return maxNo + 1; // arranca en 0
+}
+
+async function nextSubTicketNo(tx, ticketId){
+  const row = await tx.run(
+    SELECT.one.from("PrecertTicketSplitLog")
+      .columns([{ func: "max", args: [{ ref: ["subTicketNo"] }], as: "maxNo" }])
+      .where({ ticket_ID: ticketId })
+  );
+  const maxNo = row?.maxNo == null ? -1 : Number(row.maxNo);
+  return maxNo + 1;
+}
+
 
 module.exports = cds.service.impl(async function () {
   // Conexiones
@@ -103,7 +125,7 @@ module.exports = cds.service.impl(async function () {
   const s4pay = await cds.connect.to('API_PAYMENT_ADVICE_SRV');
   const s4Contract = await cds.connect.to('API_PURCHASECONTRACT_PROCESS_SRV_0002');
 
-  const { PrecertTickets, PrecertTicketItems } = this.entities;
+  const { PrecertTickets, PrecertTicketItems, PrecertTicketSplitLog } = this.entities;
 
   /**************** InvoiceReport Handler */
   // --- READ InvoiceReport (solo facturas aprobadas status = '5') ---
@@ -1482,6 +1504,55 @@ this.before("READ", "PrecertTickets", (req) => {
 
   req.query.where({ supplierID: { in: supplierIDs } });
 });
+
+this.before("CREATE", "PrecertTicketItems", async (req) => {
+  const tx = cds.tx(req);
+
+  const ticketId = req.data?.ticket_ID;
+  const splitFrom = req.data?.splitFrom_ID;
+
+  // solo si es split
+  if (ticketId && splitFrom) {
+    req.data.splitNo = await nextSplitNo(tx, ticketId);
+  }
+});
+
+this.after("CREATE", "PrecertTicketItems", async (data, req) => {
+  const tx = cds.tx(req);
+
+  const ticketId = data?.ticket_ID;
+  const splitFrom = data?.splitFrom_ID;
+
+  if (!ticketId || !splitFrom) return; // no era split
+
+  const subTicketNo = await nextSubTicketNo(tx, ticketId);
+
+  // snapshot simple (podés meter más fields)
+  const snap = {
+    splitFrom_ID: splitFrom,
+    newItem_ID: data.ID,
+    itemId: data.itemId,
+    qtyToCertify: data.qtyToCertify,
+    placeOfService: data.placeOfService,
+    dateFrom: data.dateFrom,
+    dateTo: data.dateTo,
+    status: data.status,
+    splitNo: data.splitNo
+  };
+
+  await tx.run(
+    INSERT.into("PrecertTicketSplitLog").entries({
+      ticket_ID: ticketId,
+      subTicketNo,
+      splitFromItem: splitFrom,
+      newItem: data.ID,
+      changedBy: req.user?.id || "unknown",
+      snapshotJson: JSON.stringify(snap)
+    })
+  );
+});
+
+
 this.before("READ", "PrecertTicketItems", async (req) => {
   if (isAdmin(req)) return;
 
