@@ -1124,25 +1124,19 @@ if (!supplierIDs.includes(poSupplier)) {
 
 // ==== availability por PO item (ordered - invoiced) ====
 async function fetchAvailableByItem({ s4Purchase, s4Invoices, poId }) {
-  // 1) orderedQty por item
-  let poItems;
-  try {
-    poItems = await s4Purchase.run(
-      SELECT.from("A_PurchaseOrderItem")
-        .columns(["PurchaseOrderItem", "OrderQuantity"])
-        .where({ PurchaseOrder: poId })
-    );
-  } catch (e) {
-    poItems = await s4Purchase.run(
-      SELECT.from("PurchaseOrderItem")
-        .columns(["PurchaseOrderItem", "OrderQuantity"])
-        .where({ PurchaseOrder: poId })
-    );
-  }
+  // (opcional) normalizador: en S/4 el item suele venir "00010"
+  const normItem = (v) => String(v || "").trim(); // si querés padStart(5) lo agregamos después
+
+  // 1) orderedQty por item (SOLO OData4 PurchaseOrderItem)
+  const poItems = await s4Purchase.run(
+    SELECT.from("PurchaseOrderItem")
+      .columns(["PurchaseOrderItem", "OrderQuantity"])
+      .where({ PurchaseOrder: poId })
+  );
 
   const orderedByItem = new Map();
   for (const it of poItems || []) {
-    const itemId = String(it.PurchaseOrderItem || "").trim();
+    const itemId = normItem(it.PurchaseOrderItem);
     if (!itemId) continue;
     orderedByItem.set(itemId, n(it.OrderQuantity));
   }
@@ -1156,11 +1150,12 @@ async function fetchAvailableByItem({ s4Purchase, s4Invoices, poId }) {
 
   const invoicedByItem = new Map();
   for (const r of refs || []) {
-    const itemId = String(r.PurchaseOrderItem || "").trim();
+    const itemId = normItem(r.PurchaseOrderItem);
     if (!itemId) continue;
     invoicedByItem.set(itemId, (invoicedByItem.get(itemId) || 0) + n(r.QuantityInPurchaseOrderUnit));
   }
 
+  // 3) available = ordered - invoiced
   const availableByItem = new Map();
   for (const [itemId, ordered] of orderedByItem.entries()) {
     const invoiced = invoicedByItem.get(itemId) || 0;

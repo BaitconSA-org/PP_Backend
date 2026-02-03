@@ -679,7 +679,10 @@ service SupplierPortalService
   // -------- PRECERTIFICACION VISTA --------//
       entity PrecertTickets as projection on supplierPortalGD.PrecertTickets;
       entity PrecertItemCandidate as projection on supplierPortalGD.PrecertItemCandidate;
-
+      @readonly
+      @restrict: [
+        { grant: 'READ', to: 'Admin' },      ]
+      entity PrecertTicketSplitLog as projection on supplierPortalGD.PrecertTicketSplitLog;
       @readonly
   entity PurchaseContractExt
     as projection on PCAPI.A_PurchaseContract
