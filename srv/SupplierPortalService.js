@@ -72,7 +72,12 @@ function getScopedSupplierIDs(req) {
 
     return supplierIDs;
   }
-  function padWhereEq(where, refName, len) {
+ function padIfDigits(value, len) {
+  const s = String(value ?? "").trim();
+  return /^\d+$/.test(s) ? s.padStart(len, "0") : s;
+}
+
+function padWhereEq(where, refName, len) {
   if (!Array.isArray(where)) return;
   for (let i = 0; i < where.length - 2; i++) {
     const a = where[i], op = where[i + 1], b = where[i + 2];
