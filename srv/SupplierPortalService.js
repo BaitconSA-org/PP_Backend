@@ -81,10 +81,26 @@ function getScopedSupplierIDs(req) {
     }
   }
 }
+async function _trimOrNull(v) {
+  const s = String(v ?? "").trim();
+  return s ? s : null;
+}
+
+ async function _normalizeImputation(patch) {
+  const hasCeCo = !!_trimOrNull(patch.CostCenter);
+  const hasOrd  = !!_trimOrNull(patch.OrderID);
+  const hasNet  = !!_trimOrNull(patch.ProjectNetwork);
+
+  // regla: uno u otro
+  if (hasCeCo) { patch.OrderID = null; patch.ProjectNetwork = null; return; }
+  if (hasOrd)  { patch.CostCenter = null; patch.ProjectNetwork = null; return; }
+  if (hasNet)  { patch.CostCenter = null; patch.OrderID = null; return; }
+}
+
   function getTicketKeyWhere(req) {
   const id =
     req.data?.ID ||
-    req.params?.[0]?.ID ||       // CAP suele poner la key acá en requests OData
+    req.params?.[0]?.ID ||       
     req.params?.[0]?.Id ||
     req.params?.[0]?.id;
 
@@ -1677,52 +1693,49 @@ this.on("createAndSubmitPrecertTicket", async (req) => {
 this.on('savePrecertTicketApproval', async (req) => {
   const { ID, items } = req.data;
 
-  // 1) validar ticket existe
   const ticket = await SELECT.one.from(PrecertTickets).where({ ID });
   if (!ticket) return req.error(404, 'Ticket no existe');
 
-  // 2) upsert items
   for (const it of items) {
     const itemId = String(it.itemId || '').trim();
-    const lineId = String(it.lineId ?? '0').trim(); // default 0
+    const lineId = String(it.lineId ?? '0').trim();
     const status = String(it.status || 'ENVIADO').toUpperCase();
 
-    // buscar item existente por (ticket,itemId,lineId)
     const existing = await SELECT.one.from(PrecertTicketItems).where({
       ticket_ID: ID,
       itemId,
       lineId
     });
 
+    const patch = {
+      qtyToCertify: it.qtyToCertify,
+      placeOfService: it.placeOfService,
+      dateFrom: it.dateFrom,
+      dateTo: it.dateTo,
+      status,
+
+      AccountAssignmentNumber: _trimOrNull(it.AccountAssignmentNumber),
+      GLAccount: _trimOrNull(it.GLAccount),
+      CostCenter: _trimOrNull(it.CostCenter),
+      ProjectNetwork: _trimOrNull(it.ProjectNetwork),
+      OrderID: _trimOrNull(it.OrderID)
+    };
+    _normalizeImputation(patch);
+
     if (existing) {
-      await UPDATE(PrecertTicketItems).set({
-        qtyToCertify: it.qtyToCertify,
-        placeOfService: it.placeOfService,
-        dateFrom: it.dateFrom,
-        dateTo: it.dateTo,
-        status
-      }).where({ ID: existing.ID });
+      await UPDATE(PrecertTicketItems)
+        .set(patch)
+        .where({ ID: existing.ID });
     } else {
-      // crear split nuevo
-      const created = await INSERT.into(PrecertTicketItems).entries({
+      await INSERT.into(PrecertTicketItems).entries({
         ticket_ID: ID,
         itemId,
         lineId,
-        qtyToCertify: it.qtyToCertify,
-        placeOfService: it.placeOfService,
-        dateFrom: it.dateFrom,
-        dateTo: it.dateTo,
-        status,
-
-        // opcional: copiar availableQty/uom/service/subservice desde el item base lineId=0 o desde Candidate
+        ...patch
       });
-
-      // opcional: log de split si lineId != "0"
-      // INSERT.into(PrecertTicketSplitLog)...
     }
   }
 
-  // 3) recalcular estado del ticket (OPEN/CLOSED)
   const dbItems = await SELECT.from(PrecertTicketItems).where({ ticket_ID: ID });
 
   const anyPending = dbItems.some(x => (x.status || '').toUpperCase() === 'ENVIADO');
@@ -1735,20 +1748,16 @@ this.on('savePrecertTicketApproval', async (req) => {
     : anyApproved ? 'APROBADO'
     : ticket.status || 'ENVIADO';
 
-  // 4) recalcular totalAmount (si tu unitPrice viene del PO/candidate)
-  // total = SUM(qtyToCertify * unitPrice) por item/line
-  // UPDATE ticket.totalAmount y ticket.status
+  await UPDATE(PrecertTickets).set({ status: newTicketStatus }).where({ ID });
 
-  await UPDATE(PrecertTickets).set({ status: newTicketStatus /*, totalAmount */ }).where({ ID });
-
-  // 5) devolver ticket expandido
   return await SELECT.one.from(PrecertTickets).where({ ID }).columns(
     '*', { items: '*' }
   );
 });
+
  this.on('READ', 'PurchaseOrderAccountAssignments', (req) => {
-    // Normalizar filtros típicos SAP
-    const sel = req.query?.SELECT;
+
+  const sel = req.query?.SELECT;
     if (sel?.where) {
       padWhereEq(sel.where, 'PurchaseOrder', 10);
       padWhereEq(sel.where, 'PurchaseOrderItem', 5);

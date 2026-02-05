@@ -801,6 +801,11 @@ service SupplierPortalService
   dateTo         : Date;
 
   status         : String(30);          // "ENVIADO" | "APROBADO" | "RECHAZADO"
+  AccountAssignmentNumber : String(2);
+  GLAccount              : String(10);
+  CostCenter             : String(10);
+  ProjectNetwork         : String(12);
+  OrderID                : String(12);
   };
     action createAndSubmitPrecertTicket(
     sourceType : String(10),
