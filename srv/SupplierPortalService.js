@@ -72,6 +72,15 @@ function getScopedSupplierIDs(req) {
 
     return supplierIDs;
   }
+  function padWhereEq(where, refName, len) {
+  if (!Array.isArray(where)) return;
+  for (let i = 0; i < where.length - 2; i++) {
+    const a = where[i], op = where[i + 1], b = where[i + 2];
+    if (a?.ref?.length === 1 && a.ref[0] === refName && op === '=' && b?.val != null) {
+      b.val = padIfDigits(b.val, len);
+    }
+  }
+}
   function getTicketKeyWhere(req) {
   const id =
     req.data?.ID ||
@@ -1737,6 +1746,15 @@ this.on('savePrecertTicketApproval', async (req) => {
     '*', { items: '*' }
   );
 });
+ this.on('READ', 'PurchaseOrderAccountAssignments', (req) => {
+    // Normalizar filtros típicos SAP
+    const sel = req.query?.SELECT;
+    if (sel?.where) {
+      padWhereEq(sel.where, 'PurchaseOrder', 10);
+      padWhereEq(sel.where, 'PurchaseOrderItem', 5);
+    }
+    return s4Purchase.run(req.query);
+  });
 
 
 

@@ -370,6 +370,7 @@ service SupplierPortalService
         cast(null as Decimal(15,2)) as SupplierInvoiceItemAmount,
         cast(null as Decimal(15,2)) as QuantityInPurchaseOrderUnit,
         cast(null as Decimal(15,2)) as UnitPrice,
+        
 
         // Asociaciones
    _InvoiceItems : Association to many SupplierInvoiceItemExt
@@ -684,6 +685,43 @@ service SupplierPortalService
         { grant: 'READ', to: 'Admin' },      ]
       entity PrecertTicketSplitLog as projection on supplierPortalGD.PrecertTicketSplitLog;
       @readonly
+
+       entity PrecertTicketItems as projection on supplierPortalGD.PrecertTicketItems {
+        *,
+        ticket.sourceId   as PurchaseOrder,
+        itemId            as PurchaseOrderItem
+      };
+      @readonly
+      entity PurchaseOrderAccountAssignments
+        as projection on ext.PurchaseOrderAccountAssignment {
+          PurchaseOrder,
+          PurchaseOrderItem,
+          AccountAssignmentNumber,
+          GLAccount,
+          CostCenter,
+          ProjectNetwork,
+          OrderID
+      };
+
+      annotate supplierPortalGD.PrecertTicketItems with {
+        AccountAssignmentNumber @Common.ValueList:{
+          CollectionPath: 'PurchaseOrderAccountAssignments',
+          Parameters: [
+           { $Type: 'Common.ValueListParameterIn',    LocalDataProperty: PurchaseOrder,     ValueListProperty: 'PurchaseOrder' },
+          { $Type: 'Common.ValueListParameterIn',    LocalDataProperty: PurchaseOrderItem, ValueListProperty: 'PurchaseOrderItem' },
+
+          { $Type: 'Common.ValueListParameterInOut', LocalDataProperty: AccountAssignmentNumber, ValueListProperty: 'AccountAssignmentNumber' },
+
+          // Estos 4 tienen que existir como columnas reales en supplierPortalGD.PrecertTicketItems
+          { $Type: 'Common.ValueListParameterOut',   LocalDataProperty: GLAccount,      ValueListProperty: 'GLAccount' },
+          { $Type: 'Common.ValueListParameterOut',   LocalDataProperty: CostCenter,     ValueListProperty: 'CostCenter' },
+          { $Type: 'Common.ValueListParameterOut',   LocalDataProperty: ProjectNetwork, ValueListProperty: 'ProjectNetwork' },
+          { $Type: 'Common.ValueListParameterOut',   LocalDataProperty: OrderID,        ValueListProperty: 'OrderID' }
+        ]
+        }
+      }
+
+
   entity PurchaseContractExt
     as projection on PCAPI.A_PurchaseContract
   {

@@ -337,6 +337,14 @@ entity PaymentOrderRefs : cuid, managed {
 
   availableQty   : Decimal(13,3);
   uom            : String(3);
+  
+
+  // imputación
+  AccountAssignmentNumber : String(2);
+  GLAccount               : String(10);
+  CostCenter              : String(10);
+  ProjectNetwork          : String(12); // grafo/network
+  OrderID                 : String(12); // orden
 }
 
 entity PrecertTicketSplitLog : cuid, managed {
