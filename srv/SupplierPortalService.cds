@@ -759,6 +759,15 @@ service SupplierPortalService
         MaterialGroup
   };
 
+extend supplierPortalGD.PrecertTickets with {
+   purchaseOrder : Association to PurchaseOrderExt
+    on purchaseOrder.PurchaseOrder = sourceId and sourceType = 'PO';
+
+     contratoMarco : Association to PurchaseContractExt
+    on contratoMarco.PurchaseContract = sourceId and sourceType = 'CM';
+
+};
+
    
   // ACTION PRECERT
 

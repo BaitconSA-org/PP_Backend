@@ -316,6 +316,14 @@ entity PaymentOrderRefs : cuid, managed {
     totalAmount   : Decimal(15,2);
     items         : Composition of many PrecertTicketItems
                     on items.ticket = $self;
+    nodeType      : String(10);   // "TK" | "SUB"
+    subTicketNo   : Integer;
+
+    parentTicket  : Association to PrecertTickets;
+    subTickets    : Composition of many PrecertTickets
+                    on subTickets.parentTicket = $self;
+                    
+
   }
 
   entity PrecertTicketItems : cuid, managed {
