@@ -768,6 +768,12 @@ extend supplierPortalGD.PrecertTickets with {
 
 };
 
+annotate supplierPortalGD.PrecertTickets
+  @Aggregation.RecursiveHierarchy #TicketHierarchy : {
+    ParentNavigationProperty : parentTicket,
+    NodeProperty             : ID
+  };
+
    
   // ACTION PRECERT
 
