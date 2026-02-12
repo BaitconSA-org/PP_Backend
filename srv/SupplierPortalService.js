@@ -1303,7 +1303,9 @@ async function fetchPricingByItem({ s4Purchase, poId, itemIds }) {
       return req.reject(400, `Solo se puede enviar en estado CREADO (actual: ${status})`);
     }
 
-    const sourceType = String(ticket.sourceType || "").toUpperCase().trim();
+  
+    const sourceTypeRaw = String(ticket.sourceType || "").toUpperCase().trim();
+    const sourceType = normalizeSourceType(sourceTypeRaw) || sourceTypeRaw;
     const poId = String(ticket.sourceId || "").trim();
 
     if (sourceType !== "PO" || !poId) {
@@ -1744,8 +1746,8 @@ this.on("createAndSubmitPrecertTicket", async (req) => {
         placeOfService: String(it.placeOfService || "").trim(),
         dateFrom: it.dateFrom,
         dateTo: it.dateTo,
-        splitFrom_ID: originalItemId,
-        splitNo: 2
+        splitFrom_ID: null,
+        splitNo: 0
       }))
     )
   );
