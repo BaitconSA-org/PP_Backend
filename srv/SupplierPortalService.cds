@@ -35,6 +35,7 @@ using {
   PurchaseOrderSupplierInvoices      as PO_SI,
 } from './aggregates/views/PurchaseOrderSupplierInvoices';
 
+
 @path : 'ppservices'
 service SupplierPortalService
 {
@@ -678,7 +679,13 @@ service SupplierPortalService
 */
 
   // -------- PRECERTIFICACION VISTA --------//
-      entity PrecertTickets as projection on supplierPortalGD.PrecertTickets;
+      entity PrecertTickets as projection on supplierPortalGD.PrecertTickets {
+  *,
+  null as LimitedDescendantCount : Integer,
+  null as DistanceFromRoot       : Integer,
+  null as DrillState             : String,
+  null as LimitedRank            : Integer
+};
       entity PrecertItemCandidate as projection on supplierPortalGD.PrecertItemCandidate;
       @readonly
       @restrict: [
@@ -703,24 +710,7 @@ service SupplierPortalService
           OrderID
       };
 
-      annotate supplierPortalGD.PrecertTicketItems with {
-        AccountAssignmentNumber @Common.ValueList:{
-          CollectionPath: 'PurchaseOrderAccountAssignments',
-          Parameters: [
-           { $Type: 'Common.ValueListParameterIn',    LocalDataProperty: PurchaseOrder,     ValueListProperty: 'PurchaseOrder' },
-          { $Type: 'Common.ValueListParameterIn',    LocalDataProperty: PurchaseOrderItem, ValueListProperty: 'PurchaseOrderItem' },
-
-          { $Type: 'Common.ValueListParameterInOut', LocalDataProperty: AccountAssignmentNumber, ValueListProperty: 'AccountAssignmentNumber' },
-
-          // Estos 4 tienen que existir como columnas reales en supplierPortalGD.PrecertTicketItems
-          { $Type: 'Common.ValueListParameterOut',   LocalDataProperty: GLAccount,      ValueListProperty: 'GLAccount' },
-          { $Type: 'Common.ValueListParameterOut',   LocalDataProperty: CostCenter,     ValueListProperty: 'CostCenter' },
-          { $Type: 'Common.ValueListParameterOut',   LocalDataProperty: ProjectNetwork, ValueListProperty: 'ProjectNetwork' },
-          { $Type: 'Common.ValueListParameterOut',   LocalDataProperty: OrderID,        ValueListProperty: 'OrderID' }
-        ]
-        }
-      }
-
+      
 
   entity PurchaseContractExt
     as projection on PCAPI.A_PurchaseContract
@@ -758,6 +748,7 @@ service SupplierPortalService
         SupplierMaterialNumber,
         MaterialGroup
   };
+  
 
 extend supplierPortalGD.PrecertTickets with {
    purchaseOrder : Association to PurchaseOrderExt
@@ -766,15 +757,8 @@ extend supplierPortalGD.PrecertTickets with {
      contratoMarco : Association to PurchaseContractExt
     on contratoMarco.PurchaseContract = sourceId and sourceType = 'CM';
 
-};
+}
 
-annotate supplierPortalGD.PrecertTickets
-  @Aggregation.RecursiveHierarchy #TicketHierarchy : {
-    ParentNavigationProperty : parentTicket,
-    NodeProperty             : ID
-  };
-
-   
   // ACTION PRECERT
 
    action getPrecertCandidates(
@@ -932,3 +916,17 @@ type SyncResult {
 
 //annotate SupplierPortalService with @requires : ['Supplier'];
 }
+annotate SupplierPortalService.PrecertTickets
+  @Aggregation.RecursiveHierarchy #TicketHierarchy : {
+    ParentNavigationProperty : parentTicket,
+    NodeProperty             : ID
+  };
+
+annotate SupplierPortalService.PrecertTickets with @(
+  Hierarchy.RecursiveHierarchy #TicketHierarchy : {
+    LimitedDescendantCount : LimitedDescendantCount,
+    DistanceFromRoot       : DistanceFromRoot,
+    DrillState             : DrillState,
+    LimitedRank            : LimitedRank
+  }
+);
