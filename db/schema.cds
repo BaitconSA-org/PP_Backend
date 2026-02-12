@@ -337,6 +337,9 @@ entity PaymentOrderRefs : cuid, managed {
   @readonly subService : String(80);
    status     : String(30);
 
+  splitFrom : Association to PrecertTicketItems; 
+  splitNo   : Integer;                           
+
   // editables
   qtyToCertify   : Decimal(13,3);
   placeOfService : String(20);
@@ -358,6 +361,7 @@ entity PaymentOrderRefs : cuid, managed {
 entity PrecertTicketSplitLog : cuid, managed {
   ticket_ID      : UUID;
   subTicketNo    : Integer;         // 0..N por ticket
+  subTicket_ID   : UUID;
   splitFromItem  : UUID;            // item original
   newItem        : UUID;            // item nuevo creado
   changedBy      : String(255);

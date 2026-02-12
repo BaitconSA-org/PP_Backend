@@ -135,14 +135,25 @@ async function nextSplitNo(tx, ticketId){
   return maxNo + 1; // arranca en 0
 }
 
-async function nextSubTicketNo(tx, ticketId){
+async function nextSubTicketNo(tx, rootTicketId) {
   const row = await tx.run(
-    SELECT.one.from("PrecertTicketSplitLog")
+    SELECT.one.from("PrecertTickets")
       .columns([{ func: "max", args: [{ ref: ["subTicketNo"] }], as: "maxNo" }])
-      .where({ ticket_ID: ticketId })
+      .where({ parentTicket_ID: rootTicketId, nodeType: "SUB" })
   );
-  const maxNo = row?.maxNo == null ? -1 : Number(row.maxNo);
+  const maxNo = row?.maxNo == null ? 0 : Number(row.maxNo);
   return maxNo + 1;
+}
+
+function normalizeSourceType(raw) {
+  const t = String(raw || "").toUpperCase().trim();
+  const map = {
+    OC: "PO",
+    PO: "PO",
+    CM: "PC",
+    PC: "PC"
+  };
+  return map[t] || null;
 }
 
 
@@ -1513,30 +1524,83 @@ this.before("CREATE", "PrecertTicketItems", async (req) => {
 this.after("CREATE", "PrecertTicketItems", async (data, req) => {
   const tx = cds.tx(req);
 
-  const ticketId = data?.ticket_ID;
+  const createdUnderTicketId = data?.ticket_ID;    // hoy el split item nace colgado del root
   const splitFrom = data?.splitFrom_ID;
+  if (!createdUnderTicketId || !splitFrom) return;
 
-  if (!ticketId || !splitFrom) return; // no era split
+  // 1) Determinar ticket root (por si alguna vez te llega colgado de un SUB)
+  const createdUnderTicket = await tx.run(
+    SELECT.one.from("PrecertTickets")
+      .columns(["ID","parentTicket_ID","ticketNumero","sourceType","sourceId","supplierID","status","currency"])
+      .where({ ID: createdUnderTicketId })
+  );
+  if (!createdUnderTicket) return;
 
-  const subTicketNo = await nextSubTicketNo(tx, ticketId);
+  const rootTicketId = createdUnderTicket.parentTicket_ID || createdUnderTicketId;
 
-  // snapshot simple (podés meter más fields)
+  // 2) Determinar subTicketNo: USÁ el splitNo si viene (para que varios items vayan al mismo SUB)
+  //    Si no viene, vas a terminar creando un subticket por item.
+  const subTicketNo = Number.isFinite(Number(data?.splitNo))
+    ? Number(data.splitNo)
+    : await nextSubTicketNo(tx, rootTicketId);
+
+  // 3) Buscar o crear el subticket header en PrecertTickets
+  let sub = await tx.run(
+    SELECT.one.from("PrecertTickets")
+      .columns(["ID"])
+      .where({ parentTicket_ID: rootTicketId, subTicketNo, nodeType: "SUB" })
+  );
+
+  if (!sub) {
+    const subTicketId = cds.utils.uuid();
+
+    await tx.run(
+      INSERT.into("PrecertTickets").entries({
+        ID: subTicketId,
+        parentTicket_ID: rootTicketId,
+        nodeType: "SUB",
+        subTicketNo,
+
+        // copiar contexto mínimo del root (para que filtre por doc/proveedor)
+        ticketNumero: createdUnderTicket.ticketNumero,
+        sourceType: createdUnderTicket.sourceType,
+        sourceId: createdUnderTicket.sourceId,
+        supplierID: createdUnderTicket.supplierID,
+        status: createdUnderTicket.status,
+        currency: createdUnderTicket.currency,
+        totalAmount: 0
+      })
+    );
+
+    sub = { ID: subTicketId };
+  }
+
+  // 4) Mover el item recién creado para que cuelgue del subticket (esto habilita el TREE)
+  await tx.run(
+    UPDATE("PrecertTicketItems")
+      .set({ ticket_ID: sub.ID, splitNo: subTicketNo })
+      .where({ ID: data.ID })
+  );
+
+  // 5) Log (ahora sí con subTicket_ID)
   const snap = {
     splitFrom_ID: splitFrom,
     newItem_ID: data.ID,
     itemId: data.itemId,
+    lineId: data.lineId,
     qtyToCertify: data.qtyToCertify,
     placeOfService: data.placeOfService,
     dateFrom: data.dateFrom,
     dateTo: data.dateTo,
     status: data.status,
-    splitNo: data.splitNo
+    splitNo: subTicketNo
   };
 
   await tx.run(
     INSERT.into("PrecertTicketSplitLog").entries({
-      ticket_ID: ticketId,
+      ticket_ID: rootTicketId,
       subTicketNo,
+      subTicket_ID: sub.ID,
       splitFromItem: splitFrom,
       newItem: data.ID,
       changedBy: req.user?.id || "unknown",
@@ -1679,7 +1743,9 @@ this.on("createAndSubmitPrecertTicket", async (req) => {
         qtyToCertify: it.qtyToCertify,
         placeOfService: String(it.placeOfService || "").trim(),
         dateFrom: it.dateFrom,
-        dateTo: it.dateTo
+        dateTo: it.dateTo,
+        splitFrom_ID: originalItemId,
+        splitNo: 2
       }))
     )
   );
