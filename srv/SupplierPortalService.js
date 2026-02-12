@@ -86,12 +86,12 @@ function padWhereEq(where, refName, len) {
     }
   }
 }
-async function _trimOrNull(v) {
+ function _trimOrNull(v) {
   const s = String(v ?? "").trim();
   return s ? s : null;
 }
 
- async function _normalizeImputation(patch) {
+  function _normalizeImputation(patch) {
   const hasCeCo = !!_trimOrNull(patch.CostCenter);
   const hasOrd  = !!_trimOrNull(patch.OrderID);
   const hasNet  = !!_trimOrNull(patch.ProjectNetwork);
