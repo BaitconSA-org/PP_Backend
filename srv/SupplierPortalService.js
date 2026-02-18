@@ -1597,9 +1597,6 @@ this.after("CREATE", "PrecertTicketItems", async (data, req) => {
         status: createdUnderTicket.status,
         currency: createdUnderTicket.currency,
         totalAmount: 0,
-
-        splitFrom_ID: null,
-        splitNo: null
       })
     );
 
@@ -1774,8 +1771,8 @@ this.on("createAndSubmitPrecertTicket", async (req) => {
         placeOfService: String(it.placeOfService || "").trim(),
         dateFrom: it.dateFrom,
         dateTo: it.dateTo,
-        splitFrom_ID: originalItemId,
-        splitNo: 2
+        splitFrom_ID: null,
+        splitNo: null
       }))
     )
   );
