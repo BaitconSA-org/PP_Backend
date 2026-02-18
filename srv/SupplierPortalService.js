@@ -1530,10 +1530,23 @@ this.before("CREATE", "PrecertTicketItems", async (req) => {
   const tx = cds.tx(req);
 
   const ticketId = req.data?.ticket_ID;
-  const splitFrom = req.data?.splitFrom_ID;
+  const itemId   = String(req.data?.itemId || "").trim();
+  const lineId   = String(req.data?.lineId ?? "0").trim();
 
-  // solo si es split
-  if (ticketId && splitFrom) {
+  if (!ticketId || !itemId) return;
+
+  // ✅ Si crean sublínea (lineId != "0") y no mandan splitFrom_ID, inferirlo
+  if (lineId !== "0" && !req.data.splitFrom_ID) {
+    const original = await tx.run(
+      SELECT.one.from("PrecertTicketItems")
+        .columns(["ID"])
+        .where({ ticket_ID: ticketId, itemId, lineId: "0" })
+    );
+    if (original?.ID) req.data.splitFrom_ID = original.ID;
+  }
+
+  // ✅ Si ya tenemos splitFrom_ID, asignar splitNo
+  if (req.data.splitFrom_ID) {
     req.data.splitNo = await nextSplitNo(tx, ticketId);
   }
 });
@@ -1756,7 +1769,10 @@ this.on("createAndSubmitPrecertTicket", async (req) => {
       supplierID: supplierIDs[0],
       status: "ENVIADO",
       currency,
-      totalAmount
+      totalAmount,
+      nodeType: "TK",
+      parentTicket_ID: null,
+      subTicketNo: null
     })
   );
 
