@@ -125,6 +125,14 @@ function round6(v) {
 
 function n(v){ const x=Number(v); return Number.isFinite(x)?x:0; }
 
+function isHierarchyApply(req) {
+  const apply = req.query?.SELECT?.apply;
+  if (!apply) return false;
+  const s = JSON.stringify(apply);
+  return /HIERARCHY_|ancestors|descendants|recursivehierarchy/i.test(s);
+}
+
+
 async function nextSplitNo(tx, ticketId){
   const row = await tx.run(
     SELECT.one.from("PrecertTicketItems")
@@ -1303,9 +1311,7 @@ async function fetchPricingByItem({ s4Purchase, poId, itemIds }) {
       return req.reject(400, `Solo se puede enviar en estado CREADO (actual: ${status})`);
     }
 
-  
-    const sourceTypeRaw = String(ticket.sourceType || "").toUpperCase().trim();
-    const sourceType = normalizeSourceType(sourceTypeRaw) || sourceTypeRaw;
+    const sourceType = String(ticket.sourceType || "").toUpperCase().trim();
     const poId = String(ticket.sourceId || "").trim();
 
     if (sourceType !== "PO" || !poId) {
@@ -1500,16 +1506,25 @@ this.before(["UPDATE", "PATCH"], "PrecertTickets", async (req) => {
   }
 });
 
-this.before("READ", "PrecertTickets", (req) => {
-  //  Admin: 
-  if (isAdmin(req)) return;
-
-  // Supplier:
+this.before("READ", "PrecertTickets", async (req) => {
   const supplierIDs = getScopedSupplierIDs(req);
-  if (!supplierIDs) return;
+  if (!supplierIDs) return; 
+
+  if (isHierarchyApply(req)) {
+   //ownership por ID
+    const id = req.params?.[0]?.ID;
+    if (id) {
+      const ok = await SELECT.one.from(PrecertTickets)
+        .columns(["ID"])
+        .where({ ID: id, supplierID: { in: supplierIDs } });
+      if (!ok) return req.reject(403, "No autorizado");
+    }
+    return;
+  }
 
   req.query.where({ supplierID: { in: supplierIDs } });
 });
+
 
 this.before("CREATE", "PrecertTicketItems", async (req) => {
   const tx = cds.tx(req);
@@ -1522,6 +1537,17 @@ this.before("CREATE", "PrecertTicketItems", async (req) => {
     req.data.splitNo = await nextSplitNo(tx, ticketId);
   }
 });
+this.after("READ", "PrecertTickets", (data, req) => {
+  const supplierIDs = getScopedSupplierIDs(req);
+  if (!supplierIDs) return data;
+
+  const allowed = (t) => supplierIDs.includes(String(t?.supplierID || "").trim());
+
+  if (Array.isArray(data)) return data.filter(allowed);
+  if (data && !allowed(data)) return null;
+  return data;
+});
+
 
 this.after("CREATE", "PrecertTicketItems", async (data, req) => {
   const tx = cds.tx(req);
@@ -1613,7 +1639,6 @@ this.after("CREATE", "PrecertTicketItems", async (data, req) => {
 
 
 this.before("READ", "PrecertTicketItems", async (req) => {
-  if (isAdmin(req)) return;
 
   const supplierIDs = getScopedSupplierIDs(req);
   if (!supplierIDs) return;
@@ -1746,8 +1771,8 @@ this.on("createAndSubmitPrecertTicket", async (req) => {
         placeOfService: String(it.placeOfService || "").trim(),
         dateFrom: it.dateFrom,
         dateTo: it.dateTo,
-        splitFrom_ID: null,
-        splitNo: 0
+        splitFrom_ID: originalItemId,
+        splitNo: 2
       }))
     )
   );
