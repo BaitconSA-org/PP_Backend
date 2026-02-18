@@ -1596,7 +1596,10 @@ this.after("CREATE", "PrecertTicketItems", async (data, req) => {
         supplierID: createdUnderTicket.supplierID,
         status: createdUnderTicket.status,
         currency: createdUnderTicket.currency,
-        totalAmount: 0
+        totalAmount: 0,
+
+        splitFrom_ID: null,
+        splitNo: null
       })
     );
 
