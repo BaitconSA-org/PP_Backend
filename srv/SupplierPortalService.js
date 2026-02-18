@@ -126,11 +126,11 @@ function round6(v) {
 function n(v){ const x=Number(v); return Number.isFinite(x)?x:0; }
 
 function isHierarchyApply(req) {
-  const apply = req.query?.SELECT?.apply;
-  if (!apply) return false;
-  const s = JSON.stringify(apply);
-  return /HIERARCHY_|ancestors|descendants|recursivehierarchy/i.test(s);
+  const rawApply = req._?.req?.query?.$apply;   // <- viene del HTTP
+  return typeof rawApply === "string"
+    && rawApply.includes("com.sap.vocabularies.Hierarchy.v1.");
 }
+
 
 
 async function nextSplitNo(tx, ticketId){
@@ -1508,10 +1508,10 @@ this.before(["UPDATE", "PATCH"], "PrecertTickets", async (req) => {
 
 this.before("READ", "PrecertTickets", async (req) => {
   const supplierIDs = getScopedSupplierIDs(req);
-  if (!supplierIDs) return; 
+  if (!supplierIDs) return;
 
   if (isHierarchyApply(req)) {
-   //ownership por ID
+    // dejá solo tu malla por ID si viene por key
     const id = req.params?.[0]?.ID;
     if (id) {
       const ok = await SELECT.one.from(PrecertTickets)
@@ -1519,11 +1519,15 @@ this.before("READ", "PrecertTickets", async (req) => {
         .where({ ID: id, supplierID: { in: supplierIDs } });
       if (!ok) return req.reject(403, "No autorizado");
     }
-    return;
+    return; // 👈 clave
   }
 
+  // lectura normal (sin $apply hierarchy)
   req.query.where({ supplierID: { in: supplierIDs } });
 });
+
+
+
 
 
 this.before("CREATE", "PrecertTicketItems", async (req) => {
@@ -1551,8 +1555,12 @@ this.before("CREATE", "PrecertTicketItems", async (req) => {
   }
 });
 this.after("READ", "PrecertTickets", (data, req) => {
-  const supplierIDs = getScopedSupplierIDs(req);
-  if (!supplierIDs) return data;
+  if (isAdmin(req)) return data;
+
+  const raw = req.user?.attr?.supplierID;
+  const supplierIDs = (Array.isArray(raw) ? raw : raw ? [raw] : [])
+    .map(v => String(v).trim())
+    .filter(Boolean);
 
   const allowed = (t) => supplierIDs.includes(String(t?.supplierID || "").trim());
 
@@ -1560,6 +1568,7 @@ this.after("READ", "PrecertTickets", (data, req) => {
   if (data && !allowed(data)) return null;
   return data;
 });
+
 
 
 this.after("CREATE", "PrecertTicketItems", async (data, req) => {
@@ -1804,68 +1813,225 @@ this.on("createAndSubmitPrecertTicket", async (req) => {
   };
 });
 
-this.on('savePrecertTicketApproval', async (req) => {
-  const { ID, items } = req.data;
+this.on("savePrecertTicketApproval", async (req) => {
+  const tx = cds.tx(req);
 
-  const ticket = await SELECT.one.from(PrecertTickets).where({ ID });
-  if (!ticket) return req.error(404, 'Ticket no existe');
+  const supplierIDs = getScopedSupplierIDs(req);
+  if (!supplierIDs) return;
 
+  const { ID, items } = req.data || {};
+  if (!ID) return req.reject(400, "ID es obligatorio");
+  if (!Array.isArray(items) || !items.length) return req.reject(400, "items es obligatorio");
+
+  // 1) leer ticket (puede ser root o sub)
+  const t = await tx.run(
+    SELECT.one.from(PrecertTickets)
+      .columns(["ID","parentTicket_ID","ticketNumero","sourceType","sourceId","supplierID","status","currency"])
+      .where({ ID })
+  );
+  if (!t) return req.reject(404, "Ticket no existe");
+
+  // ownership simple
+  if (!isAdmin(req)) {
+    const owner = String(t.supplierID || "").trim();
+    if (!supplierIDs.includes(owner)) return req.reject(403, "No autorizado");
+  }
+
+  const rootTicketId = t.parentTicket_ID || t.ID;
+
+  // 2) helper: nextSubTicketNo + ensureSubTicket
+  const nextSubTicketNo = async () => {
+    const r = await tx.run(
+      SELECT.one.from(PrecertTickets)
+        .columns`max(subTicketNo) as maxNo`
+        .where({ parentTicket_ID: rootTicketId, nodeType: "SUB" })
+    );
+    return Number(r?.maxNo || 0) + 1;
+  };
+
+  const ensureSubTicket = async (subTicketNo) => {
+    let sub = await tx.run(
+      SELECT.one.from(PrecertTickets)
+        .columns(["ID"])
+        .where({ parentTicket_ID: rootTicketId, nodeType: "SUB", subTicketNo })
+    );
+    if (sub) return sub;
+
+    const subId = cds.utils.uuid();
+    await tx.run(
+      INSERT.into(PrecertTickets).entries({
+        ID: subId,
+        parentTicket_ID: rootTicketId,
+        nodeType: "SUB",
+        subTicketNo,
+        ticketNumero: t.ticketNumero,
+        sourceType: t.sourceType,
+        sourceId: t.sourceId,
+        supplierID: t.supplierID,
+        status: t.status,
+        currency: t.currency,
+        totalAmount: 0
+      })
+    );
+    return { ID: subId };
+  };
+
+  // 3) agrupar payload por itemId
+  const byItem = new Map(); // itemId -> rows[]
   for (const it of items) {
-    const itemId = String(it.itemId || '').trim();
-    const lineId = String(it.lineId ?? '0').trim();
-    const status = String(it.status || 'ENVIADO').toUpperCase();
+    const itemId = String(it.itemId || "").trim();
+    const lineId = String(it.lineId ?? "0").trim(); // viene del front como SubRegistro
 
-    const existing = await SELECT.one.from(PrecertTicketItems).where({
-      ticket_ID: ID,
-      itemId,
-      lineId
-    });
+    if (!itemId) return req.reject(400, "Item inválido: falta itemId");
+    if (!/^\d+$/.test(lineId)) return req.reject(400, `lineId inválido en item ${itemId}`);
 
-    const patch = {
-      qtyToCertify: it.qtyToCertify,
-      placeOfService: it.placeOfService,
-      dateFrom: it.dateFrom,
-      dateTo: it.dateTo,
-      status,
+    const row = { ...it, itemId, lineId };
+    if (!byItem.has(itemId)) byItem.set(itemId, []);
+    byItem.get(itemId).push(row);
+  }
 
-      AccountAssignmentNumber: _trimOrNull(it.AccountAssignmentNumber),
-      GLAccount: _trimOrNull(it.GLAccount),
-      CostCenter: _trimOrNull(it.CostCenter),
-      ProjectNetwork: _trimOrNull(it.ProjectNetwork),
-      OrderID: _trimOrNull(it.OrderID)
+
+  const subTicketForItem = new Map(); // itemId -> {subTicketNo, subId}
+
+  for (const [itemId, rows] of byItem.entries()) {
+    rows.sort((a,b) => Number(a.lineId) - Number(b.lineId));
+
+    const has0 = rows.some(r => r.lineId === "0");
+    const has1 = rows.some(r => r.lineId === "1");
+    const baseLineId = has0 ? "0" : (has1 ? "1" : rows[0].lineId);
+
+
+    let baseDb = await tx.run(
+      SELECT.one.from(PrecertTicketItems)
+        .columns(["ID"])
+        .where({ ticket_ID: rootTicketId, itemId, lineId: baseLineId })
+    );
+
+
+    const baseRow = rows.find(r => r.lineId === baseLineId);
+    if (!baseRow) return req.reject(400, `No se encontró línea base para item ${itemId}`);
+
+    // Upsert base primero (para garantizar splitFrom_ID)
+    const basePatch = {
+      qtyToCertify: baseRow.qtyToCertify,
+      placeOfService: String(baseRow.placeOfService || "").trim(),
+      dateFrom: baseRow.dateFrom,
+      dateTo: baseRow.dateTo,
+      status: String(baseRow.status || "ENVIADO").toUpperCase(),
+      AccountAssignmentNumber: _trimOrNull(baseRow.AccountAssignmentNumber),
+      GLAccount: _trimOrNull(baseRow.GLAccount),
+      CostCenter: _trimOrNull(baseRow.CostCenter),
+      ProjectNetwork: _trimOrNull(baseRow.ProjectNetwork),
+      OrderID: _trimOrNull(baseRow.OrderID),
+      splitFrom_ID: null,
+      splitNo: null
     };
-    _normalizeImputation(patch);
+    _normalizeImputation(basePatch);
 
-    if (existing) {
-      await UPDATE(PrecertTicketItems)
-        .set(patch)
-        .where({ ID: existing.ID });
+    if (baseDb) {
+      await tx.run(UPDATE(PrecertTicketItems).set(basePatch).where({ ID: baseDb.ID }));
     } else {
-      await INSERT.into(PrecertTicketItems).entries({
-        ticket_ID: ID,
-        itemId,
-        lineId,
-        ...patch
-      });
+      const newBaseId = cds.utils.uuid();
+      await tx.run(
+        INSERT.into(PrecertTicketItems).entries({
+          ID: newBaseId,
+          ticket_ID: rootTicketId,
+          itemId,
+          lineId: baseLineId,
+          ...basePatch
+        })
+      );
+      baseDb = { ID: newBaseId };
+    }
+
+    // Si hay más de una línea => necesitamos SUB ticket para este itemId
+    const hasSplits = rows.some(r => r.lineId !== baseLineId);
+    if (hasSplits) {
+      const subTicketNo = await nextSubTicketNo();
+      const sub = await ensureSubTicket(subTicketNo);
+      subTicketForItem.set(itemId, { subTicketNo, subId: sub.ID, baseLineId, baseItemId: baseDb.ID });
+    } else {
+      subTicketForItem.set(itemId, { subTicketNo: null, subId: null, baseLineId, baseItemId: baseDb.ID });
     }
   }
 
-  const dbItems = await SELECT.from(PrecertTicketItems).where({ ticket_ID: ID });
+  // 5) procesar splits (lineId != base)
+  for (const [itemId, rows] of byItem.entries()) {
+    const meta = subTicketForItem.get(itemId);
+    const { subTicketNo, subId, baseLineId, baseItemId } = meta;
 
-  const anyPending = dbItems.some(x => (x.status || '').toUpperCase() === 'ENVIADO');
-  const anyApproved = dbItems.some(x => (x.status || '').toUpperCase() === 'APROBADO');
-  const allRejected = dbItems.length && dbItems.every(x => (x.status || '').toUpperCase() === 'RECHAZADO');
+    for (const r of rows) {
+      if (r.lineId === baseLineId) continue; // base ya procesado
 
-  const newTicketStatus =
-    anyPending ? 'ENVIADO'
-    : allRejected ? 'RECHAZADO'
-    : anyApproved ? 'APROBADO'
-    : ticket.status || 'ENVIADO';
+      const patch = {
+        qtyToCertify: r.qtyToCertify,
+        placeOfService: String(r.placeOfService || "").trim(),
+        dateFrom: r.dateFrom,
+        dateTo: r.dateTo,
+        status: String(r.status || "ENVIADO").toUpperCase(),
+        AccountAssignmentNumber: _trimOrNull(r.AccountAssignmentNumber),
+        GLAccount: _trimOrNull(r.GLAccount),
+        CostCenter: _trimOrNull(r.CostCenter),
+        ProjectNetwork: _trimOrNull(r.ProjectNetwork),
+        OrderID: _trimOrNull(r.OrderID),
 
-  await UPDATE(PrecertTickets).set({ status: newTicketStatus }).where({ ID });
+        // 👇 acá está la magia
+        splitFrom_ID: baseItemId,
+        splitNo: subTicketNo
+      };
+      _normalizeImputation(patch);
 
-  return await SELECT.one.from(PrecertTickets).where({ ID }).columns(
-    '*', { items: '*' }
+      // upsert en root (o directo en sub; yo lo hago directo en sub para que el tree ya quede bien)
+      const existing = await tx.run(
+        SELECT.one.from(PrecertTicketItems)
+          .columns(["ID"])
+          .where({ ticket_ID: subId, itemId, lineId: r.lineId })
+      );
+
+      if (existing) {
+        await tx.run(UPDATE(PrecertTicketItems).set(patch).where({ ID: existing.ID }));
+      } else {
+        await tx.run(
+          INSERT.into(PrecertTicketItems).entries({
+            ID: cds.utils.uuid(),
+            ticket_ID: subId,
+            itemId,
+            lineId: r.lineId,
+            ...patch
+          })
+        );
+      }
+    }
+  }
+
+  // 6) recalcular status del root en base a root+subs
+  const subIds = await tx.run(
+    SELECT.from(PrecertTickets).columns(["ID"]).where({ parentTicket_ID: rootTicketId, nodeType: "SUB" })
+  );
+  const ticketIds = [rootTicketId, ...(subIds || []).map(x => x.ID)];
+
+  const all = await tx.run(
+    SELECT.from(PrecertTicketItems).columns(["status"]).where({ ticket_ID: { in: ticketIds } })
+  );
+
+  const anyPending  = (all || []).some(x => String(x.status || "").toUpperCase() === "ENVIADO");
+  const anyApproved = (all || []).some(x => String(x.status || "").toUpperCase() === "APROBADO");
+  const allRejected = (all || []).length && (all || []).every(x => String(x.status || "").toUpperCase() === "RECHAZADO");
+
+  const newStatus =
+    anyPending ? "ENVIADO"
+    : allRejected ? "RECHAZADO"
+    : anyApproved ? "APROBADO"
+    : (t.status || "ENVIADO");
+
+  await tx.run(UPDATE(PrecertTickets).set({ status: newStatus }).where({ ID: rootTicketId }));
+  await tx.run(UPDATE(PrecertTickets).set({ status: newStatus }).where({ parentTicket_ID: rootTicketId }));
+
+  // devolver root (simple)
+  return tx.run(
+    SELECT.one.from(PrecertTickets)
+      .where({ ID: rootTicketId })
+      .columns("*", { items: "*" })
   );
 });
 
