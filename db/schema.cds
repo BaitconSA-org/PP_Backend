@@ -368,3 +368,12 @@ entity PrecertTicketSplitLog : cuid, managed {
   snapshotJson   : LargeString;     // JSON para debug
 }
 
+entity Provincias : iDDescription {
+  
+}
+
+
+entity iDDescription: managed {
+key ID: String;
+description: String;
+}
