@@ -901,6 +901,10 @@ type SyncResult {
   entity CompanyCode as projection on supplierPortalGD.CompanyCode;
 
 
+  // Proyecciones para tickets items
+
+  entity Provincias as projection on supplierPortalGD.Provincias;
+
   //proyecciones Roles
 
   entity Roles as projection on supplierPortalGD.Roles;
