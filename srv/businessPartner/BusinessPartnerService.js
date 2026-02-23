@@ -8,15 +8,37 @@ const buildOrFilter = (field, values) =>
   );
 
 /* ------------------------------------------------------------------ */
+function getSupplierIDs(req) {
+  // 1) Lo que vos esperabas (mapeo CAP)
+  let raw = req.user?.attr?.supplierID;
+
+  // 2) Fallback: leer directo del JWT (xsuaa)
+  if (!raw && req.user?.tokenInfo?.getPayload) {
+    const p = req.user.tokenInfo.getPayload();
+    raw =
+      p?.['xs.user.attributes']?.supplierID ??
+      p?.['xs.user.attributes']?.supplierId ??
+      p?.supplierID ??
+      p?.supplierId;
+  }
+
+  // Normalizar a array
+  return Array.isArray(raw) ? raw : raw ? [raw] : [];
+}
 async function handleBusinessPartnerRead(req) {
   const s4bp = await cds.connect.to('A_BusinessPartner');
 
-  //const userSupplierIDs = ['31300001'];
-  const userSupplierIDs = req.user?.attr?.supplierID;
+  const userSupplierIDs = getSupplierIDs(req);
 
-  if (!Array.isArray(userSupplierIDs) || !userSupplierIDs.length) {
-    return req.reject(403, 'El usuario no cuenta con roles de proveedor (supplierID).');
-  }
+ if (!userSupplierIDs.length) {
+  const p = req.user?.tokenInfo?.getPayload?.();
+  console.warn('[BP AUTH] no supplierID', {
+    user: req.user?.id,
+    attr: req.user?.attr,
+    xsUserAttributes: p?.['xs.user.attributes']
+  });
+  return req.reject(403, 'El usuario no cuenta con roles de proveedor (supplierID).');
+}
 
   try {
     if (req.params?.length) {
