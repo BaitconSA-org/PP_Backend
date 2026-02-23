@@ -539,6 +539,8 @@ service SupplierPortalService
     }
 
 
+
+    @readonly
     entity BusinessPartnerExt as select from prt.A_BusinessPartner as bp {
     key bp.BusinessPartner,
         bp.Customer,
@@ -823,7 +825,9 @@ extend supplierPortalGD.PrecertTickets with {
   items : array of UpdatePrecertItem
 ) returns PrecertTickets;
   
+//Action BP
 
+action createBusinessPartner(payload: LargeString) returns prt.A_BusinessPartner;
 
     
   // ----> DOX

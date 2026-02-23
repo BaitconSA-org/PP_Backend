@@ -770,6 +770,41 @@ module.exports = cds.service.impl(async function () {
  */
 
   this.on('READ', 'BusinessPartnerExt', (req) => handleBusinessPartnerRead(req, s4bp));
+  // CREATE BusinessPartnerExt
+  this.on('createBusinessPartner', async (req) => {
+  
+  let raw = req.data?.payload;
+
+  if (raw == null || raw === '') {
+    return req.reject(400, 'payload es obligatorio (JSON en string)');
+  }
+
+  let data;
+  try {
+    if (typeof raw === 'string') data = JSON.parse(raw);
+    else data = raw;
+  } catch (e) {
+    return req.reject(400, 'payload no es JSON válido');
+  }
+
+ 
+  try {
+    const created = await s4bp.send({
+      method: 'POST',
+      path: '/A_BusinessPartner',
+      data
+    });
+
+    return JSON.stringify(created);
+
+  } catch (e) {
+    console.error('[createBusinessPartner] remote error:', e?.reason || e);
+    return req.reject(
+      e?.statusCode || 502,
+      e?.reason?.message || e?.message || 'Error creando Business Partner en S/4'
+    );
+  }
+});
 
   /**************** FIN 4 **************/
 
