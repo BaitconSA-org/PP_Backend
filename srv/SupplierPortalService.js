@@ -62,7 +62,7 @@ function getScopedSupplierIDs(req) {
       req.user?.id === "anonymous" ||
       cds.env.profile?.includes?.("development");
 
-    if (!supplierIDs.length && isLocal) return ["0031300001"];
+    if (!supplierIDs.length && isLocal) return ["31300001"];
 
     if (!supplierIDs.length) {
       console.log("[AUTH] Missing supplierID attribute. user=", req.user?.id, "attrs=", req.user?.attr);

@@ -67,7 +67,8 @@ service SupplierPortalService
     ];
     annotate BusinessPartnerExt with @restrict :
     [
-        { grant: ['READ'], to: ['any'] }
+        { grant: ['*'], to: ['SupplierUser'] },
+        { grant: ['*'], to: ['authenticated-user'] }
     ];
 
     // Tablas Locales (CSV)

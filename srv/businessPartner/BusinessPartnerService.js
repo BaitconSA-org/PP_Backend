@@ -25,8 +25,7 @@ function getSupplierIDs(req) {
   // Normalizar a array
   return Array.isArray(raw) ? raw : raw ? [raw] : [];
 }
-async function handleBusinessPartnerRead(req) {
-  const s4bp = await cds.connect.to('A_BusinessPartner');
+async function handleBusinessPartnerRead(req,s4bp) {
 
   const userSupplierIDs = getSupplierIDs(req);
 
