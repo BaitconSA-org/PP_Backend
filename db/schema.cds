@@ -322,6 +322,8 @@ entity PaymentOrderRefs : cuid, managed {
     parentTicket  : Association to PrecertTickets;
     subTickets    : Composition of many PrecertTickets
                     on subTickets.parentTicket = $self;
+
+    provincia : Association to Provincias;
                     
 
   }

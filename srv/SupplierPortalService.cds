@@ -65,6 +65,11 @@ service SupplierPortalService
         { grant: ['READ'], to: ['Supplier'] },
         { grant: ['READ'], to: ['authenticated-user'] }
     ];
+    annotate BusinessPartnerExt with @restrict :
+    [
+        { grant : [ '*' ], to : [ 'SupplierUser' ] },
+        { grant : [ '*' ], to : [ 'authenticated-user' ] }
+    ];
 
     // Tablas Locales (CSV)
     entity TaxCodes             as projection on TaxCodes_;
