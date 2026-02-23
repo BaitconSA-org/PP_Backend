@@ -1,4 +1,5 @@
 const cds = require('@sap/cds');
+const { SELECT } = cds.ql;
 
 /* ------------------------------------------------------------------ */
 const buildOrFilter = (field, values) =>
@@ -25,23 +26,28 @@ function getSupplierIDs(req) {
   // Normalizar a array
   return Array.isArray(raw) ? raw : raw ? [raw] : [];
 }
-async function handleBusinessPartnerRead(req,s4bp) {
+async function handleBusinessPartnerRead(req) {
+  const s4bp = await cds.connect.to('A_BusinessPartner');
 
-  const userSupplierIDs = getSupplierIDs(req);
+  let userSupplierIDs = req.user?.attr?.supplierID;
 
- if (!userSupplierIDs.length) {
-  const p = req.user?.tokenInfo?.getPayload?.();
-  console.warn('[BP AUTH] no supplierID', {
-    user: req.user?.id,
-    attr: req.user?.attr,
-    xsUserAttributes: p?.['xs.user.attributes']
-  });
-  return req.reject(403, 'El usuario no cuenta con roles de proveedor (supplierID).');
-}
+  const isLocal =
+    req.user?.id === 'system' ||
+    req.user?.id === 'anonymous' ||
+    cds.env.profile?.includes?.('development');
+
+  if (!Array.isArray(userSupplierIDs) || !userSupplierIDs.length) {
+    if (isLocal) {
+      console.warn('⚠️ Ejecutando en modo local o sin token. Usando proveedor mock.');
+      userSupplierIDs = ['31300001'];
+    } else {
+      return req.reject(403, 'El usuario no cuenta con roles de proveedor (supplierID).');
+    }
+  }
 
   try {
     if (req.params?.length) {
-      const bpRow = await s4bp.run(req.query);           // delega por clave
+      const bpRow = await s4bp.run(req.query);
       if (!bpRow) return req.reject(404);
 
       if (!userSupplierIDs.includes(bpRow.Supplier)) {
@@ -51,7 +57,7 @@ async function handleBusinessPartnerRead(req,s4bp) {
     }
 
     const query = JSON.parse(JSON.stringify(req.query));
-    delete query.SELECT?.count;                          // Eliminar count por no ser compatible con API
+    delete query.SELECT?.count;
 
     const supplierFilter = buildOrFilter('Supplier', userSupplierIDs);
 
