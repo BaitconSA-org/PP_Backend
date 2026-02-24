@@ -827,8 +827,10 @@ extend supplierPortalGD.PrecertTickets with {
   
 //Action BP
 
-action createBusinessPartner(payload: LargeString) returns prt.A_BusinessPartner;
+type CreateBusinessPartnerResult {
+  }
 
+  action createBusinessPartner(payload : LargeString) returns CreateBusinessPartnerResult;
     
   // ----> DOX
   action uploadPdf(
