@@ -1407,7 +1407,7 @@ async function fetchPricingByItem({ s4Purchase, poId, itemIds }) {
     await tx.run(
       UPDATE(PrecertTickets)
         .set({
-          status: "ENVIADO",
+          status: "PENDIENTE",
           currency: currency,
           totalAmount: totalAmount
         })
@@ -1418,7 +1418,7 @@ async function fetchPricingByItem({ s4Purchase, poId, itemIds }) {
     return {
       ticketId: ticketId,
       ticketNumero: ticket.ticketNumero,
-      status: "ENVIADO",
+      status: "PENDIENTE",
       currency: currency,
       totalAmount: totalAmount,
       lines: lines
@@ -1503,8 +1503,8 @@ this.before(["UPDATE", "PATCH"], "PrecertTickets", async (req) => {
     const to   = String(req.data.status || "").toUpperCase();
 
     const allowed = {
-      CREADO:    new Set(["CREADO", "ENVIADO", "CANCELADO"]),
-      ENVIADO:  new Set(["ENVIADO", "APROBADO", "RECHAZADO"]),
+      CREADO:    new Set(["CREADO", "PENDIENTE", "CANCELADO"]),
+      PENDIENTE:  new Set(["PENDIENTE", "APROBADO", "RECHAZADO"]),
       APROBADO:   new Set(["APROBADO"]),
       RECHAZADO:   new Set(["RECHAZADO"]),
       CANCELADO:  new Set(["CANCELADO"])
@@ -1786,7 +1786,7 @@ this.on("createAndSubmitPrecertTicket", async (req) => {
       sourceType: sType,
       sourceId: sId,
       supplierID: supplierIDs[0],
-      status: "ENVIADO",
+      status: "PENDIENTE",
       currency,
       totalAmount,
       nodeType: "TK",
@@ -1816,7 +1816,7 @@ this.on("createAndSubmitPrecertTicket", async (req) => {
   return {
     ticketId,
     ticketNumero,
-    status: "ENVIADO",
+    status: "PENDIENTE",
     currency,
     totalAmount,
     lines
@@ -1927,7 +1927,7 @@ this.on("savePrecertTicketApproval", async (req) => {
       placeOfService: String(baseRow.placeOfService || "").trim(),
       dateFrom: baseRow.dateFrom,
       dateTo: baseRow.dateTo,
-      status: String(baseRow.status || "ENVIADO").toUpperCase(),
+      status: String(baseRow.status || "PENDIENTE").toUpperCase(),
       AccountAssignmentNumber: _trimOrNull(baseRow.AccountAssignmentNumber),
       GLAccount: _trimOrNull(baseRow.GLAccount),
       CostCenter: _trimOrNull(baseRow.CostCenter),
@@ -1978,7 +1978,7 @@ this.on("savePrecertTicketApproval", async (req) => {
         placeOfService: String(r.placeOfService || "").trim(),
         dateFrom: r.dateFrom,
         dateTo: r.dateTo,
-        status: String(r.status || "ENVIADO").toUpperCase(),
+        status: String(r.status || "PENDIENTE").toUpperCase(),
         AccountAssignmentNumber: _trimOrNull(r.AccountAssignmentNumber),
         GLAccount: _trimOrNull(r.GLAccount),
         CostCenter: _trimOrNull(r.CostCenter),
@@ -2024,15 +2024,15 @@ this.on("savePrecertTicketApproval", async (req) => {
     SELECT.from(PrecertTicketItems).columns(["status"]).where({ ticket_ID: { in: ticketIds } })
   );
 
-  const anyPending  = (all || []).some(x => String(x.status || "").toUpperCase() === "ENVIADO");
+  const anyPending  = (all || []).some(x => String(x.status || "").toUpperCase() === "PENDIENTE");
   const anyApproved = (all || []).some(x => String(x.status || "").toUpperCase() === "APROBADO");
   const allRejected = (all || []).length && (all || []).every(x => String(x.status || "").toUpperCase() === "RECHAZADO");
 
   const newStatus =
-    anyPending ? "ENVIADO"
+    anyPending ? "PENDIENTE"
     : allRejected ? "RECHAZADO"
     : anyApproved ? "APROBADO"
-    : (t.status || "ENVIADO");
+    : (t.status || "PENDIENTE");
 
   await tx.run(UPDATE(PrecertTickets).set({ status: newStatus }).where({ ID: rootTicketId }));
   await tx.run(UPDATE(PrecertTickets).set({ status: newStatus }).where({ parentTicket_ID: rootTicketId }));
