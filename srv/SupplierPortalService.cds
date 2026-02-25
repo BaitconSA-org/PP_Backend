@@ -791,7 +791,7 @@ extend supplierPortalGD.PrecertTickets with {
     type CreatePrecertItem : {
     itemId        : String(10);
     qtyToCertify  : Decimal(15,3);
-    placeOfService: String(100);
+    provincia_ID: String(100);
     dateFrom      : Date;
     dateTo        : Date;
   };
@@ -801,11 +801,11 @@ extend supplierPortalGD.PrecertTickets with {
   lineId         : String(20);          // Sub-línea: "0","1","2"... (split)
 
   qtyToCertify   : Decimal(15,3);
-  placeOfService : String(100);
+  provincia_ID : String(100);
   dateFrom       : Date;
   dateTo         : Date;
 
-  status         : String(30);          // "ENVIADO" | "APROBADO" | "RECHAZADO"
+  status         : String(30);          // "PENDIENTE" | "APROBADO" | "RECHAZADO"
   AccountAssignmentNumber : String(2);
   GLAccount              : String(10);
   CostCenter             : String(10);

@@ -284,7 +284,6 @@ entity PaymentOrderRefs : cuid, managed {
 
     // Editables por proveedor
     qtyToCertify         : Decimal(13,3);
-    placeOfService       : String(20);
     dateFrom             : Date;
     dateTo               : Date;
 
@@ -344,7 +343,7 @@ entity PaymentOrderRefs : cuid, managed {
 
   // editables
   qtyToCertify   : Decimal(13,3);
-  placeOfService : String(20);
+  provincia : Association to Provincias;
   dateFrom       : Date;
   dateTo         : Date;
 

@@ -1649,7 +1649,7 @@ this.after("CREATE", "PrecertTicketItems", async (data, req) => {
     itemId: data.itemId,
     lineId: data.lineId,
     qtyToCertify: data.qtyToCertify,
-    placeOfService: data.placeOfService,
+    provincia_ID: data.provincia_ID,
     dateFrom: data.dateFrom,
     dateTo: data.dateTo,
     status: data.status,
@@ -1803,7 +1803,7 @@ this.on("createAndSubmitPrecertTicket", async (req) => {
         ticket_ID: ticketId,
         itemId: String(it.itemId || "").trim(),
         qtyToCertify: it.qtyToCertify,
-        placeOfService: String(it.placeOfService || "").trim(),
+        provincia_ID: String(it.provincia_ID || "").trim(),
         dateFrom: it.dateFrom,
         dateTo: it.dateTo,
         splitFrom_ID: null,
@@ -1924,7 +1924,7 @@ this.on("savePrecertTicketApproval", async (req) => {
     // Upsert base primero (para garantizar splitFrom_ID)
     const basePatch = {
       qtyToCertify: baseRow.qtyToCertify,
-      placeOfService: String(baseRow.placeOfService || "").trim(),
+      provincia_ID: String(baseRow.provincia_ID || "").trim(),
       dateFrom: baseRow.dateFrom,
       dateTo: baseRow.dateTo,
       status: String(baseRow.status || "PENDIENTE").toUpperCase(),
@@ -1975,7 +1975,7 @@ this.on("savePrecertTicketApproval", async (req) => {
 
       const patch = {
         qtyToCertify: r.qtyToCertify,
-        placeOfService: String(r.placeOfService || "").trim(),
+        provincia_ID: String(r.provincia_ID || "").trim(),
         dateFrom: r.dateFrom,
         dateTo: r.dateTo,
         status: String(r.status || "PENDIENTE").toUpperCase(),
