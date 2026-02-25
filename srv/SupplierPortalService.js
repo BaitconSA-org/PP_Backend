@@ -988,7 +988,7 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
     }
   })
    
-this.on("getPrecertCandidates", async (req) => {
+this.on("getPrecertTicket", async (req) => {
   
   const supplierIDs = getScopedSupplierIDs(req);
   if (!Array.isArray(supplierIDs) || supplierIDs.length === 0) {
@@ -1124,7 +1124,7 @@ this.on("getPrecertCandidates", async (req) => {
 
     return [];
   } catch (e) {
-    console.error("[getPrecertCandidates] error:", e);
+    console.error("[getPrecertTickets] error:", e);
     return req.reject(500, "Error al obtener posiciones para precertificación");
   }
 });

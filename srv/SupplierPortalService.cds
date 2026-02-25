@@ -692,10 +692,6 @@ service SupplierPortalService
   null as DrillState             : String,
   null as LimitedRank            : Integer
 };
-      entity PrecertItemCandidate as projection on supplierPortalGD.PrecertItemCandidate;
-      @readonly
-      @restrict: [
-        { grant: 'READ', to: 'Admin' },      ]
       entity PrecertTicketSplitLog as projection on supplierPortalGD.PrecertTicketSplitLog;
       @readonly
 
@@ -767,10 +763,10 @@ extend supplierPortalGD.PrecertTickets with {
 
   // ACTION PRECERT
 
-   action getPrecertCandidates(
+   action getPrecertTicket(
     sourceType : String(10),   // "PO" | "CM"
     sourceId   : String(20)
-  ) returns array of PrecertItemCandidate;
+  ) returns array of PrecertTickets;
 
     type SubmitPrecertLine : {
     itemId     : String(10);
