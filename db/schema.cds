@@ -258,6 +258,8 @@ entity CompanyCode{
                     on subTickets.parentTicket = $self;
 
     provincia : Association to Provincias;
+    glAccount : Association to GlobalLedgerAccounts;
+
                     
 
   }
@@ -288,7 +290,7 @@ entity CompanyCode{
 
   // imputación
   AccountAssignmentNumber : String(2);
-  GLAccount               : String(10);
+  glAccount : Association to GlobalLedgerAccounts;
   CostCenter              : String(10);
   ProjectNetwork          : String(12); // grafo/network
   OrderID                 : String(12); // orden
