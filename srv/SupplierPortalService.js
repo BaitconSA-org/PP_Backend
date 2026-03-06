@@ -814,7 +814,6 @@ this.on('READ', 'MaterialDocumentItemExt', async (req) => {
             query.limit(100);
         }
 
-        // Manejar expand
         const expandHeader =
             req.query.SELECT.expand &&
             req.query.SELECT.expand.find(e => e.ref && e.ref[0] === 'to_MaterialDocumentHeader');
