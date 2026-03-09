@@ -305,6 +305,154 @@ entity PrecertTicketSplitLog : cuid, managed {
   changedBy      : String(255);
   snapshotJson   : LargeString;     // JSON para debug
 }
+entity BusinessPartnerDocuments : cuid, managed {
+    document_type    : String(50);
+    file_name        : String(100);
+    description      : String(200);
+    file_url         : String(200);
+    business_partner : Association to BusinessPartners;
+}
+ 
+/**
+ * Entidad Principal: Datos Maestros (LFA1 / BUT000)
+ */
+entity BusinessPartners : cuid, managed {
+    provider_name           : String;
+    fullname                : String;
+    trade_name              : String;
+    provider_category       : String(4);
+    regional_category       : String(4);
+    vat_registration        : String;
+    authorization_group     : String(4);
+    business_partner_number : String(50);
+    order_number            : String(10);
+    lifnr                   : String(10);
+
+    ut_company_count        : Integer;
+    ut_company_1            : String;
+    ut_company_2            : String;
+    ut_company_3            : String;
+    ut_company_4            : String;
+    suss_desc_1             : String;
+    suss_desc_2             : String;
+    suss_desc_3             : String;
+    suss_desc_4             : String;
+
+    to_addresses            : Composition of many Addresses
+                                  on to_addresses.business_partner = $self;
+    to_tax_numbers          : Composition of many TaxNumbers
+                                  on to_tax_numbers.business_partner = $self;
+    to_bank_details         : Composition of many BankDetails
+                                  on to_bank_details.business_partner = $self;
+    to_company_codes        : Composition of many CompanyData
+                                  on to_company_codes.business_partner = $self;
+    to_purchasing           : Composition of many PurchasingData
+                                  on to_purchasing.business_partner = $self;
+    to_withholding          : Composition of many WithholdingTaxes
+                                  on to_withholding.business_partner = $self;
+    to_contacts             : Composition of many Contacts
+                                  on to_contacts.business_partner = $self;
+    documents               : Composition of many BusinessPartnerDocuments
+                                  on documents.business_partner = $self;
+    status                  : Composition of many WorkflowStatus
+                                  on status.business_partner = $self;
+}
+ 
+entity WorkflowStatus : cuid, managed {
+    business_partner : Association to BusinessPartners;
+    precert_ticket   : Association to PrecertTickets;
+    description      : String(50);
+    asigned_user     : String(20);
+    status           : String(20);
+    approved_by      : String(50);
+    application_type : String(40);
+//agregar asociación a HES
+}
+ 
+/**
+ * Direcciones (LFA1)
+ */
+entity Addresses : cuid, managed {
+    business_partner : Association to BusinessPartners;
+    provider_country : String(3); // LAND1
+    street_name      : String; // STRAS
+    city             : String; // ORT01
+    postal_code      : String; // PSTLZ
+    house_number     : String; // (Falta campo SAP en Hoja1)
+}
+ 
+/**
+ * Identificación Fiscal (LFA1)
+ */
+entity TaxNumbers : cuid, managed {
+    business_partner          : Association to BusinessPartners;
+    identification_number     : String; // STCD1 (CUIT/NIF)
+    tax_identification_number : String; // STCDT (Tipo ID Fiscal)
+}
+ 
+/**
+ * Datos Bancarios (LFBK)
+ */
+entity BankDetails : cuid, managed {
+    business_partner             : Association to BusinessPartners;
+    bank_key                     : String; // BANKL (ID banco)
+    bank_account                 : String; // BANKN
+    account_holder               : String; // KOINH
+    bank_country                 : String; // BANKS
+    bank_stardard_identification : String; // BANKKL (Standard ID)
+}
+ 
+/**
+ * Datos de Sociedad (LFB1)
+ */
+entity CompanyData : cuid, managed {
+    business_partner         : Association to BusinessPartners;
+    company_code             : String(4); // BUKRS
+    currency                 : String(3); // WAERS (Moneda de pago)
+    payment_terms            : String(4); // ZTERM
+    blocking_indicator       : Boolean; // SPERR
+    payment_block            : String(2); // ZAHLS
+    account_determination    : String; // AKINT/AKONT
+    default_accounting_group : String; // TOGRU
+}
+ 
+/**
+ * Datos de Compras (LFM1)
+ */
+entity PurchasingData : cuid, managed {
+    business_partner   : Association to BusinessPartners;
+    purchase_org       : String(4); // EKORG
+    buy_order_currency : String(3); // WAERS
+    po_payment_terms   : String(4); // ZTERM
+    incoterms          : String(3); // INCO1
+    puchase_block      : Boolean; // SPERM
+    payment_conditions : String; // ZTERM (Repetido en Hoja1)
+    webre_flag         : Boolean; // WEBRE (Campo Z)
+    lebre_flag         : Boolean; // LEBRE (Campo Z)
+    calculation_type   : String; // KALSK
+}
+ 
+/**
+ * Retenciones (LFBW)
+ */
+entity WithholdingTaxes : cuid, managed {
+    business_partner : Association to BusinessPartners;
+    taxes_country    : String(3); // LAND1
+    taxes_type       : String; // WT_WITHCD
+    taxes_code       : String; // WT_SUBJCD
+}
+ 
+/**
+ * Contactos y Emails (KNVK / ADR6)
+ */
+entity Contacts : cuid, managed {
+    business_partner   : Association to BusinessPartners;
+    contact_first_name : String; // KNVK-NAMEV
+    contact_last_name  : String; // KNVK-NAME1
+    contact_phone      : String; // LFA1-TELF1
+    contact_email      : String; // ADR6-SMTP_ADDR
+    billing_email      : String; // ADR6-SMTP_ADDR (Email cobranzas)
+}
 
 entity Provincias : iDDescription {
   

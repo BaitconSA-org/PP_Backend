@@ -4,16 +4,15 @@ const { SELECT } = cds.ql;
 /* ------------------------------------------------------------------ */
 const buildOrFilter = (field, values) =>
   values.flatMap((v, i) =>
-    i === 0 ? [{ ref: [field] }, '=', { val: v }]
+    i === 0
+      ? [{ ref: [field] }, '=', { val: v }]
       : ['or', { ref: [field] }, '=', { val: v }],
   );
 
 /* ------------------------------------------------------------------ */
 function getSupplierIDs(req) {
-  // 1) Lo que vos esperabas (mapeo CAP)
   let raw = req.user?.attr?.supplierID;
 
-  // 2) Fallback: leer directo del JWT (xsuaa)
   if (!raw && req.user?.tokenInfo?.getPayload) {
     const p = req.user.tokenInfo.getPayload();
     raw =
@@ -23,13 +22,40 @@ function getSupplierIDs(req) {
       p?.supplierId;
   }
 
-  // Normalizar a array
   return Array.isArray(raw) ? raw : raw ? [raw] : [];
 }
+
+/* ------------------------------------------------------------------ */
+async function generarNumeroPedidoUnico() {
+  const db = await cds.connect.to('db');
+  let numero;
+  let existe = true;
+
+  while (existe) {
+    numero = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+
+    const registro = await db.run(
+      SELECT.one.from('BusinessPartners').where({ order_number: numero })
+    );
+
+    existe = !!registro;
+  }
+
+  return numero;
+}
+
+/* ------------------------------------------------------------------ */
+async function beforeCreateBusinessPartner(req) {
+  if (!req.data.order_number) {
+    req.data.order_number = await generarNumeroPedidoUnico();
+  }
+}
+
+/* ------------------------------------------------------------------ */
 async function handleBusinessPartnerRead(req) {
   const s4bp = await cds.connect.to('A_BusinessPartner');
 
-  let userSupplierIDs = req.user?.attr?.supplierID;
+  let userSupplierIDs = getSupplierIDs(req);
 
   const isLocal =
     req.user?.id === 'system' ||
@@ -53,6 +79,7 @@ async function handleBusinessPartnerRead(req) {
       if (!userSupplierIDs.includes(bpRow.Supplier)) {
         return req.reject(403, `BusinessPartner ${bpRow.BusinessPartner} no autorizado.`);
       }
+
       return await enrichWithAssociations(bpRow, s4bp);
     }
 
@@ -71,7 +98,6 @@ async function handleBusinessPartnerRead(req) {
     if (!bpHeaders.length) return [];
 
     return await enrichWithAssociations(bpHeaders, s4bp);
-
   } catch (err) {
     console.error('[ERROR] BusinessPartnerExt:', err);
     return req.reject(500, 'Error al obtener socios comerciales');
@@ -79,33 +105,45 @@ async function handleBusinessPartnerRead(req) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Complementar con direcciones, cliente y proveedor                     */
+/* Complementar con direcciones, cliente y proveedor */
 async function enrichWithAssociations(bpData, s4bpSrv) {
-  const bpArr       = Array.isArray(bpData) ? bpData : [bpData];
-  const bpIds       = bpArr.map(b => b.BusinessPartner);
-  const customerIds = bpArr.map(b => b.Customer).filter(Boolean);
-  const supplierIds = bpArr.map(b => b.Supplier).filter(Boolean);
+  const bpArr = Array.isArray(bpData) ? bpData : [bpData];
+  const bpIds = bpArr.map((b) => b.BusinessPartner);
+  const customerIds = bpArr.map((b) => b.Customer).filter(Boolean);
+  const supplierIds = bpArr.map((b) => b.Supplier).filter(Boolean);
 
   const [addresses, customers, suppliers] = await Promise.all([
-    s4bpSrv.run(SELECT.from('A_BusinessPartnerAddress').where({ BusinessPartner: { in: bpIds } })),
-    s4bpSrv.run(SELECT.from('A_Customer').where({ Customer: { in: customerIds } })),
-    s4bpSrv.run(SELECT.from('A_Supplier').where({ Supplier: { in: supplierIds } })),
+    s4bpSrv.run(
+      SELECT.from('A_BusinessPartnerAddress').where({ BusinessPartner: { in: bpIds } })
+    ),
+    s4bpSrv.run(
+      SELECT.from('A_Customer').where({ Customer: { in: customerIds } })
+    ),
+    s4bpSrv.run(
+      SELECT.from('A_Supplier').where({ Supplier: { in: supplierIds } })
+    ),
   ]);
 
   const groupBy = (arr, key) =>
-    arr.reduce((acc, cur) => ((acc[cur[key]] ??= []).push(cur), acc), {});
+    arr.reduce((acc, cur) => {
+      (acc[cur[key]] ??= []).push(cur);
+      return acc;
+    }, {});
 
   const addrMap = groupBy(addresses, 'BusinessPartner');
   const custMap = groupBy(customers, 'Customer');
   const suppMap = groupBy(suppliers, 'Supplier');
 
-  bpArr.forEach(bp => {
+  bpArr.forEach((bp) => {
     bp._BusinessPartnerAddress = addrMap[bp.BusinessPartner] || [];
-    bp._Customer               = custMap[bp.Customer]        || [];
-    bp._Supplier               = suppMap[bp.Supplier]        || [];
+    bp._Customer = custMap[bp.Customer] || [];
+    bp._Supplier = suppMap[bp.Supplier] || [];
   });
 
   return Array.isArray(bpData) ? bpArr : bpArr[0];
 }
 
-module.exports = { handleBusinessPartnerRead };
+module.exports = cds.service.impl(function () {
+  this.on('READ', 'BusinessPartners', handleBusinessPartnerRead);
+  this.before('CREATE', 'BusinessPartners', beforeCreateBusinessPartner);
+});
