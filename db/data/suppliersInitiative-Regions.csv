@@ -1,0 +1,1535 @@
+countryCode;code;name
+AE;AJ;Ajman
+AE;AZ;Abu Dhabi
+AE;DU;Dubai
+AE;FU;Fujairah
+AE;RK;Ras al-Khaimah
+AE;SH;Sharjah
+AE;UQ;Umm al-Quwain
+AR;00;Capital Federal
+AR;01;Buenos Aires
+AR;02;Catamarca
+AR;03;Córdoba
+AR;04;Corrientes
+AR;05;Entre Rios
+AR;06;Jujuy
+AR;07;Mendoza
+AR;08;La Rioja
+AR;09;Salta
+AR;10;San Juan
+AR;11;San Luis
+AR;12;Santa Fé
+AR;13;Santiago del Estero
+AR;14;Tucumán
+AR;16;Chaco
+AR;17;Chubut
+AR;18;Formosa
+AR;19;Misiones
+AR;20;Neuquen
+AR;21;La Pampa
+AR;22;Rio Negro
+AR;23;Santa Cruz
+AR;24;Tierra de Fuego
+AT;B;Burgenland
+AT;K;Carintia
+AT;NOE;Baja Austria
+AT;OOE;Alta Austria
+AT;S;Salzburgo
+AT;ST;Estiria
+AT;T;Tirol
+AT;V;Vorarlberg
+AT;W;Viena
+AU;ACT;Aust Capital Terr
+AU;NSW;Nueva Gales del Sur
+AU;NT;Territorio del Norte
+AU;QLD;Queensland
+AU;SA;Australia Meridional
+AU;TAS;Tasmania
+AU;VIC;Victoria
+AU;WA;Autralia Occidental
+BE;01;Amberes
+BE;02;Brabante
+BE;03;Hainaut
+BE;04;Lieja
+BE;05;Limburgo
+BE;06;Luxemburgo
+BE;07;Namur
+BE;08;Oost-Vlaanderen
+BE;09;West-Vlaanderen
+BE;10;Brabante (valón)
+BE;11;Bruselas (capital)
+BG;01;Burgas
+BG;02;Grad Sofiya
+BG;03;Khaskovo
+BG;04;Lovech
+BG;05;Montana
+BG;06;Plovdiv
+BG;07;Ruse
+BG;08;Sofía
+BG;09;Varna
+BR;AC;Acre
+BR;AL;Alagoas
+BR;AM;Amazonas
+BR;AP;Amapá
+BR;BA;Bahía
+BR;CE;Ceará
+BR;DF;Brasília
+BR;ES;Espírito Santo
+BR;GO;Goiás
+BR;MA;Maranhão
+BR;MG;Minas Gerais
+BR;MS;Mato Grosso do Sul
+BR;MT;Mato Grosso
+BR;PA;Pará
+BR;PB;Paraíba
+BR;PE;Pernambuco
+BR;PI;Piauí
+BR;PR;Paraná
+BR;RJ;Rio de Janeiro
+BR;RN;Rio Grande do Norte
+BR;RO;Rondônia
+BR;RR;Roraima
+BR;RS;Rio Grande do Sul
+BR;SC;Santa Catarina
+BR;SE;Sergipe
+BR;SP;São Paulo
+BR;TO;Tocantins
+BS;00;Nassau
+CA;AB;Alberta
+CA;BC;Columbia británica
+CA;MB;Manitoba
+CA;NB;New Brunswick
+CA;NL;Terranova/Labrador
+CA;NS;Nueva Escocia
+CA;NT;Territorio Noreste
+CA;NU;Nunavut
+CA;ON;Ontario
+CA;PE;Isl.Príncipe Eduardo
+CA;QC;Quebec
+CA;SK;Saskatchewan
+CA;YT;Yukon Territory
+CH;AG;Argovia
+CH;AI;Inner-Rhoden
+CH;AR;Ausser-Rhoden
+CH;BE;Berna
+CH;BL;Basilea provincia
+CH;BS;Basilea ciudad
+CH;FR;Friburgo
+CH;GE;Ginebra
+CH;GL;Glaris
+CH;GR;Cantón de Grisones
+CH;JU;Jura
+CH;LU;Lucerna
+CH;NE;Neuchatel
+CH;NW;Nidwalden
+CH;OW;Obwalden
+CH;SG;St.Gallen
+CH;SH;Schaffhausen
+CH;SO;Solothurn
+CH;SZ;Schwyz
+CH;TG;Turgovia
+CH;TI;Ticino
+CH;UR;Uri
+CH;VD;Vaud
+CH;VS;Valais
+CH;ZG;Zug
+CH;ZH;Zúrich
+CL;01;I - Iquique
+CL;02;II - Antofagasta
+CL;03;III - Copiapo
+CL;04;IV - La Serena
+CL;05;V - Valparaiso
+CL;06;VI - Rancagua
+CL;07;VII - Talca
+CL;08;VIII - Concepción
+CL;09;IX - Temuco
+CL;10;X - Puerto Montt
+CL;11;XI - Coyhaique
+CL;12;XII - Punta Arenas
+CL;13;RM - Santiago
+CL;14;XIV - Los Ríos
+CL;15;XV - Arica y Parinac
+CN;10;Beijing (Pekín)
+CN;20;Shanghai
+CN;30;Tianjin
+CN;40;Nei Mongol
+CN;50;Shanxi
+CN;60;Hebei
+CN;70;Liaoning
+CN;80;Jilin
+CN;90;Heilongjiang
+CN;100;Jiangsu
+CN;110;Anhui
+CN;120;Shandong
+CN;130;Zhejiang
+CN;140;Jiangxi
+CN;150;Fujian
+CN;160;Hunan
+CN;170;Hubei
+CN;180;Henan
+CN;190;Guangdong
+CN;200;Hainan
+CN;210;Guangxi
+CN;220;Guizhou
+CN;230;Sichuan
+CN;240;Yunnan
+CN;250;Shaanxi
+CN;260;Gansu
+CN;270;Ningxia
+CN;280;Qinghai
+CN;290;Xinjiang
+CN;300;Xizang
+CN;320;Chongqing
+CO;05;ANTIOQUIA
+CO;08;ATLÁNTICO
+CO;11;BOGOTÁ
+CO;13;BOLÍVAR
+CO;15;BOYACA
+CO;17;CALDAS
+CO;18;CAQUETA
+CO;19;CAUCA
+CO;20;CESAR
+CO;23;CÓRDOBA
+CO;25;CUNDINAMARCA
+CO;27;CHOCO
+CO;41;HUILA
+CO;44;LA GUAJIRA
+CO;47;MAGDALENA
+CO;50;META
+CO;52;NARIÑO
+CO;54;NORTE SANTANDER
+CO;63;QUINDIO
+CO;66;RISARALDA
+CO;68;SANTANDER
+CO;70;SUCRE
+CO;73;TOLIMA
+CO;76;VALLE
+CO;81;ARAUCA
+CO;85;CASANARE
+CO;86;PUTUMAYO
+CO;88;SAN ANDRÉS
+CO;91;AMAZONAS
+CO;94;GUAINIA
+CO;95;GUAVIARE
+CO;97;VAUPES
+CO;99;VICHADA
+CZ;11;Praga
+CZ;21;Stredocesky
+CZ;31;Jihocesky
+CZ;32;Pilsen
+CZ;41;Karlovy Vary
+CZ;42;Ústí nad Labem
+CZ;51;Liberec
+CZ;52;Hradec Králové
+CZ;53;Pardubice
+CZ;63;Vysocina
+CZ;64;Moravia Meridional
+CZ;71;Olomouc
+CZ;72;Zlín
+CZ;81;Moravia-Silesia
+DE;01;Slesvig-Holstein
+DE;02;Hamburgo
+DE;03;Baja Sajonia
+DE;04;Bremen
+DE;05;Renania N.Westfalia
+DE;06;Hesse
+DE;07;Renania-Palatinado
+DE;08;Baden-Wurtemberg
+DE;09;Baviera
+DE;10;El Sarre
+DE;11;Berlín
+DE;12;Brandenburgo
+DE;13;Meclenburgo-Pomeran.
+DE;14;Sajonia
+DE;15;Sajonia-Anhalt
+DE;16;Turingia
+DK;01;Región Capital
+DK;02;Jutlandia Central
+DK;03;Jutlandia del Norte
+DK;04;Selandia
+DK;05;Jutlandia del Sur
+EG;01;Cairo
+EG;02;Giza
+EG;03;Al Sharqia
+EG;04;Dakahlia
+EG;05;Beheira
+EG;06;Qalyubia
+EG;07;Minya
+EG;08;Alexandria
+EG;09;Gharbia
+EG;10;Sohag
+EG;11;Asyut
+EG;12;Monufia
+EG;13;Qena
+EG;14;Kafr El-Sheikh
+EG;15;Faiyum
+EG;16;Beni Suef
+EG;17;Aswan
+EG;18;Damietta
+EG;19;Ismailia
+EG;20;Port Said
+EG;21;Suez
+EG;22;Luxor
+EG;23;North Sinai
+EG;24;Matruh
+EG;25;Red Sea
+EG;26;New Valley
+EG;27;South Sinai
+ES;01;Álava
+ES;02;Albacete
+ES;03;Alicante
+ES;04;Almería
+ES;05;Ávila
+ES;06;Badajoz
+ES;07;Baleares
+ES;08;Barcelona
+ES;09;Burgos
+ES;10;Cáceres
+ES;11;Cádiz
+ES;12;Castellón
+ES;13;Ciudad Real
+ES;14;Córdoba
+ES;15;La Coruña
+ES;16;Cuenca
+ES;17;Gerona
+ES;18;Granada
+ES;19;Guadalajara
+ES;20;Guipúzcoa
+ES;21;Huelva
+ES;22;Huesca
+ES;23;Jaén
+ES;24;León
+ES;25;Lérida
+ES;26;La Rioja
+ES;27;Lugo
+ES;28;Madrid
+ES;29;Málaga
+ES;30;Murcia
+ES;31;Navarra
+ES;32;Orense
+ES;33;Asturias
+ES;34;Palencia
+ES;35;Las Palmas
+ES;36;Pontevedra
+ES;37;Salamanca
+ES;38;Sta.Cruz Tenerife
+ES;39;Cantabria
+ES;40;Segovia
+ES;41;Sevilla
+ES;42;Soria
+ES;43;Tarragona
+ES;44;Teruel
+ES;45;Toledo
+ES;46;Valencia
+ES;47;Valladolid
+ES;48;Vizcaya
+ES;49;Zamora
+ES;50;Zaragoza
+FI;01;Ahvenanmaa
+FI;02;Finlandia Meridional
+FI;03;Finlandia Oriental
+FI;04;Lappi
+FI;05;Finlandia Occidental
+FI;06;Oulu
+FR;01;Ain
+FR;02;Aisne
+FR;03;Allier
+FR;04;Alpes (Alta provenz)
+FR;05;Alpes (Altos)
+FR;06;Alpes marítimos
+FR;07;Ardèche
+FR;08;Las Ardenas
+FR;09;Ariège
+FR;10;Aube
+FR;11;Aude
+FR;12;Aveyron
+FR;13;Bouches-du-Rhône
+FR;14;Calvados
+FR;15;Cantal
+FR;16;Charente
+FR;17;Charente-Maritime
+FR;18;Cher
+FR;19;Corrèze
+FR;21;Côte-d'Or
+FR;22;Côtes-d'Armor
+FR;23;Creuse
+FR;24;Dordogne
+FR;25;Doubs
+FR;26;Drôme
+FR;27;Eure
+FR;28;Eure-et-Loir
+FR;29;Finistère
+FR;2A;Corse-du-Sud
+FR;2B;Corse-du-Nord
+FR;30;Gard
+FR;31;Garona (Alta)
+FR;32;Gers
+FR;33;Gironde
+FR;34;Hérault
+FR;35;Ille-et-Vilaine
+FR;36;Indre
+FR;37;Indre-et-Loire
+FR;38;Isère
+FR;39;Jura
+FR;40;Landes
+FR;41;Loir-et-Cher
+FR;42;Loire
+FR;43;Loire (Haute)
+FR;44;Loire-Atlantique
+FR;45;Loiret
+FR;46;Lot
+FR;47;Lot-et-Garonne
+FR;48;Lozère
+FR;49;Maine-et-Loire
+FR;50;Manche
+FR;51;Marne
+FR;52;Marne (Haute)
+FR;53;Mayenne
+FR;54;Meurthe-et-Moselle
+FR;55;Meuse
+FR;56;Morbihan
+FR;57;Moselle
+FR;58;Nièvre
+FR;59;Norte
+FR;60;Oise
+FR;61;Orne
+FR;62;Pas-de-Calais
+FR;63;Puy-de-Dôme
+FR;64;Pirineos atlánticos
+FR;65;Altos Pirineos
+FR;66;Pirineos orientales
+FR;67;Rin (Bajo)
+FR;68;Rin (Alto)
+FR;69;Ródano
+FR;70;Alto Saona
+FR;71;Saône-et-Loire
+FR;72;Sarthe
+FR;73;Saboya
+FR;74;Saboya (alta)
+FR;75;París
+FR;76;Seine-Maritime
+FR;77;Seine-et-Marne
+FR;78;Yvelines
+FR;79;Deux-Sevres
+FR;80;Somme
+FR;81;Tarn
+FR;82;Tarn-et-Garonne
+FR;83;Var
+FR;84;Vaucluse
+FR;85;Vendée
+FR;86;Vienne
+FR;87;Vienne (Haute)
+FR;88;Vosges
+FR;89;Yonne
+FR;90;Territ.-de-Belfort
+FR;91;Essonne
+FR;92;Hauts-de-Seine
+FR;93;Seine-Saint-Denis
+FR;94;Val-de-Marne
+FR;95;Val-d'Oise
+FR;97;D.O.M.-T.O.M.
+FR;971;Guadalupe
+FR;972;Martinica
+FR;973;Guyana
+FR;974;Réunion
+FR;975;Saint-Pierre-et-Miq.
+FR;976;Wallis-et-Futuna
+FR;99;Hors-France
+GB;AB;Aberdeenshire
+GB;AG;Argyllshire
+GB;AL;Anglesey
+GB;AM;Armagh
+GB;AN;Angus/Forfanshire
+GB;AT;Antrim
+GB;AY;Ayrshire
+GB;BE;Bedfordshire
+GB;BF;Bracknell Forest
+GB;BK;Berkshire
+GB;BR;Brecknockshire
+GB;BS;Bath&NthEstSomerset
+GB;BT;Buteshire
+GB;BU;Buckinghamshire
+GB;BW;Berwickshire
+GB;CA;Cambridgeshire
+GB;CB;Carmarthenshire
+GB;CD;Cardiganshire
+GB;CF;Caernarfonshire
+GB;CH;Cheshire
+GB;CM;Cromartyshire
+GB;CN;Clackmannanshire
+GB;CO;Cornualles
+GB;CT;Caithness
+GB;CU;Cumberland
+GB;DB;Derbyshire
+GB;DD;Denbighshire
+GB;DF;Dumfriesshire
+GB;DN;Down
+GB;DO;Dorset
+GB;DT;Dunbartonshire
+GB;DU;Durham
+GB;DV;Devon
+GB;EL;East Lothian
+GB;ES;Essex
+GB;FI;Fife
+GB;FL;Flintshire
+GB;FM;Fermanagh
+GB;GL;Gloucestershire
+GB;HA;Hampshire
+GB;HT;Hertfordshire
+GB;HU;Huntingdonshire
+GB;HW;Hereford y Worcester
+GB;IN;Invernesshire
+GB;IW;Isla de Wight
+GB;KE;Kent
+GB;KI;Kincardineshire
+GB;KK;Kirkcudbrightshire
+GB;KN;Kinross-shire
+GB;LA;Lancashire
+GB;LD;Londonderry
+GB;LE;Leicestershire
+GB;LI;Lincolnshire
+GB;LN;Lanarkshire
+GB;MD;Midlothian
+GB;ME;Merioneth
+GB;MG;Mid Glamorgan
+GB;MM;Monmouthshire
+GB;MR;Morayshire
+GB;MT;Montgomeryshire
+GB;MX;Middlesex
+GB;NH;Northamptonshire
+GB;NK;Norfolk
+GB;NR;Nairnshire
+GB;NT;Nottinghamshire
+GB;NU;Northumberland
+GB;OR;Orkney
+GB;OX;Oxfordshire
+GB;PE;Peeblesshire
+GB;PM;Pembrokeshire
+GB;PR;Perthshire
+GB;RA;Radnorshire
+GB;RE;Renfrewshire
+GB;RO;Ross-shire
+GB;RU;Rutland
+GB;RX;Roxburghshire
+GB;SE;East Sussex
+GB;SF;Selkirkshire
+GB;SG;South Glamorgan
+GB;SH;Shropshire
+GB;SK;Suffolk
+GB;SL;Shetland
+GB;SO;Somerset
+GB;ST;Staffordshire
+GB;SU;Sutherland
+GB;SV;Stirlingshire
+GB;SW;West Sussex
+GB;SY;Surrey
+GB;TY;Tyrone
+GB;WA;Warwickshire
+GB;WC;Worcestershire
+GB;WE;Westmorland
+GB;WG;West Glamorgan
+GB;WI;Wiltshire
+GB;WK;West Lothian
+GB;WT;Wigtownshire
+GB;YN;North Yorkshire
+GB;YS;South Yorkshire
+GB;YW;West Yorkshire
+GR;01;Aitolia kai Akarnan
+GR;02;Akhaia
+GR;03;Argolis
+GR;04;Arkadhia
+GR;05;Arta
+GR;06;Attiki
+GR;07;Dhodhekanisos
+GR;08;Dhrama
+GR;09;Evritania
+GR;10;Evros
+GR;11;Evvoia
+GR;12;Florina
+GR;13;Fokis
+GR;14;Fthiotis
+GR;15;Grevena
+GR;16;Ilia
+GR;17;Imathia
+GR;18;Ioannina
+GR;19;Iraklion
+GR;20;Kardhitsa
+GR;21;Kastoria
+GR;22;Kavala
+GR;23;Kefallinia
+GR;24;Kerkira
+GR;25;Khalkidhiki
+GR;26;Khania
+GR;27;Khios
+GR;28;Kikladhes
+GR;29;Kilkis
+GR;30;Korinthia
+GR;31;Kozani
+GR;32;Lakonia
+GR;33;Larisa
+GR;34;Lasithi
+GR;35;Lesvos
+GR;36;Levkas
+GR;37;Magnisia
+GR;38;Messinia
+GR;39;Pella
+GR;40;Pieria
+GR;41;Piraievs
+GR;42;Preveza
+GR;43;Rethimni
+GR;44;Rodhopi
+GR;45;Samos
+GR;46;Serrai
+GR;47;Thesprotia
+GR;48;Salónica
+GR;49;Trikala
+GR;50;Voiotia
+GR;51;Xanthi
+GR;52;Zakinthos
+HK;HK;Hong Kong
+HK;KLN;Kowloon
+HK;NT;Nuevos Territorios
+HR;A00;Zagreb
+HR;B00;Krapina-Zagorje
+HR;C00;Sisak-Moslavina
+HR;D00;Karlovac
+HR;E00;Varazdin
+HR;F00;Koprivnica-Krizevci
+HR;G00;Bjelovar-Bilogora
+HR;H00;Rijecko-Gorski
+HR;I00;Lika-Senj
+HR;J00;Virovitica-Podravina
+HR;K00;Pozega-Eslavonia
+HR;L00;Slavonskobrodska
+HR;M00;Zadar
+HR;N00;Osijek-Baranja
+HR;O00;Sibenik-Knin
+HR;P00;Vukovar-Srijem
+HR;R00;Split-Dalmacia
+HR;S00;Istria
+HR;T00;Dubrovnik-Neretva
+HR;U00;Medimurje
+HR;V00;Zagreb ciudad
+HU;01;Bacs-Kiskun
+HU;02;Baranya
+HU;03;Bekes
+HU;04;Bekescsaba
+HU;05;Borsod-Abauj-Zemplen
+HU;06;Budapest
+HU;07;Csongrad
+HU;08;Debrecen
+HU;09;Dunaujvaros
+HU;10;Eger
+HU;11;Fejer
+HU;12;Gyor
+HU;13;Gyor-Moson-Sopron
+HU;14;Hajdu-Bihar
+HU;15;Heves
+HU;16;Hodmezovasarhely
+HU;17;Jasz-Nagykun-Szolnok
+HU;18;Kaposvar
+HU;19;Kecskemet
+HU;20;Komarom-Esztergom
+HU;21;Miskolc
+HU;22;Nagykanizsa
+HU;23;Nograd
+HU;24;Nyiregyhaza
+HU;25;Pecs
+HU;26;Pest
+HU;27;Somogy
+HU;28;Sopron
+HU;29;Szabolcs-Szat.-Bereg
+HU;30;Szeged
+HU;31;Szekesfehervar
+HU;32;Szolnok
+HU;33;Szombathely
+HU;34;Tatabanya
+HU;35;Tolna
+HU;36;Vas
+HU;37;Veszprem
+HU;38;Zala
+HU;39;Zalaegerszeg
+ID;01;Yakarta
+ID;02;Java Occidental
+ID;03;Java Central
+ID;04;Java Oriental
+ID;05;Yogyakarta
+ID;06;Aceh
+ID;07;Sumatra Septentr.
+ID;08;Sumatra Occidental
+ID;09;Riau
+ID;10;Jambi
+ID;11;Sumatra Meridional
+ID;12;Bengkulu
+ID;13;Lampung
+ID;14;Borneo Meridional
+ID;15;Borneo Occidental
+ID;16;Borneo Central
+ID;17;Borneo Oriental
+ID;18;Borneo Meridional
+ID;19;Célebes Suroriental
+ID;20;Célebes Central
+ID;21;Célebes Septentriona
+ID;22;Bali
+ID;23;Isl.men.Sonda occid.
+ID;24;Isl.men.Sonda orien.
+ID;25;Islas Molucas
+ID;26;Papua Occidental
+ID;27;Timor Oriental
+IE;C;Cork
+IE;CE;Clare
+IE;CN;Cavan
+IE;CW;Carlow
+IE;D;Dublín
+IE;DL;Donegal
+IE;G;Galway
+IE;KE;Kildare
+IE;KK;Kilkenny
+IE;KY;Kerry
+IE;LD;Longford
+IE;LH;Louth
+IE;LK;Limerick
+IE;LM;Leitrim
+IE;LS;Laois
+IE;MH;Meath
+IE;MN;Monaghan
+IE;MO;Mayo
+IE;OY;Offaly
+IE;RN;Roscommon
+IE;SO;Sligo
+IE;TA;Tipperary
+IE;WD;Waterford
+IE;WH;Westmeath
+IE;WW;Wicklow
+IE;WX;Wexford
+IL;01;Central
+IL;02;Haifa
+IL;03;Jerusalén
+IL;04;Northern
+IL;05;Southern
+IL;06;Tel Aviv
+IN;01;Andhra Pradesh
+IN;02;Arunachal Pradesh
+IN;03;Assam
+IN;04;Bihar
+IN;05;Goa
+IN;06;Gujarat
+IN;07;Haryana
+IN;08;Himachal Pradesh
+IN;09;Jammu y Cachemira
+IN;10;Karnataka
+IN;11;Kerala
+IN;12;Madhya Pradesh
+IN;13;Maharashtra
+IN;14;Manipur
+IN;15;Megalaya
+IN;16;Mizoram
+IN;17;Nagaland
+IN;18;Orissa
+IN;19;Punjab
+IN;20;Rajasthan
+IN;21;Sikkim
+IN;22;Tamil Nadu
+IN;23;Tripura
+IN;24;Uttar Pradesh
+IN;25;Bengala oeste
+IN;26;Andamán y Nicobar
+IN;27;Chandigarh
+IN;28;Dadra y Nagar Hav.
+IN;29;Daman y Diu
+IN;30;Delhi
+IN;31;Lakshadweep
+IN;32;Puducherry
+IN;33;Chhattisgarh
+IN;34;Jharkhand
+IN;35;Uttarakhand
+IT;AG;Agrigento
+IT;AL;Alessandria
+IT;AN;Ancona
+IT;AO;Aosta
+IT;AP;Ascoli Piceno
+IT;AQ;L'Aquila
+IT;AR;Arezzo
+IT;AT;Asti
+IT;AV;Avellino
+IT;BA;Bari
+IT;BG;Bergamo
+IT;BI;Biella
+IT;BL;Belluno
+IT;BN;Benevento
+IT;BO;Bolonia
+IT;BR;Brindisi
+IT;BS;Brescia
+IT;BT;Barletta-Andria-Tran
+IT;BZ;Bolzano
+IT;CA;Cagliari
+IT;CB;Campobasso
+IT;CE;Caserta
+IT;CH;Chieti
+IT;CI;Carbonia-Iglesias
+IT;CL;Caltanisetta
+IT;CN;Cuneo
+IT;CO;Como
+IT;CR;Cremona
+IT;CS;Cosenza
+IT;CT;Catania
+IT;CZ;Catanzaro
+IT;EE;Stati Esteri
+IT;EN;Enna
+IT;FC;Forli/Cesana
+IT;FE;Ferrara
+IT;FG;Foggia
+IT;FI;Florencia
+IT;FM;Fermo
+IT;FR;Ferrara
+IT;FU;Fiume
+IT;GE;Génova
+IT;GO;Gorizia
+IT;GR;Grosseto
+IT;IM;Imperia
+IT;IS;Isernia
+IT;KR;Crotone
+IT;LC;Lucca
+IT;LE;Lecce
+IT;LI;Livorno
+IT;LO;Lodi
+IT;LT;Latina
+IT;LU;Lucca
+IT;MB;Monza e Brianza
+IT;MC;Macerata
+IT;ME;Messina
+IT;MI;Milán
+IT;MN;Mantova
+IT;MO;Módena
+IT;MS;Massa Carrara
+IT;MT;Matera
+IT;NA;Nápoles
+IT;NO;Novara
+IT;NU;Nuoro
+IT;OG;Ogliastra
+IT;OR;Oristano
+IT;OT;Olbia-Tempio
+IT;PA;Palermo
+IT;PC;Piacenza
+IT;PD;Padua
+IT;PE;Pescara
+IT;PG;Perugia
+IT;PI;Pisa
+IT;PL;Pola
+IT;PN;Pordenone
+IT;PO;Prato
+IT;PR;Parma
+IT;PT;Pistoia
+IT;PU;Pesaro y Urbino
+IT;PV;Pavia
+IT;PZ;Potenza
+IT;RA;Rávena
+IT;RC;Reggio Calabria
+IT;RE;Reggio Emilia
+IT;RG;Ragusa
+IT;RI;Rieti
+IT;RM;Roma
+IT;RN;Rimini
+IT;RO;Rovigo
+IT;SA;Salerno
+IT;SI;Siena
+IT;SO;Sondrio
+IT;SP;La Spezia
+IT;SR;Siracusa
+IT;SS;Sassari
+IT;SV;Savona
+IT;TA;Taranto
+IT;TE;Teramo
+IT;TN;Trento
+IT;TO;Turín
+IT;TP;Trapani
+IT;TR;Terni
+IT;TS;Trieste
+IT;TV;Treviso
+IT;UD;Udine
+IT;VA;Varese
+IT;VB;Verbania
+IT;VC;Vercelli
+IT;VE;Venecia
+IT;VI;Vicenza
+IT;VR;Verona
+IT;VS;Medio Campidano
+IT;VT;Viterbo
+IT;VV;Vibo Valentia
+IT;ZA;Zara
+JP;01;Hokkaido
+JP;02;Aomori
+JP;03;Iwate
+JP;04;Miyagi
+JP;05;Akita
+JP;06;Yamagata
+JP;07;Fukushima
+JP;08;Ibaragi
+JP;09;Tochigi
+JP;10;Gunma
+JP;11;Saitama
+JP;12;Chiba
+JP;13;Tokio
+JP;14;Kanagawa
+JP;15;Niigata
+JP;16;Toyama
+JP;17;Ishikawa
+JP;18;Fukui
+JP;19;Yamanashi
+JP;20;Nagano
+JP;21;Gifu
+JP;22;Shizuoka
+JP;23;Aichi
+JP;24;Mie
+JP;25;Shiga
+JP;26;Kioto
+JP;27;Osaka
+JP;28;Hyogo
+JP;29;Nara
+JP;30;Wakayama
+JP;31;Tottori
+JP;32;Shimane
+JP;33;Okayama
+JP;34;Hiroshima
+JP;35;Yamaguchi
+JP;36;Tokushima
+JP;37;Kagawa
+JP;38;Ehime
+JP;39;Kochi
+JP;40;Fukuoka
+JP;41;Saga
+JP;42;Nagasaki
+JP;43;Kumamoto
+JP;44;Oita
+JP;45;Miyazaki
+JP;46;Kagoshima
+JP;47;Okinawa
+KR;01;Jeju
+KR;02;Chollabuk-do
+KR;03;Chollanam-do
+KR;04;Ch'ungch'ongbuk-do
+KR;05;Ch'ungch'ongnam-do
+KR;06;Incheon
+KR;07;Gangwon-do
+KR;08;Gwangju
+KR;09;Gyeonggi-do
+KR;10;Gyeongsangbuk-do
+KR;11;Gyeongsangnam-do
+KR;12;Busan
+KR;13;Seúl
+KR;14;Daegu
+KR;15;Daejeon
+KR;16;Ulsán
+KR;17;Sejong
+KW;KW;Kuwait (ciudad)
+KZ;00;Almaty
+KZ;01;Kostanái
+KZ;02;Kazakhstan Septent.
+KZ;03;Pavlodar
+KZ;04;Akmola
+KZ;05;Aktobe
+KZ;06;Atyrau
+KZ;07;Kazakhstan Occident.
+KZ;08;Mangystau
+KZ;09;Karagandá
+KZ;10;Kazakhstan Oriental
+KZ;11;Zhambyl
+KZ;12;Kyzylorda
+MX;AGS;Aguascalientes
+MX;BC;Baja California
+MX;BCS;Baja California S
+MX;CDM;Ciudad de México
+MX;CHI;Chihuahua
+MX;CHS;Chiapas
+MX;CMP;Campeche
+MX;COA;Coahuila
+MX;COL;Colima
+MX;DF;Distrito Federal
+MX;DGO;Durango
+MX;GRO;Guerrero
+MX;GTO;Guanajuato
+MX;HGO;Hidalgo
+MX;JAL;Jalisco
+MX;MCH;Michoacán
+MX;MEX;México
+MX;MOR;Morelos
+MX;NAY;Nayarit
+MX;NL;Nuevo León
+MX;OAX;Oaxaca
+MX;PUE;Puebla
+MX;QR;Quintana Roo
+MX;QRO;Querétaro
+MX;SIN;Sinaloa
+MX;SLP;San Luis Potosí
+MX;SON;Sonora
+MX;TAB;Tabasco
+MX;TLX;Tlaxcala
+MX;TMS;Tamaulipas
+MX;VER;Veracruz
+MX;YUC;Yucatán
+MX;ZAC;Zacatecas
+MY;JOH;Johor
+MY;KED;Kedah
+MY;KEL;Kelantan
+MY;KUL;Kuala Lumpur
+MY;LAB;Labuan
+MY;MEL;Malaca
+MY;PAH;Pahang
+MY;PEL;Perlis
+MY;PER;Perak
+MY;PIN;Penang
+MY;PSK;Wil. Persekutuan
+MY;SAB;Sabah
+MY;SAR;Sarawak
+MY;SEL;Selangor
+MY;SER;Negeri Sembilan
+MY;TRE;Terengganu
+MY;WPP;W.P Putrajaya
+NL;01;Drenthe
+NL;02;Flevoland
+NL;03;Frisia
+NL;04;Gelderland
+NL;05;Groningen
+NL;06;Limburgo
+NL;07;Noord-Brabant
+NL;08;Noord-Holland
+NL;09;Overijssel
+NL;10;Utrecht
+NL;11;Zeeland
+NL;12;Zuid-Holland
+NO;01;Østfold
+NO;02;Akershus
+NO;03;Oslo
+NO;04;Hedmark
+NO;05;Oppland
+NO;06;Buskerud
+NO;07;Vestfold
+NO;08;Telemark
+NO;09;Aust-Agder
+NO;10;Vest-Agder
+NO;11;Rogaland
+NO;12;Hordaland
+NO;14;Sogn og Fjordane
+NO;15;Møre og Romsdal
+NO;16;Sør-Trøndelag
+NO;17;Nord-Trøndelag
+NO;18;Nordland
+NO;19;Troms
+NO;20;Finnmark
+NZ;AKL;Auckland
+NZ;BOP;Bay of Plenty
+NZ;CAN;Canterbury
+NZ;HAB;Hawke's Bay
+NZ;MAN;Manawatu-Wanganui
+NZ;NTL;Northland
+NZ;OTA;Otago
+NZ;STL;Southland
+NZ;TAR;Taranaki
+NZ;WAI;Waikato
+NZ;WEC;West Coast
+NZ;WLG;Wellington
+PE;01;Tumbes
+PE;02;Piura
+PE;03;Lambayeque
+PE;04;La Libertad
+PE;05;Ancash
+PE;06;Lima y Callao
+PE;07;Ica
+PE;08;Arequipa
+PE;09;Moquegua
+PE;10;Tacna
+PE;11;Amazonas
+PE;12;Cajamarca
+PE;13;San Martín
+PE;14;Huánuco
+PE;15;Pasco
+PE;16;Junín
+PE;17;Huancavelica
+PE;18;Ayacucho
+PE;19;Apurimac
+PE;20;Cuzco
+PE;21;Puno
+PE;22;Loreto
+PE;23;Ucayali
+PE;24;Madre de Díos
+PH;01;Ilocos
+PH;02;Cagayan Valley
+PH;03;Central Luzon
+PH;04;South Luzon
+PH;05;Bicol
+PH;06;Visayas Occidentales
+PH;07;Bisayas centrales
+PH;08;Eastern Visayas
+PH;09;Bisayas orientales
+PH;10;Mindanao del Norte
+PH;11;Central Mindanao
+PH;12;South Mindanao
+PL;DSL;Dolnoslaskie
+PL;K-P;Kujawsko-Pomorskie
+PL;LBL;Lubelskie
+PL;LBS;Lubuskie
+PL;LDZ;Lódzkie
+PL;MAL;Malopolskie
+PL;MAZ;Mazowieckie
+PL;OPO;Opolskie
+PL;PDK;Podkarpackie
+PL;PDL;Podlaskie
+PL;POM;Pomorskie
+PL;SLS;Slaskie
+PL;SWK;Swietokrzyskie
+PL;W-M;Warminsko-mazurskie
+PL;WLK;Wielkopolskie
+PL;Z-P;Zachodnio-Pomorskie
+PT;10;Minho-Lima
+PT;11;Cávado
+PT;12;Ave
+PT;13;Grande Porto
+PT;14;Tâmega
+PT;15;Entre Douro e Vouga
+PT;16;Douro
+PT;17;Alto Trás-os-Montes
+PT;20;Baixo Vouga
+PT;21;Baixo Mondego
+PT;22;Pinhal Litoral
+PT;23;Pinhal Interior N.
+PT;24;Pinhal Interior Sul
+PT;25;Dão-Lafões
+PT;26;Serra da Estrela
+PT;27;Beira Interior Norte
+PT;28;Beira Interior Sul
+PT;29;Cova da Beira
+PT;30;Oeste
+PT;31;Grande Lisboa
+PT;32;Península de Setúbal
+PT;33;Médio Tejo
+PT;34;Lezíria do Tejo
+PT;40;Alentejo Litoral
+PT;41;Alto Alentejo
+PT;42;Alentejo Central
+PT;43;Baixo Alentejo
+PT;50;Algarve
+PT;60;Reg.Aut.dos Açores
+PT;70;Reg.Aut.da Madeira
+QA;01;Doha
+QA;02;El norte
+QA;03;La costa oeste
+QA;04;El sur
+RO;01;Alba
+RO;02;Arad
+RO;03;Arges
+RO;04;Bacau
+RO;05;Bihor
+RO;06;Bistrita-Nasaud
+RO;07;Botosani
+RO;08;Braila
+RO;09;Brasov
+RO;10;Bucuresti
+RO;11;Buzau
+RO;12;Calarasi
+RO;13;Caras-Severin
+RO;14;Cluj
+RO;15;Constanta
+RO;16;Covasna
+RO;17;Dimbovita
+RO;18;Dolj
+RO;19;Galati
+RO;20;Gorj
+RO;21;Giurgiu
+RO;22;Harghita
+RO;23;Hunedoara
+RO;24;Ialomita
+RO;25;Iasi
+RO;26;Ilfov
+RO;27;Maramures
+RO;28;Mehedinti
+RO;29;Mures
+RO;30;Neamt
+RO;31;Olt
+RO;32;Prahova
+RO;33;Salaj
+RO;34;Satu Mare
+RO;35;Sibiu
+RO;36;Suceava
+RO;37;Teleorman
+RO;38;Timis
+RO;39;Tulcea
+RO;40;Vaslui
+RO;41;Vilcea
+RO;42;Vrancea
+RU;01;República Adigueya
+RU;02;República de Altái
+RU;03;Rep.Baskortostán
+RU;04;República Buriatia
+RU;05;República Daguestán
+RU;06;República Ingushetia
+RU;07;R.Kabardina-Balkaria
+RU;08;República Kalmukia
+RU;09;Karacháyevo-Cherkes.
+RU;10;República de Carelia
+RU;11;República de Komi
+RU;12;República de Mari-El
+RU;13;República Mordovia
+RU;14;República de Sajá
+RU;15;Rep.Osetia del Norte
+RU;16;Rep.Tartaristán
+RU;17;República Tuvá
+RU;18;República Udmurtia
+RU;19;República Jacasia
+RU;20;República Chechenia
+RU;21;República Chuvasia
+RU;22;República de Altái
+RU;23;Krai de Krasnodar
+RU;24;Krai de Krasnoyarsk
+RU;25;Krai de Primorie
+RU;26;Krai de Stávropol
+RU;27;Krai de Jabárovsk
+RU;28;Óblast de Amur
+RU;29;Óblast de Arcángel
+RU;30;Óblast de Astracán
+RU;31;Óblast de Bélgorod
+RU;32;Óblast de Briansk
+RU;33;Óblast de Vladímir
+RU;34;Óblast de Volgogrado
+RU;35;Óblast de Vólogda
+RU;36;Óblast de Vorónezh
+RU;37;Óblast de Ivánovo
+RU;38;Óblast de Irkutsk
+RU;39;Óblast Kaliningrado
+RU;40;Óblast de Kaluga
+RU;41;Óblast de Kamchatka
+RU;42;Óblast de Kémerovo
+RU;43;Óblast de Kírov
+RU;44;Óblast de Kostromá
+RU;45;Óblast de Kurgán
+RU;46;Óblast de Kursk
+RU;47;Óblast de Leningrado
+RU;48;Óblast de Lípetsk
+RU;49;Óblast de Magadán
+RU;50;Óblast de Moscú
+RU;51;Óblast de Múrmansk
+RU;52;Nizhni Nóvgorod
+RU;53;Óblast de Nóvgorod
+RU;54;Óblast Novosibirsk
+RU;55;Óblast de Omsk
+RU;56;Óblast de Oremburgo
+RU;57;Óblast de Oriol
+RU;58;Óblast de Penza
+RU;59;Óblast de Perm
+RU;60;Óblast de Pskov
+RU;61;Óblast de Rostov
+RU;62;Óblast de Riazán
+RU;63;Óblast de Samara
+RU;64;Óblast de Sarátov
+RU;65;Óblast de Sajalín
+RU;66;Óblast de Sverdlovsk
+RU;67;Óblast de Smolensk
+RU;68;Óblast de Tambov
+RU;69;Óblast de Tver
+RU;70;Óblast de Tomsk
+RU;71;Óblast de Tula
+RU;72;Óblast de Tiumén
+RU;73;Óblast de Uliánovsk
+RU;74;Óblast Cheliábinsk
+RU;75;Krai de Zabaikalie
+RU;76;Óblast de Yaroslavl
+RU;77;Moscú
+RU;78;San Petersburgo
+RU;79;Óblast Autón.Hebreo
+RU;80;Krai de Zabaikalie
+RU;81;Óblast de Perm
+RU;82;Óblast de Kamchatka
+RU;83;Distr.aut.Nenekchky
+RU;84;Krai de Krasnoyarsk
+RU;85;Óblast de Irkutsk
+RU;86;Dis.Chanti-Mansyjsky
+RU;87;Distr.autón.Chukotka
+RU;88;Krai de Krasnoyarsk
+RU;89;Dis.Yamalia-Nenetsia
+SE;01;Blekinge Län
+SE;02;Dalarnas Län
+SE;03;Gotlands Län
+SE;04;Gävleborgs Län
+SE;05;Hallands Län
+SE;06;Jämtlands Län
+SE;07;Jönköpings Län
+SE;08;Kalmar Län
+SE;09;Kronobergs Län
+SE;10;Norrbottens Län
+SE;11;Provincia de Escania
+SE;12;Stockholms Län
+SE;13;Södermanlands Län
+SE;14;Uppsala Län
+SE;15;Värmlands Län
+SE;16;Västerbottens Län
+SE;17;Västernorrlands Län
+SE;18;Västmanlands Län
+SE;19;Västra Götalands Län
+SE;20;Örebro Län
+SE;21;Östergötlands Län
+SG;SG;Singapur
+TH;01;Amnat Charoen
+TH;02;Ang Thong
+TH;03;Buriram
+TH;04;Chachoengsao
+TH;05;Chai Nat
+TH;06;Chaiyaphum
+TH;07;Chanthaburi
+TH;08;Chiang Mai
+TH;09;Chiang Rai
+TH;10;Chon Buri
+TH;11;Chumphon
+TH;12;Kalasin
+TH;13;Kamphaeng Phet
+TH;14;Kanchanaburi
+TH;15;Khon Kaen
+TH;16;Krabi
+TH;17;Krung Thep
+TH;18;Mahanakhon
+TH;19;Lampang
+TH;20;Lamphun
+TH;21;Loei
+TH;22;Lop Buri
+TH;23;Mae Hong Son
+TH;24;Maha Sarakham
+TH;25;Mukdahan
+TH;26;Nakhon Nayok
+TH;27;Nakhon Pathom
+TH;28;Nakhon Phanom
+TH;29;Nakhon Ratchasima
+TH;30;Nakhon Sawan
+TH;31;Nakhon Si Thammarat
+TH;32;Nan
+TH;33;Narathiwat
+TH;34;Nong Bua Lamphu
+TH;35;Nong Khai
+TH;36;Nonthaburi
+TH;37;Pathum Thani
+TH;38;Pattani
+TH;39;Phangnga
+TH;40;Phatthalung
+TH;41;Phayao
+TH;42;Phetchabun
+TH;43;Phetchaburi
+TH;44;Phichit
+TH;45;Phitsanulok
+TH;46;Phra Nakhon Si Ayut.
+TH;47;Phrae
+TH;48;Phuket
+TH;49;Prachin Buri
+TH;50;Bueng Kan
+TR;01;Adana
+TR;02;Adiyaman
+TR;03;Afyon
+TR;04;Agri
+TR;05;Amasya
+TR;06;Ankara
+TR;07;Antalya
+TR;08;Artvin
+TR;09;Aydin
+TR;10;Balikesir
+TR;11;Bilecik
+TR;12;Bingöl
+TR;13;Bitlis
+TR;14;Bolu
+TR;15;Burdur
+TR;16;Bursa
+TR;17;Canakkale
+TR;18;Cankiri
+TR;19;Corum
+TR;20;Denizli
+TR;21;Diyarbakir
+TR;22;Edirne
+TR;23;Elazig
+TR;24;Erzincan
+TR;25;Erzurum
+TR;26;Eskisehir
+TR;27;Gaziantep
+TR;28;Giresun
+TR;29;Gümüshane
+TR;30;Hakkari
+TR;31;Hatay
+TR;32;Isparta
+TR;33;Icel
+TR;34;Estanbul
+TR;35;Esmirna
+TR;36;Kars
+TR;37;Kastamonu
+TR;38;Kayseri
+TR;39;Kirklareli
+TR;40;Kirsehir
+TR;41;Kocaeli
+TR;42;Konya
+TR;43;Kütahya
+TR;44;Malatya
+TR;45;Manisa
+TR;46;Kahramanmaras
+TR;47;Mardin
+TR;48;Mugla
+TR;49;Mus
+TR;50;Nevsehir
+TR;51;Nigde
+TR;52;Ordu
+TR;53;Rize
+TR;54;Sakarya
+TR;55;Samsun
+TR;56;Siirt
+TR;57;Sinop
+TR;58;Sivas
+TR;59;Tekirdag
+TR;60;Tokat
+TR;61;Trabzon
+TR;62;Tunceli
+TR;63;Sanliurfa
+TR;64;Usak
+TR;65;Van
+TR;66;Yozgat
+TR;67;Zonguldak
+TR;68;Aksaray
+TR;69;Bayburt
+TR;70;Karaman
+TR;71;Kirikkale
+TR;72;Batman
+TR;73;Sirnak
+TR;74;Bartin
+TR;75;Ardahan
+TR;76;Igdir
+TR;77;Yalova
+TW;FJN;Fu-chien
+TW;KSH;Kao-hsiung
+TW;TPE;Taipéi
+TW;TWN;Taiwán
+UA;CHG;Chernígov
+UA;CHR;Cherkasy
+UA;CHV;Chernivtsi
+UA;DNP;Dnipropetrovsk
+UA;DON;Donetsk
+UA;HAR;Járkov
+UA;HML;Jmelnitsky
+UA;HRS;Quersoneso
+UA;IVF;Ivano-Frankivsk
+UA;KIE;Kiev
+UA;KIR;Kirovogrado
+UA;KRM;Rep.autonóm.Crimea
+UA;L'V;Leópolis
+UA;LUG;Lugansk
+UA;MIK;Mykolaiv
+UA;M_K;Ciudad de Kiev
+UA;M_S;Sebastopol
+UA;ODS;Odesa
+UA;POL;Poltava
+UA;RIV;Rivne
+UA;SUM;Sumy
+UA;TER;Ternópil
+UA;VIN;Vinnytsia
+UA;VOL;Volinia
+UA;ZAK;Rutenia subcarpática
+UA;ZAP;Zaporiyia
+UA;ZHI;Yitomir
+US;AK;Alaska
+US;AL;Alabama
+US;AR;Arkansas
+US;AS;Samoa americana
+US;AZ;Arizona
+US;CA;California
+US;CO;Colorado
+US;CT;Connecticut
+US;DC;Distrito de Columbia
+US;DE;Delaware
+US;FL;Florida
+US;GA;Georgia
+US;GU;Guam
+US;HI;Hawai
+US;IA;Iowa
+US;ID;Idaho
+US;IL;Illinois
+US;IN;Indiana
+US;KS;Kansas
+US;KY;Kentucky
+US;LA;Louisiana
+US;MA;Massachusetts
+US;MD;Maryland
+US;ME;Maine
+US;MI;Michigan
+US;MN;Minnesota
+US;MO;Missouri
+US;MP;Islas Mariana Norte
+US;MS;Mississippi
+US;MT;Montana
+US;NC;Carolina del Norte
+US;ND;Dakota del Norte
+US;NE;Nebraska
+US;NH;New Hampshire
+US;NJ;Nueva Jersey
+US;NM;Nuevo México
+US;NV;Nevada
+US;NY;Nueva York
+US;OH;Ohio
+US;OK;Oklahoma
+US;OR;Oregón
+US;PA;Pennsylvania
+US;PR;Puerto Rico
+US;RI;Rhode Island
+US;SC;Carolina del Sur
+US;SD;Dakota del Sur
+US;TN;Tennessee
+US;TX;Texas
+US;UT;Utah
+US;VA;Virginia
+US;VI;Islas Vírgenes
+US;VT;Vermont
+US;WA;Washington
+US;WI;Wisconsin
+US;WV;Virginia Occidental
+US;WY;Wyoming
+UY;01;Artigas
+UY;02;Canelones
+UY;03;Cerro Largo
+UY;04;Colonia
+UY;05;Durazno
+UY;06;Flores
+UY;07;Florida
+UY;08;Lavalleja
+UY;09;Maldonado
+UY;10;Montevideo
+UY;11;Paysandú
+UY;12;Río Negro
+UY;13;Rivera
+UY;14;Rocha
+UY;15;Salto
+UY;16;San José
+UY;17;Soriano
+UY;18;Tacuarembó
+UY;19;Treinta y Tres
+VE;AMA;Amazonas
+VE;ANZ;Anzoategui
+VE;APU;Apure
+VE;ARA;Aragua
+VE;BAR;Barinas
+VE;BOL;Bolívar
+VE;CAR;Carabobo
+VE;COJ;Cojedes
+VE;DA;Delta Amacuro
+VE;DF;Distrito Federal
+VE;FAL;Falcon
+VE;GUA;Guarico
+VE;LAR;Lara
+VE;MER;Merida
+VE;MIR;Miranda
+VE;MON;Monagas
+VE;NE;Nueva Esparta
+VE;POR;Portuguesa
+VE;SUC;Sucre
+VE;TAC;Tachira
+VE;TRU;Trujillo
+VE;VAR;Vargas
+VE;YAR;Yaracuy
+VE;ZUL;Zulia
+ZA;EC;Prov.Oriental Cabo
+ZA;FS;Estado Libre
+ZA;GP;Gauteng
+ZA;LP;Limpopo
+ZA;MP;Mpumalanga
+ZA;NC;Prov.Septentr.Cabo
+ZA;NW;Prov.Noroeste
+ZA;WC;Prov.Occ.del Cabo
+ZA;ZN;KwaZulu-Natal
