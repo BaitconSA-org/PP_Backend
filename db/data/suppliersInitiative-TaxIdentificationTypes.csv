@@ -1,0 +1,73 @@
+ID;description
+AR1A;Argentina: CUIT
+AR1B;Argentina: CUIL
+AR1Z;Argentina: Sin ID
+AT0;Austria: Nº identif.fiscal comunitario
+AU0;Australia: ABN
+BE0;Bélgica: Nº identif.fiscal comunitario
+BE1;Bélgica: Enterprise Number
+BE2;Bélgica: Nº identif.IVA s/cl.país
+BR1;Brasil: Número CNPJ
+BR3;Brasil: State Tax Number
+BR4;Brasil: Municipal Tax Number
+BS1;Bahamas: Nº identificación fiscal IVA
+CA1;Canadá: Nº imptos.bienes/servicios (GST)
+CA2;Canadá: Número de empresa
+CA3;Canadá: Nº imptos.vtas.provincia (PST)
+CA4;Canadá: Nº IVA Quebec (QST)
+CH1;Suiza: Nº identif.fiscal comunitario
+CL1;Chile: RUT
+CN0;China: Nº identificación fiscal
+CO1;Colombia: NIT
+CZ1;República Checa: DIC
+CZ2;República Checa: ICO
+DE0;Alemania: Nº identif.fiscal comunitario
+DE1;Alemania: Nº id.fiscal
+DE2;Obsoleto
+DK0;Dinamarca: Nº identif.fiscal comunitario
+DK2;Dinamarca: Nº identificación fiscal
+ES0;España: Nº identif.fiscal comunitario
+ES1;España: NIF
+FI0;Finlandia: Nº identif.fiscal comunitario
+FR0;Francia: Nº identif.fiscal comunitario
+FR1;Francia: SIRET
+FR2;Francia: SIREN
+GB0;Reino Unido: Nº identif.fiscal comunit.
+GB2;Reino Unido: Núm.afiliación Seg.Social
+GB3;GB: Número registro de sociedad
+GR0;Grecia: Nº identif.fiscal comunitario
+GR1;Grecia: Personal ID
+GR2;Grecia: AFM
+IE0;Irlanda: Nº identif.fiscal comunitario
+IN1;India: Nº identificación fiscal (TIN)
+IT0;Italia: Nº identif.fiscal comunitario
+IT2;Italia: Código IVA
+KR1;Corea del Sur: Corporation ID o Personal
+KR2;Corea del Sur: Nº identif.fiscal com.
+LU0;Luxemburgo: Nº identif.fiscal comunit.
+MH3;Islas Marshall: Nº identificación fiscal
+MX1;México: RFC
+MX2;México: Oblig.declaración IVA
+MY1;Malasia: Número GST
+NL0;Países Bajos: Nº identif.fiscal comunit.
+NO1;Noruega: Nº identificación fiscal
+NO2;Noruega: Nº identificación fiscal (2)
+PH1;Filipinas: TIN
+PL1;Polonia: NIP
+PT0;Portugal: Nº identif.fiscal comunitario
+PY3;Paraguay: Número identificación fiscal
+RU1;Rusia: INN
+SE0;Suecia: Nº identif.fiscal comunitario
+SE2;Suecia: Nº identificación fiscal
+SG1;Singapur: GST Registration Number
+SG2;Singapur: Número NRIC/FIN
+SG3;Singapur: Número de entidad unívoco (UEN)
+SK1;Eslovaquia: DIC
+SK2;Eslovaquia: ICO
+TH1;Tailandia: Personal ID
+US01;Número identificación fiscal EE.UU.
+US1;EEUU: Número afiliación Seg.Social
+US2;EEUU: Employer Identification Number
+UY3;Uruguay: Número RUT
+VE1;Venezuela: RIF
+VE2;Venezuela: NIT

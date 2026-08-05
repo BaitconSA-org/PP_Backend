@@ -1,0 +1,7 @@
+country_code;reason_code;description
+AR;1;Exemption
+CO;01;Withholding tax not applicable
+GB;01;Outside the scheme
+GB;02;Valid Certificate
+MX;01;Withholding tax not applicable
+VE;01;Withholding tax not applicable

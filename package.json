@@ -9,11 +9,16 @@
   "license": "UNLICENSED",
   "private": true,
   "dependencies": {
+    "@cap-js/change-tracking": "^2.1.0",
     "@cap-js/hana": "^1",
     "@sap-cloud-sdk/connectivity": "^3",
     "@sap-cloud-sdk/http-client": "^3",
     "@sap-cloud-sdk/resilience": "^3",
+    "cds-swagger-ui-express": "^0.11.0",
     "dotenv": "^17.2.3",
+    "exceljs": "^4.4.0",
+    "multer": "^2.2.0",
+    "passport": "^0.7.0",
     "@sap/cf-tools": "^3.2.2",
     "@sap/xsenv": "^3.2.0",
     "@sap/xssec": "^3.6.2",
@@ -103,6 +108,37 @@
         "credentials": {
           "destination": "S4HANA",
           "path": "/sap/opu/odata/sap/API_PURCHASECONTRACT_PROCESS_SRV;v=0002"
+        }
+      },
+      "OP_API_PURCHASEORDER_PROCESS_SRV_0001": {
+        "kind": "odata-v2",
+        "model": "srv/external/OP_API_PURCHASEORDER_PROCESS_SRV_0001",
+        "credentials": {
+          "destination": "S4HANA",
+          "path": "/sap/opu/odata/sap/API_PURCHASEORDER_PROCESS_SRV"
+        }
+      },
+      "OP_API_BUSINESS_PARTNER_SRV": {
+        "kind": "odata-v2",
+        "model": "srv/external/OP_API_BUSINESS_PARTNER_SRV",
+        "credentials": {
+          "destination": "S4HANA",
+          "path": "/sap/opu/odata/sap/API_BUSINESS_PARTNER"
+        }
+      },
+      "ZMM_SERVICE_ENTRY_SHEET_SRV_01": {
+        "kind": "odata-v2",
+        "credentials": {
+          "destination": "S4HANA",
+          "path": "/sap/opu/odata/sap/ZMM_SERVICE_ENTRY_SHEET_SRV_01"
+        }
+      },
+      "OP_API_PURCHASECONTRACT_PROCESS_SRV_0002": {
+        "kind": "odata-v2",
+        "model": "srv/external/OP_API_PURCHASECONTRACT_PROCESS_SRV_0002",
+        "credentials": {
+          "destination": "S4HANA",
+          "path": "/sap/opu/odata/sap/API_PURCHASECONTRACT_PROCESS_SRV"
         }
       },
       "db": {

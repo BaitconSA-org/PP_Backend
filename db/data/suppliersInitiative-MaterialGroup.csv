@@ -1,0 +1,43 @@
+ID;description
+1;Grupo de artículos 1
+108;Equip. boca de Pozo
+112;Cañerias y Acces.
+116;Valvulas y Acces.
+120;Caldereria p/tratar
+124;Instrumnt. Ctrl de P
+128;Maquinas
+132;Electricidad
+136;Quimicos Lubricantes
+140;Materias Primas
+144;Equip y Elem d Lab
+148;Equip p/Transp Elev
+152;Eq. p/Interv d
+156;Elemen Grals p/Maqs
+160;Equips Herr Matrls
+164;Equip Personal Seg.
+165;Agroquimicos
+166;Plantas
+167;Insumos Forestales
+168;Equips p/ ind Forest
+172;Prods Agropecuarios
+176;Computn Economato
+178;Producto Terminado
+199;Matrls Genericos
+2;Grupo de artículos 2
+200;No Stockeables
+300;Servicios Pozos
+301;Servicios Mantenimie
+302;Servicios Generales
+303;Otros Servicios
+ADM-;ADMIN - GRUPO
+ANT-;ANTICIPO PRODUCTO
+CONC;Concesiones
+CRU-;CRUDO GRUPO
+DIF-;DIFERENCIA GRUPO
+ENE-;ENERGIA GRUPO
+GAS-;GAS GRUPO
+GLP-;GLP GRUPO
+GRAL;GENERAL GRUPO
+PPIO;ITEM PROPIO GRUPO
+REGA;REGALIAS
+SMIG;CONCEPTOS MIGRACION

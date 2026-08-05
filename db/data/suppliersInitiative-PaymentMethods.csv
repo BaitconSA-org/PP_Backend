@@ -1,0 +1,25 @@
+country_code;pmt_method;description
+AR;B;Bancos Pagos VEP
+AR;C;Cheque
+AR;E;Transferencia electrónica
+AR;G;Transf.Interbanking Galicia
+AR;I;Transf.Interbanking ICBC
+AR;J;Transf.Interbanking JP Morgan
+AR;M;Transf.Interbanking Macro
+AR;P;Pago Judiciales CITI
+AR;S;Transf.Interbanking Santander
+AR;T;Transf.Interbanking ITAU/Macro
+AR;U;Transf.Interbank Galicia USD
+AR;V;Embargos Galicia
+AR;X;Cheque diferido
+BR;A;Duplicata
+BR;C;Cheque
+BR;D;Boleto/Duplicata
+BR;E;Pagamento a vista
+BR;U;Transfêrencia
+BR;V;Vendor Operation payment
+MX;C;Cheque
+MX;E;Transferencia electrónica
+MX;T;Transferencia Bancaria
+UY;C;Cheque
+UY;E;Transferencia electrónica
