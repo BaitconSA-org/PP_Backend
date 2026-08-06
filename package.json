@@ -126,11 +126,18 @@
           "path": "/sap/opu/odata/sap/API_BUSINESS_PARTNER"
         }
       },
-      "ZMM_SERVICE_ENTRY_SHEET_SRV_01": {
+      "API_SERVICE_ENTRY_SHEET_SRV": {
         "kind": "odata-v2",
         "credentials": {
           "destination": "S4HANA",
-          "path": "/sap/opu/odata/sap/ZMM_SERVICE_ENTRY_SHEET_SRV_01"
+          "path": "/sap/opu/odata/sap/API_SERVICE_ENTRY_SHEET_SRV"
+        }
+      },
+      "API_PURCHASEREQ_PROCESS_SRV": {
+        "kind": "odata-v2",
+        "credentials": {
+          "destination": "S4HANA",
+          "path": "/sap/opu/odata/sap/API_PURCHASEREQ_PROCESS_SRV"
         }
       },
       "OP_API_PURCHASECONTRACT_PROCESS_SRV_0002": {

@@ -846,9 +846,11 @@ module.exports = cds.service.impl(async function () {
     if (!nro_hes) return req.error(400, "nro_hes es obligatorio.");
 
     try {
+      // TODO: verificar el entity set real de PDF en API_SERVICE_ENTRY_SHEET_SRV estándar;
+      // "ServiceEntrySheetPDFSet" era específico del servicio Z y puede no existir acá.
       const response = await sapCfAxios("S4HANA")({
         method: "GET",
-        url: `/sap/opu/odata/sap/ZMM_SERVICE_ENTRY_SHEET_SRV_01/ServiceEntrySheetPDFSet('${encodeURIComponent(nro_hes)}')/$value`,
+        url: `/sap/opu/odata/sap/API_SERVICE_ENTRY_SHEET_SRV/ServiceEntrySheetPDFSet('${encodeURIComponent(nro_hes)}')/$value`,
         responseType: "arraybuffer",        // fuerza binario, sin decodificar a texto
         headers: { Accept: "application/pdf" }
       });
@@ -2421,7 +2423,7 @@ module.exports = cds.service.impl(async function () {
 
   this.on("getPurchaseOrderItemServices", async (req) => {
     try {
-      const zService = await getS4Service("ZMM_SERVICE_ENTRY_SHEET_SRV_01");
+      const zService = await getS4Service("API_SERVICE_ENTRY_SHEET_SRV");
 
       const { PurchaseOrder, POItemNumber } = req.data;
 
@@ -2431,6 +2433,8 @@ module.exports = cds.service.impl(async function () {
 
       const paddedItem = String(POItemNumber).padStart(5, "0");
 
+      // TODO: verificar el entity set real en API_SERVICE_ENTRY_SHEET_SRV estándar;
+      // "PurchaseOrderItemServicesSet" era específico del servicio Z y puede no existir acá.
       const result = await zService.send({
         method: "GET",
         path: `PurchaseOrderItemServicesSet?$filter=PONumber eq '${PurchaseOrder}' and POItemNumber eq ${paddedItem}`
@@ -2446,7 +2450,7 @@ module.exports = cds.service.impl(async function () {
 
   this.on("getPurchaseContractItemServices", async (req) => {
     try {
-      const zService = await getS4Service("ZMM_SERVICE_ENTRY_SHEET_SRV_01");
+      const zService = await getS4Service("API_SERVICE_ENTRY_SHEET_SRV");
 
       const { PurchaseContract, PurchaseContractItem } = req.data;
 
@@ -2457,6 +2461,8 @@ module.exports = cds.service.impl(async function () {
       const pcPadded = String(PurchaseContract).padStart(10, "0");
       const itemPadded = String(PurchaseContractItem).padStart(5, "0");
 
+      // TODO: verificar el entity set real en API_SERVICE_ENTRY_SHEET_SRV estándar;
+      // "PurchaseOrderItemServicesSet" era específico del servicio Z y puede no existir acá.
       const result = await zService.send({
         method: "GET",
         path: `PurchaseOrderItemServicesSet?$filter=PONumber eq '${pcPadded}' and POItemNumber eq ${itemPadded}`
