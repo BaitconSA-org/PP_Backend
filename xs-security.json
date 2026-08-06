@@ -205,83 +205,73 @@
   ],
   "role-collections": [
   {
-    "name": "PP_Supplier",
+    "name": "SupplierAccess",
     "description": "Access to supplier entities",
     "role-template-references": [
       "$XSAPPNAME.SupplierUser"
     ]
   },
   {
-    "name": "PP_Admin",
-    "description": "Administrador completo (facturas + ABM/HES + gestion de usuarios BTP-IAS)",
+    "name": "AdminAccess",
+    "description": "Full admin access",
     "role-template-references": [
-      "$XSAPPNAME.AdminUser",
-      "$XSAPPNAME.VISTA_Admin"
+      "$XSAPPNAME.AdminUser"
     ]
   },
   {
-    "name": "PP_ProveedorProvisorio",
-    "description": "Rol para proveedores nuevos (con bp_id)",
+    "name": "VISTA_ProveedorProvisorio",
     "role-template-references": ["$XSAPPNAME.ProveedorProvisorio"]
   },
   {
-    "name": "PP_ProveedorActivo",
-    "description": "Rol para proveedores validados (con bp_id)",
+    "name": "VISTA_ProveedorActivo",
     "role-template-references": ["$XSAPPNAME.ProveedorActivo"]
   },
   {
-    "name": "PP_ProveedorPrecertificacion",
-    "description": "Proveedor habilitado para precertificacion (con bp_id)",
+    "name": "VISTA_ProveedorPrecertificacion",
     "role-template-references": ["$XSAPPNAME.ProveedorPrecertificacion"]
   },
   {
-    "name": "PP_AprobadorLegales",
-    "description": "Departamento legal",
+    "name": "VISTA_AprobadorLegales",
     "role-template-references": ["$XSAPPNAME.VISTA_AprobadorLegales"]
   },
   {
-    "name": "PP_AprobadorImpuestos",
-    "description": "Departamento de impuestos (Tax)",
+    "name": "VISTA_AprobadorImpuestos",
     "role-template-references": ["$XSAPPNAME.VISTA_AprobadorImpuestos"]
   },
   {
-    "name": "PP_AprobadorTesoreria",
-    "description": "Departamento de tesoreria",
+    "name": "VISTA_AprobadorTesoreria",
     "role-template-references": ["$XSAPPNAME.VISTA_AprobadorTesoreria"]
   },
   {
-    "name": "PP_CoordinadorProveedores",
-    "description": "Comprador Accesos-Desbloqueo (coordinador de proveedores)",
+    "name": "VISTA_CoordinadorProveedores",
     "role-template-references": ["$XSAPPNAME.VISTA_CoordinadorProveedores"]
   },
   {
-    "name": "PP_Comprador",
-    "description": "Comprador (visualizacion catalogo ABM + auditoria)",
+    "name": "VISTA_Comprador",
     "role-template-references": ["$XSAPPNAME.VISTA_Comprador"]
   },
   {
-    "name": "PP_Visualizador",
-    "description": "Visualizador (lista de proveedores)",
+    "name": "VISTA_Visualizador",
     "role-template-references": ["$XSAPPNAME.VISTA_Visualizador"]
   },
   {
-    "name": "PP_CoordinadorACAPPrecertificacion",
-    "description": "Coordinador ACAP",
+    "name": "VISTA_CoordinadorACAPPrecertificacion",
     "role-template-references": ["$XSAPPNAME.VISTA_CoordinadorACAPPrecertificacion"]
   },
   {
-    "name": "PP_FiscalizadorPrecertificacion",
-    "description": "Fiscalizador",
+    "name": "VISTA_FiscalizadorPrecertificacion",
     "role-template-references": ["$XSAPPNAME.VISTA_FiscalizadorPrecertificacion"]
   },
   {
-    "name": "PP_Auditor",
-    "description": "Auditor (solo lectura global)",
+    "name": "VISTA_Admin",
+    "role-template-references": ["$XSAPPNAME.VISTA_Admin"]
+  },
+  {
+    "name": "VISTA_Auditor",
     "role-template-references": ["$XSAPPNAME.VISTA_Auditor"]
   },
   {
-    "name": "PP_ACAP",
-    "description": "Auditor y editor de Tickets (solo asignados)",
+    "name": "VISTA_ACAP",
     "role-template-references": ["$XSAPPNAME.VISTA_ACAP"]
   }
 ]
