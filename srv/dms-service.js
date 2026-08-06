@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 const cds = require('@sap/cds');
-const dmsClient = require('./dms-client-tickets');
+const dmsClient = require('./dms/dms-client-tickets');
 
 module.exports = cds.service.impl(async function () {
 
