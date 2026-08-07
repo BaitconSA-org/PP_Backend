@@ -11,9 +11,9 @@ const REPO_ID = process.env.DMS_REPOSITORY_ID;
 // Mapeo de área aprobadora → Role Collection de BTP. Los aprobadores reales de
 // cada área se resuelven consultando esa RC (mismos nombres que xs-security.json).
 const AREA_ROLE_COLLECTION = {
-  LEGAL: process.env.BTP_RC_APROBADOR_LEGAL || 'VISTA_AprobadorLegales',
-  TAX: process.env.BTP_RC_APROBADOR_IMPUESTOS || 'VISTA_AprobadorImpuestos',
-  TREASURY: process.env.BTP_RC_APROBADOR_TESORERIA || 'VISTA_AprobadorTesoreria'
+  LEGAL: process.env.BTP_RC_APROBADOR_LEGAL || 'PP_AprobadorLegales',
+  TAX: process.env.BTP_RC_APROBADOR_IMPUESTOS || 'PP_AprobadorImpuestos',
+  TREASURY: process.env.BTP_RC_APROBADOR_TESORERIA || 'PP_AprobadorTesoreria'
 };
 
 // Resuelve los emails de los usuarios asignados a una Role Collection de BTP.

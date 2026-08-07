@@ -479,6 +479,9 @@ service HESManagementService @(path: '/srv/hes') {
     function getHESExpanded(ServiceEntrySheet: String)                                returns SESExpandedResult;
     function getPurchaseRequisitionExpanded(PurchaseRequisition: String)              returns PurchReqExpandedResult;
 
+    // ─── DEBUG: lista los entity sets reales de un servicio OData estándar en S4 ──
+    function debugEntitySets(servicePath: String)                                    returns array of String;
+
     // ─── Acciones ─────────────────────────────────────────────────
     action   submitPrecertTicket(source_type: String(10),
                                  source_number: String(20),

@@ -114,77 +114,77 @@
       ]
     },
     {
-      "name": "VISTA_AprobadorLegales",
+      "name": "PP_AprobadorLegales",
       "description": "Departamento legal",
       "scope-references": [
         "$XSAPPNAME.AprobadorLegales"
       ]
     },
     {
-      "name": "VISTA_AprobadorImpuestos",
+      "name": "PP_AprobadorImpuestos",
       "description": "Departamento de impuestos (Tax)",
       "scope-references": [
         "$XSAPPNAME.AprobadorImpuestos"
       ]
     },
     {
-      "name": "VISTA_AprobadorTesoreria",
+      "name": "PP_AprobadorTesoreria",
       "description": "Departamento de tesoreria",
       "scope-references": [
         "$XSAPPNAME.AprobadorTesoreria"
       ]
     },
     {
-      "name": "VISTA_CoordinadorProveedores",
+      "name": "PP_CoordinadorProveedores",
       "description": "Comprador Accesos-Desbloqueo (coordinador de proveedores)",
       "scope-references": [
         "$XSAPPNAME.CoordinadorProveedores"
       ]
     },
     {
-      "name": "VISTA_Comprador",
+      "name": "PP_Comprador",
       "description": "Comprador (visualizacion catalogo ABM + auditoria)",
       "scope-references": [
         "$XSAPPNAME.Comprador"
       ]
     },
     {
-      "name": "VISTA_Visualizador",
+      "name": "PP_Visualizador",
       "description": "Visualizador (lista de proveedores)",
       "scope-references": [
         "$XSAPPNAME.Visualizador"
       ]
     },
     {
-      "name": "VISTA_CoordinadorACAPPrecertificacion",
+      "name": "PP_CoordinadorACAPPrecertificacion",
       "description": "Coordinador ACAP",
       "scope-references": [
         "$XSAPPNAME.CoordinadorACAPPrecertificacion"
       ]
     },
     {
-      "name": "VISTA_FiscalizadorPrecertificacion",
+      "name": "PP_FiscalizadorPrecertificacion",
       "description": "Fiscalizador",
       "scope-references": [
         "$XSAPPNAME.FiscalizadorPrecertificacion"
       ]
     },
     {
-      "name": "VISTA_Admin",
+      "name": "PP_Admin",
       "description": "Administrador del sistema (FF + gestion de usuarios BTP-IAS)",
       "scope-references": [
         "$XSAPPNAME.Admin"
       ]
     },
     {
-      "name": "VISTA_Auditor",
+      "name": "PP_Auditor",
       "description": "Auditor (solo lectura global)",
       "scope-references": [
         "$XSAPPNAME.Auditor"
       ]
     },
     {
-      "name": "VISTA_ACAP",
+      "name": "PP_ACAP",
       "description": "Auditor y editor de Tickets (solo asignados)",
       "scope-references": [
         "$XSAPPNAME.ACAP"
@@ -219,60 +219,60 @@
     ]
   },
   {
-    "name": "VISTA_ProveedorProvisorio",
+    "name": "PP_ProveedorProvisorio",
     "role-template-references": ["$XSAPPNAME.ProveedorProvisorio"]
   },
   {
-    "name": "VISTA_ProveedorActivo",
+    "name": "PP_ProveedorActivo",
     "role-template-references": ["$XSAPPNAME.ProveedorActivo"]
   },
   {
-    "name": "VISTA_ProveedorPrecertificacion",
+    "name": "PP_ProveedorPrecertificacion",
     "role-template-references": ["$XSAPPNAME.ProveedorPrecertificacion"]
   },
   {
-    "name": "VISTA_AprobadorLegales",
-    "role-template-references": ["$XSAPPNAME.VISTA_AprobadorLegales"]
+    "name": "PP_AprobadorLegales",
+    "role-template-references": ["$XSAPPNAME.PP_AprobadorLegales"]
   },
   {
-    "name": "VISTA_AprobadorImpuestos",
-    "role-template-references": ["$XSAPPNAME.VISTA_AprobadorImpuestos"]
+    "name": "PP_AprobadorImpuestos",
+    "role-template-references": ["$XSAPPNAME.PP_AprobadorImpuestos"]
   },
   {
-    "name": "VISTA_AprobadorTesoreria",
-    "role-template-references": ["$XSAPPNAME.VISTA_AprobadorTesoreria"]
+    "name": "PP_AprobadorTesoreria",
+    "role-template-references": ["$XSAPPNAME.PP_AprobadorTesoreria"]
   },
   {
-    "name": "VISTA_CoordinadorProveedores",
-    "role-template-references": ["$XSAPPNAME.VISTA_CoordinadorProveedores"]
+    "name": "PP_CoordinadorProveedores",
+    "role-template-references": ["$XSAPPNAME.PP_CoordinadorProveedores"]
   },
   {
-    "name": "VISTA_Comprador",
-    "role-template-references": ["$XSAPPNAME.VISTA_Comprador"]
+    "name": "PP_Comprador",
+    "role-template-references": ["$XSAPPNAME.PP_Comprador"]
   },
   {
-    "name": "VISTA_Visualizador",
-    "role-template-references": ["$XSAPPNAME.VISTA_Visualizador"]
+    "name": "PP_Visualizador",
+    "role-template-references": ["$XSAPPNAME.PP_Visualizador"]
   },
   {
-    "name": "VISTA_CoordinadorACAPPrecertificacion",
-    "role-template-references": ["$XSAPPNAME.VISTA_CoordinadorACAPPrecertificacion"]
+    "name": "PP_CoordinadorACAPPrecertificacion",
+    "role-template-references": ["$XSAPPNAME.PP_CoordinadorACAPPrecertificacion"]
   },
   {
-    "name": "VISTA_FiscalizadorPrecertificacion",
-    "role-template-references": ["$XSAPPNAME.VISTA_FiscalizadorPrecertificacion"]
+    "name": "PP_FiscalizadorPrecertificacion",
+    "role-template-references": ["$XSAPPNAME.PP_FiscalizadorPrecertificacion"]
   },
   {
-    "name": "VISTA_Admin",
-    "role-template-references": ["$XSAPPNAME.VISTA_Admin"]
+    "name": "PP_Admin",
+    "role-template-references": ["$XSAPPNAME.PP_Admin"]
   },
   {
-    "name": "VISTA_Auditor",
-    "role-template-references": ["$XSAPPNAME.VISTA_Auditor"]
+    "name": "PP_Auditor",
+    "role-template-references": ["$XSAPPNAME.PP_Auditor"]
   },
   {
-    "name": "VISTA_ACAP",
-    "role-template-references": ["$XSAPPNAME.VISTA_ACAP"]
+    "name": "PP_ACAP",
+    "role-template-references": ["$XSAPPNAME.PP_ACAP"]
   }
 ]
 

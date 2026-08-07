@@ -29,7 +29,7 @@ module.exports = cds.service.impl(async function () {
   attachReadOnlyGuard(this, [
     'me', 'getPurchaseOrderAccountAssignment', 'getPurchaseContractAccountAssignment',
     'getPurchaseOrderItemServices', 'getPurchaseContractItemServices', 'getPurchaseOrderExpanded',
-    'getHESExpanded', 'getPurchaseRequisitionExpanded',
+    'getHESExpanded', 'getPurchaseRequisitionExpanded', 'debugEntitySets',
     'checkIASUser', 'getHESDocument', 'downloadTicketDocument',
     'downloadPurchaseContractExcel', 'downloadPrecertExcel', 'downloadSubTicketExcel',
     'downloadPrecertTickets', 'downloadApprovalManualExcel', 'downloadMAWizardExcel',
@@ -2271,6 +2271,39 @@ module.exports = cds.service.impl(async function () {
 
       if (status === 404) return req.reject(404, `Purchase Requisition ${prPadded} no encontrada en S4`);
       return req.reject(500, "Error al leer la Purchase Requisition");
+    }
+  });
+
+  // DEBUG temporal: lista los entity sets reales de un servicio OData v2 estándar en S4
+  // (ej. servicePath='API_PURCHASEREQ_PROCESS_SRV' o 'API_SERVICE_ENTRY_SHEET_SRV'),
+  // leyendo su $metadata. Sirve para confirmar los nombres reales cuando difieren
+  // de la convención estándar documentada en api.sap.com.
+  this.on("debugEntitySets", async (req) => {
+    const { servicePath } = req.data;
+
+    if (!servicePath) {
+      return req.reject(400, "servicePath es obligatorio");
+    }
+
+    try {
+      const axios = sapCfAxios("S4HANA");
+
+      const response = await axios({
+        method: "GET",
+        url: `/sap/opu/odata/sap/${servicePath}/$metadata`,
+        responseType: "text",
+        headers: { Accept: "application/xml" }
+      });
+
+      const xml = typeof response.data === "string" ? response.data : JSON.stringify(response.data);
+      const entitySets = [...xml.matchAll(/<EntitySet Name="([^"]+)"/g)].map(m => m[1]);
+
+      return entitySets;
+
+    } catch (err) {
+      const status = err.response?.status;
+      console.error(`Error en debugEntitySets para ${servicePath}:`, err.response?.data || err.message);
+      return req.reject(status || 500, `Error al leer metadata de ${servicePath}: ${err.message}`);
     }
   });
 
