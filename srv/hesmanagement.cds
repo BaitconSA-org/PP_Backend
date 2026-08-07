@@ -413,6 +413,46 @@ service HESManagementService @(path: '/srv/hes') {
         to_PurchaseOrderItem : array of POItemExpanded;
     }
 
+    // ─── HES / Service Entry Sheet (API_SERVICE_ENTRY_SHEET_SRV) ──
+    type SESItemExpanded {
+        ServiceEntrySheetItem : String;
+        ShortText             : String;
+        Quantity              : Decimal;
+        QuantityUnit          : String;
+        NetAmount             : Decimal;
+        PurchaseOrder         : String;
+        PurchaseOrderItem     : String;
+    }
+
+    type SESExpandedResult {
+        ServiceEntrySheet        : String;
+        PostingDate              : Date;
+        Supplier                 : String;
+        PurchasingOrganization   : String;
+        PurchasingGroup          : String;
+        to_ServiceEntrySheetItem : array of SESItemExpanded;
+    }
+
+    // ─── Purchase Requisition / SOLPED (API_PURCHASEREQ_PROCESS_SRV) ──
+    type PurchReqItemExpanded {
+        PurchaseRequisitionItem : String;
+        Plant                   : String;
+        MaterialGroup           : String;
+        ShortText                : String;
+        RequestedQuantity        : Decimal;
+        BaseUnit                 : String;
+        Supplier                 : String;
+        PurchasingGroup          : String;
+        PurchasingOrganization   : String;
+    }
+
+    type PurchReqExpandedResult {
+        PurchaseRequisition        : String;
+        PurchaseRequisitionType    : String;
+        CreationDate                : Date;
+        to_PurchaseRequisitionItem : array of PurchReqItemExpanded;
+    }
+
     // ─── Funciones ────────────────────────────────────────────────
     function getPurchaseOrderAccountAssignment(PurchaseOrder: String,
                                                PurchaseOrderItem: String)             returns array of AccountAssignment;
@@ -434,6 +474,10 @@ service HESManagementService @(path: '/srv/hes') {
 
     // ─── NUEVO: get completo con expand directo a S4 ──────────────
     function getPurchaseOrderExpanded(PurchaseOrder: String)                          returns POExpandedResult;
+
+    // ─── NUEVO: lectura de HES y SOLPED (Purchase Requisition) ────
+    function getHESExpanded(ServiceEntrySheet: String)                                returns SESExpandedResult;
+    function getPurchaseRequisitionExpanded(PurchaseRequisition: String)              returns PurchReqExpandedResult;
 
     // ─── Acciones ─────────────────────────────────────────────────
     action   submitPrecertTicket(source_type: String(10),

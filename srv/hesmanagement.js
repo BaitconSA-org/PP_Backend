@@ -29,6 +29,7 @@ module.exports = cds.service.impl(async function () {
   attachReadOnlyGuard(this, [
     'me', 'getPurchaseOrderAccountAssignment', 'getPurchaseContractAccountAssignment',
     'getPurchaseOrderItemServices', 'getPurchaseContractItemServices', 'getPurchaseOrderExpanded',
+    'getHESExpanded', 'getPurchaseRequisitionExpanded',
     'checkIASUser', 'getHESDocument', 'downloadTicketDocument',
     'downloadPurchaseContractExcel', 'downloadPrecertExcel', 'downloadSubTicketExcel',
     'downloadPrecertTickets', 'downloadApprovalManualExcel', 'downloadMAWizardExcel',
@@ -2197,6 +2198,82 @@ module.exports = cds.service.impl(async function () {
       return req.reject(500, "Error al leer Purchase Order con expand");
     }
   });
+  // TODO: los nombres de entity set (A_ServiceEntrySheet / A_ServiceEntrySheetItem) y de
+  // campos siguen la convención estándar documentada en API_SERVICE_ENTRY_SHEET_SRV, pero no
+  // fueron validados todavía contra el sistema real. Probar con una HES real (ej. HES 8) antes
+  // de usar en producción.
+  this.on("getHESExpanded", async (req) => {
+    const { ServiceEntrySheet } = req.data;
+
+    if (!ServiceEntrySheet) {
+      return req.reject(400, "ServiceEntrySheet es obligatorio");
+    }
+
+    const sesPadded = String(ServiceEntrySheet).padStart(10, "0");
+
+    try {
+      const s4Ses = await getS4Service("API_SERVICE_ENTRY_SHEET_SRV");
+
+      const [header, itemsResult] = await Promise.all([
+        s4Ses.get(`/A_ServiceEntrySheet('${sesPadded}')`),
+        s4Ses.get(`/A_ServiceEntrySheetItem?$filter=ServiceEntrySheet eq '${sesPadded}'`)
+      ]);
+
+      if (!header) {
+        return req.reject(404, `HES ${sesPadded} no encontrada`);
+      }
+
+      const items = Array.isArray(itemsResult) ? itemsResult : (itemsResult?.value ?? [itemsResult].filter(Boolean));
+
+      return { ...header, to_ServiceEntrySheetItem: items };
+
+    } catch (err) {
+      const status = err.response?.status;
+      console.error("Error en getHESExpanded:", err.response?.data || err.message);
+
+      if (status === 404) return req.reject(404, `HES ${sesPadded} no encontrada en S4`);
+      return req.reject(500, "Error al leer la HES");
+    }
+  });
+
+  // TODO: los nombres de entity set (A_PurchaseRequisition / A_PurchaseRequisitionItem) y de
+  // campos siguen la convención estándar documentada en API_PURCHASEREQ_PROCESS_SRV, pero no
+  // fueron validados todavía contra el sistema real. Probar con una SOLPED real (ej. 2607)
+  // antes de usar en producción.
+  this.on("getPurchaseRequisitionExpanded", async (req) => {
+    const { PurchaseRequisition } = req.data;
+
+    if (!PurchaseRequisition) {
+      return req.reject(400, "PurchaseRequisition es obligatorio");
+    }
+
+    const prPadded = String(PurchaseRequisition).padStart(10, "0");
+
+    try {
+      const s4Pr = await getS4Service("API_PURCHASEREQ_PROCESS_SRV");
+
+      const [header, itemsResult] = await Promise.all([
+        s4Pr.get(`/A_PurchaseRequisition('${prPadded}')`),
+        s4Pr.get(`/A_PurchaseRequisitionItem?$filter=PurchaseRequisition eq '${prPadded}'`)
+      ]);
+
+      if (!header) {
+        return req.reject(404, `Purchase Requisition ${prPadded} no encontrada`);
+      }
+
+      const items = Array.isArray(itemsResult) ? itemsResult : (itemsResult?.value ?? [itemsResult].filter(Boolean));
+
+      return { ...header, to_PurchaseRequisitionItem: items };
+
+    } catch (err) {
+      const status = err.response?.status;
+      console.error("Error en getPurchaseRequisitionExpanded:", err.response?.data || err.message);
+
+      if (status === 404) return req.reject(404, `Purchase Requisition ${prPadded} no encontrada en S4`);
+      return req.reject(500, "Error al leer la Purchase Requisition");
+    }
+  });
+
   this.on("getPurchaseContractAccountAssignment", async (req) => {
     try {
       const s4Contract = await getS4Service("OP_API_PURCHASECONTRACT_PROCESS_SRV_0002");
