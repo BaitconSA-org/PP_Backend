@@ -11,12 +11,44 @@ const FormData = require('form-data');
 
 const REPO_ID = process.env.DMS_REPOSITORY_ID;
 
+// Rollout gradual del modelo de precertificación por ítem de OC: lista de business_partner_ID
+// separados por coma habilitados para el modelo nuevo, o "ALL" para habilitarlo globalmente.
+// Tickets creados fuera de esta lista siguen usando el modelo plano por subservicio (LEGACY).
+const PRECERT_ITEM_MODEL_ROLLOUT = process.env.PRECERT_ITEM_MODEL_ROLLOUT || "";
+
+function isItemModelEnabled(bpId) {
+  const list = PRECERT_ITEM_MODEL_ROLLOUT.split(",").map(v => v.trim()).filter(Boolean);
+  if (list.includes("ALL")) return true;
+  if (!bpId) return false;
+  return list.includes(bpId);
+}
+
 async function _enrichSupplierName(records, BusinessPartners) {
   const ids = [...new Set(records.map(r => r.Supplier).filter(Boolean))];
   if (!ids.length) return;
   const bps = await SELECT.from(BusinessPartners).where({ lifnr: { in: ids } }).columns('lifnr', 'provider_name');
   const byLifnr = Object.fromEntries(bps.map(bp => [bp.lifnr, bp.provider_name]));
   for (const r of records) r.SupplierName = byLifnr[r.Supplier] ?? null;
+}
+
+// Mapea A_ServiceEntrySheetItem (nombres reales de S/4) al shape que espera el
+// frontend (type PurchaseOrderItemService). PriceUnit no existe en esta entidad
+// de S/4 — se fija en "1" (default estándar SAP cuando no se informa).
+function _mapServiceEntrySheetItem(it) {
+  return {
+    PONumber: it.PurchaseOrder || "",
+    POItemNumber: it.PurchaseOrderItem || "",
+    IntRow: it.ServiceEntrySheetItem || "",
+    ExtRow: it.ServiceEntrySheetItem || "",
+    ActivityNumber: it.Service || "",
+    Quantity: it.ConfirmedQuantity != null ? Number(it.ConfirmedQuantity) : 0,
+    BaseUOM: it.QuantityUnit || "",
+    PriceUnit: "1",
+    GrossPrice: it.NetPriceAmount != null ? Number(it.NetPriceAmount) : 0,
+    NetValue: it.NetAmount != null ? Number(it.NetAmount) : 0,
+    ShortText: it.ServiceEntrySheetItemDesc || "",
+    DeleteIndicator: it.IsDeleted || ""
+  };
 }
 
 global._uploadTokens = global._uploadTokens ?? new Map();
@@ -38,7 +70,7 @@ module.exports = cds.service.impl(async function () {
   // downloadProvisionTickets queda deliberadamente afuera: además de generar el
   // Excel hace UPDATE(PrecertTickets).set({provisioned:true...}) — no es solo lectura.
 
-  const { PrecertTickets, Provinces, WorkflowStatus, BusinessPartners, Services } = this.entities;
+  const { PrecertTickets, PrecertTicketItems, Provinces, WorkflowStatus, BusinessPartners, Services } = this.entities;
 
   this.on("READ", "PurchaseOrderExt", async (req) => {
     try {
@@ -538,6 +570,85 @@ module.exports = cds.service.impl(async function () {
   });
 
 
+  // Agregado persistente por (source_type, source_number, po_item): sobrevive a todas las
+  // precertificaciones parciales que se hagan contra ese ítem a lo largo del tiempo, no solo
+  // a las del ticket que lo crea. Si no existe, se crea trayendo la cantidad total del
+  // servicio desde SAP (OrderQuantity de A_PurchaseOrderItem / TargetQuantity de
+  // A_PurchaseContractItem) — el mismo campo que ya expone PurchaseOrderItemExt/
+  // PurchaseContractItemExt, sin agregar ninguna llamada nueva a SAP.
+  async function _findOrCreatePrecertTicketItem(tx, { source_type, source_number, po_item, po_item_text, service_id, sampleItem, pcItemDataMap }) {
+    const existing = await tx.run(
+      SELECT.one.from(PrecertTicketItems).where({ source_type, source_number, po_item })
+    );
+    if (existing) return existing;
+
+    let qty_total = 0;
+    let unit_price = 0;
+    let currencyCode = null;
+    let measureUnity = sampleItem?.measure_unity ?? null;
+
+    if (source_type === "PO") {
+      try {
+        const s4Purchase = await getS4Service("OP_API_PURCHASEORDER_PROCESS_SRV_0001");
+        const poItem = await s4Purchase.run(
+          SELECT.one.from("A_PurchaseOrderItem")
+            .columns("OrderQuantity", "PurchaseOrderQuantityUnit", "NetPriceAmount", "NetPriceQuantity", "DocumentCurrency")
+            .where({ PurchaseOrder: source_number, PurchaseOrderItem: String(po_item).padStart(5, "0") })
+        );
+        qty_total = Number(poItem?.OrderQuantity) || 0;
+        measureUnity = poItem?.PurchaseOrderQuantityUnit || measureUnity;
+        unit_price = Number(poItem?.NetPriceQuantity) > 0
+          ? round2(Number(poItem.NetPriceAmount) / Number(poItem.NetPriceQuantity))
+          : 0;
+        currencyCode = poItem?.DocumentCurrency || null;
+      } catch (err) {
+        console.error(`[_findOrCreatePrecertTicketItem] Error leyendo ítem de OC ${source_number}/${po_item}:`, err.message);
+        throw err;
+      }
+    } else if (source_type === "PC") {
+      try {
+        const s4Contract = await getS4Service("OP_API_PURCHASECONTRACT_PROCESS_SRV_0002");
+        const contractItem = await s4Contract.run(
+          SELECT.one.from("A_PurchaseContractItem")
+            .columns("TargetQuantity", "OrderQuantityUnit", "NetPriceAmount", "NetPriceQuantity")
+            .where({ PurchaseContract: source_number, PurchaseContractItem: String(po_item).padStart(5, "0") })
+        );
+        qty_total = Number(contractItem?.TargetQuantity) || 0;
+        measureUnity = contractItem?.OrderQuantityUnit || measureUnity;
+        unit_price = Number(contractItem?.NetPriceQuantity) > 0
+          ? round2(Number(contractItem.NetPriceAmount) / Number(contractItem.NetPriceQuantity))
+          : 0;
+      } catch (err) {
+        console.error(`[_findOrCreatePrecertTicketItem] Error leyendo ítem de Contrato ${source_number}/${po_item}:`, err.message);
+        throw err;
+      }
+    }
+
+    const newRow = {
+      ID: cds.utils.uuid(),
+      source_type,
+      source_number,
+      po_item,
+      po_item_text: pcItemDataMap?.[String(po_item)]?.PurchaseContractItemText ?? po_item_text ?? null,
+      service_id: service_id ?? null,
+      service_desc: sampleItem?.ses_subservice ?? null,
+      qty_total,
+      qty_certified: 0,
+      unit_price,
+      currency: currencyCode,
+      measure_unity: measureUnity,
+      account_assignment_number: sampleItem?.account_assignment_number ?? null,
+      project_network: sampleItem?.project_network ?? null,
+      order: sampleItem?.order ?? null,
+      cost_center: sampleItem?.cost_center ?? null,
+      global_ledger_account: sampleItem?.global_ledger_account ?? null,
+      wbs_element: sampleItem?.wbs_element ?? null
+    };
+
+    await tx.run(INSERT.into(PrecertTicketItems).entries(newRow));
+    return newRow;
+  }
+
   // ====== ACTION: submitPrecertTicket(ID) ======
   this.on("submitPrecertTicket", async (req) => {
     const tx = cds.tx(req);
@@ -552,6 +663,10 @@ module.exports = cds.service.impl(async function () {
     const bp = await tx.run(
       SELECT.one.from(BusinessPartners).where({ business_partner_number: business_partner })
     );
+
+    // El backend decide el modelo, no confía en lo que mande el front — evalúa el flag
+    // de rollout contra el business_partner real del ticket que se está creando.
+    const ticketModel = isItemModelEnabled(business_partner) ? "ITEM" : "LEGACY";
 
     if (!source_type || !source_number) {
       return req.reject(400, "source_type y source_number son obligatorios");
@@ -653,6 +768,45 @@ module.exports = cds.service.impl(async function () {
       serviceRows.map(s => [s.description, s.ID])
     );
 
+    // Modelo ITEM: find-or-create del agregado persistente por po_item, y validación del
+    // remanente real (qty_total - qty_certified) contra la suma de lo que se pide certificar
+    // ahora para ese ítem — reemplaza a la validación rota de antes (ver before UPDATE).
+    const poItemAggregates = {};
+    if (ticketModel === "ITEM") {
+      const qtyByPoItem = {};
+      for (const it of items) {
+        const key = String(it.po_item ?? "");
+        qtyByPoItem[key] = (qtyByPoItem[key] || 0) + n(it.qty_to_certify);
+      }
+
+      for (const key of Object.keys(qtyByPoItem)) {
+        if (!key) {
+          return req.reject(400, "po_item es obligatorio para el modelo de precertificación por ítem");
+        }
+
+        const sampleItem = items.find(it => String(it.po_item ?? "") === key);
+        const serviceId = serviceDescToId[sampleItem?.ses_subservice] ?? null;
+
+        const aggregate = await _findOrCreatePrecertTicketItem(tx, {
+          source_type,
+          source_number,
+          po_item: sampleItem.po_item,
+          po_item_text: sampleItem.po_item_text,
+          service_id: serviceId,
+          sampleItem,
+          pcItemDataMap
+        });
+
+        const remaining = Number(aggregate.qty_total || 0) - Number(aggregate.qty_certified || 0);
+        if (qtyByPoItem[key] > remaining + 1e-9) {
+          return req.reject(400,
+            `La cantidad a certificar del ítem ${key} (${qtyByPoItem[key]}) supera el remanente disponible del servicio (${remaining}).`);
+        }
+
+        poItemAggregates[key] = aggregate;
+      }
+    }
+
     await tx.run(
       INSERT.into(PrecertTickets).entries({
         ID: rootId,
@@ -663,7 +817,8 @@ module.exports = cds.service.impl(async function () {
         currency,
         total_price,
         validator,
-        parent_ticket_ID: null
+        parent_ticket_ID: null,
+        ticket_model: ticketModel
       })
     );
 
@@ -676,6 +831,9 @@ module.exports = cds.service.impl(async function () {
         ID: cds.utils.uuid(),
         parent_ticket_ID: rootId,
         ticket_number,
+        precert_ticket_item_ID: ticketModel === "ITEM"
+          ? (poItemAggregates[String(it.po_item ?? "")]?.ID ?? null)
+          : null,
         source_type,
         source_number,
         validator,
@@ -837,7 +995,8 @@ module.exports = cds.service.impl(async function () {
     return {
       email: (u.id || "").toLowerCase(),
       roles,
-      bp_ID: sBpId
+      bp_ID: sBpId,
+      itemModelEnabled: isItemModelEnabled(sBpId)
     };
   });
 
@@ -2533,7 +2692,7 @@ module.exports = cds.service.impl(async function () {
 
   this.on("getPurchaseOrderItemServices", async (req) => {
     try {
-      const zService = await getS4Service("API_SERVICE_ENTRY_SHEET_SRV");
+      const s4Ses = await getS4Service("API_SERVICE_ENTRY_SHEET_SRV");
 
       const { PurchaseOrder, POItemNumber } = req.data;
 
@@ -2541,26 +2700,25 @@ module.exports = cds.service.impl(async function () {
         return req.reject(400, "PurchaseOrder y POItemNumber son obligatorios");
       }
 
-      const paddedItem = String(POItemNumber).padStart(5, "0");
+      const poPadded = String(PurchaseOrder).padStart(10, "0");
+      const itemPadded = String(POItemNumber).padStart(5, "0");
 
-      // TODO: verificar el entity set real en API_SERVICE_ENTRY_SHEET_SRV estándar;
-      // "PurchaseOrderItemServicesSet" era específico del servicio Z y puede no existir acá.
-      const result = await zService.send({
-        method: "GET",
-        path: `PurchaseOrderItemServicesSet?$filter=PONumber eq '${PurchaseOrder}' and POItemNumber eq ${paddedItem}`
-      });
+      const result = await s4Ses.get(
+        `/A_ServiceEntrySheetItem?$filter=PurchaseOrder eq '${poPadded}' and PurchaseOrderItem eq '${itemPadded}'`
+      );
 
-      return Array.isArray(result) ? result : result?.value ?? [];
+      const services = Array.isArray(result) ? result : result?.value ?? [];
+      return services.map(_mapServiceEntrySheetItem);
 
     } catch (err) {
-      console.error("Error en getPurchaseOrderItemServices:", err);
+      console.error("Error en getPurchaseOrderItemServices:", err.response?.data || err.message);
       return req.reject(500, "Error al consultar servicios de la orden de compra");
     }
   });
 
   this.on("getPurchaseContractItemServices", async (req) => {
     try {
-      const zService = await getS4Service("API_SERVICE_ENTRY_SHEET_SRV");
+      const s4Ses = await getS4Service("API_SERVICE_ENTRY_SHEET_SRV");
 
       const { PurchaseContract, PurchaseContractItem } = req.data;
 
@@ -2571,19 +2729,16 @@ module.exports = cds.service.impl(async function () {
       const pcPadded = String(PurchaseContract).padStart(10, "0");
       const itemPadded = String(PurchaseContractItem).padStart(5, "0");
 
-      // TODO: verificar el entity set real en API_SERVICE_ENTRY_SHEET_SRV estándar;
-      // "PurchaseOrderItemServicesSet" era específico del servicio Z y puede no existir acá.
-      const result = await zService.send({
-        method: "GET",
-        path: `PurchaseOrderItemServicesSet?$filter=PONumber eq '${pcPadded}' and POItemNumber eq ${itemPadded}`
-      });
+      const result = await s4Ses.get(
+        `/A_ServiceEntrySheetItem?$filter=PurchaseContract eq '${pcPadded}' and PurchaseContractItem eq '${itemPadded}'`
+      );
 
       const services = Array.isArray(result) ? result : result?.value ?? [];
 
-      return services;
+      return services.map(_mapServiceEntrySheetItem);
 
     } catch (err) {
-      console.error("Error en getPurchaseContractItemServices:", err);
+      console.error("Error en getPurchaseContractItemServices:", err.response?.data || err.message);
       return req.reject(500, "Error al consultar servicios del contrato");
     }
   });

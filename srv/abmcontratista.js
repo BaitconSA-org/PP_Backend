@@ -137,7 +137,7 @@ async function _tokenBpIdMatches(sTokenBpId, bp) {
   const aCandidatos = [bp.ID, bp.business_partner_number, bp.lifnr];
   if (aCandidatos.some(v => v && _normalizarId(v) === sBuscado)) return true;
 
-  const { TaxNumbers } = cds.entities;
+  const { TaxNumbers } = cds.entities("ABMContratistaService");
   const aTax = await SELECT.from(TaxNumbers)
     .columns('identification_number')
     .where({ business_partner_ID: bp.ID });
@@ -252,7 +252,8 @@ module.exports = cds.service.impl(async function () {
   });
 
   this.after('CREATE', 'BusinessPartners', async (data, req) => {
-    const { ApplicationLogs, BusinessPartnerDocuments } = cds.entities;
+    const { BusinessPartnerDocuments } = cds.entities("ABMContratistaService");
+    const { ApplicationLogs } = cds.entities("suppliersInitiative");
 
     await INSERT.into(ApplicationLogs).entries({
       app: 'BPs CRUD',
@@ -331,7 +332,7 @@ module.exports = cds.service.impl(async function () {
     if (!bp_id) return req.error(400, 'bp_id es obligatorio.');
     if (!file_name) return req.error(400, 'file_name es obligatorio.');
 
-    const { BusinessPartners, BusinessPartnerDocuments } = cds.entities;
+    const { BusinessPartners, BusinessPartnerDocuments } = cds.entities("ABMContratistaService");
     const tx = cds.tx(req);
 
     const bp = await tx.run(SELECT.one.from(BusinessPartners).where({ ID: bp_id }));
@@ -358,7 +359,7 @@ module.exports = cds.service.impl(async function () {
     if (!REPO_ID)
       return req.error(500, 'DMS_REPOSITORY_ID no está configurado en el entorno.');
 
-    const { BusinessPartners, BusinessPartnerDocuments } = cds.entities;
+    const { BusinessPartners, BusinessPartnerDocuments } = cds.entities("ABMContratistaService");
     const tx = cds.tx(req);
 
     const bp = await tx.run(SELECT.one.from(BusinessPartners).where({ ID: bp_id }));
@@ -503,7 +504,7 @@ module.exports = cds.service.impl(async function () {
     if (!REPO_ID)
       return req.error(500, 'DMS_REPOSITORY_ID no está configurado en el entorno.');
 
-    const { BusinessPartners } = cds.entities;
+    const { BusinessPartners } = cds.entities("ABMContratistaService");
     const tx = cds.tx(req);
 
     const bp = await tx.run(SELECT.one.from(BusinessPartners).where({ ID: bp_id }));
@@ -543,7 +544,7 @@ module.exports = cds.service.impl(async function () {
     if (!REPO_ID)
       return req.error(500, 'DMS_REPOSITORY_ID no está configurado en el entorno.');
 
-    const { BusinessPartners, BusinessPartnerDocuments } = cds.entities;
+    const { BusinessPartners, BusinessPartnerDocuments } = cds.entities("ABMContratistaService");
     const tx = cds.tx(req);
 
     const bp = await tx.run(SELECT.one.from(BusinessPartners).where({ ID: bp_id }));
@@ -601,7 +602,7 @@ module.exports = cds.service.impl(async function () {
     const { bp_id } = req.data;
     if (!bp_id) return req.error(400, 'bp_id es obligatorio.');
 
-    const { BusinessPartners } = cds.entities;
+    const { BusinessPartners } = cds.entities("ABMContratistaService");
     const tx = cds.tx(req);
     const bp = await tx.run(SELECT.one.from(BusinessPartners).where({ ID: bp_id }));
     if (!bp) return req.error(404, `Business Partner ${bp_id} no encontrado.`);
@@ -935,7 +936,7 @@ module.exports = cds.service.impl(async function () {
       return req.reject(400, "bp_id es obligatorio");
     }
 
-    const { BusinessPartners, WorkflowStatus, BPApprovals, Addresses } = cds.entities;
+    const { BusinessPartners, WorkflowStatus, BPApprovals, Addresses } = cds.entities("ABMContratistaService");
 
     // Buscar BP
     const bp = await SELECT.one
@@ -1053,7 +1054,7 @@ module.exports = cds.service.impl(async function () {
       return req.reject(400, "editSection es obligatorio (banking|tax|legal)");
     }
 
-    const { BusinessPartners, WorkflowStatus } = cds.entities;
+    const { BusinessPartners, WorkflowStatus } = cds.entities("ABMContratistaService");
 
     const bp = await SELECT.one
       .from(BusinessPartners)
@@ -1129,7 +1130,8 @@ module.exports = cds.service.impl(async function () {
 
     if (!bp_id) return req.reject(400, "bp_id es obligatorio");
 
-    const { BusinessPartners, WorkflowStatus, ApplicationLogs } = cds.entities;
+    const { BusinessPartners, WorkflowStatus } = cds.entities("ABMContratistaService");
+    const { ApplicationLogs } = cds.entities("suppliersInitiative");
 
     const bp = await SELECT.one.from(BusinessPartners).where({ ID: bp_id });
 
@@ -1214,7 +1216,8 @@ module.exports = cds.service.impl(async function () {
     if (!bp_id) return req.reject(400, "bp_id es obligatorio");
     if (!s4_business_partner) return req.reject(400, "s4_business_partner es obligatorio");
 
-    const { BusinessPartners, WorkflowStatus, ApplicationLogs, Contacts } = cds.entities;
+    const { BusinessPartners, WorkflowStatus, Contacts } = cds.entities("ABMContratistaService");
+    const { ApplicationLogs } = cds.entities("suppliersInitiative");
     const tx = cds.tx(req);
 
     const bp = await tx.run(SELECT.one.from(BusinessPartners).where({ ID: bp_id }));
@@ -1291,7 +1294,7 @@ module.exports = cds.service.impl(async function () {
 
       if (!bp_id) return req.reject(400, "bp_id es obligatorio");
 
-      const { BusinessPartners, BPApprovals, WorkflowStatus } = cds.entities;
+      const { BusinessPartners, BPApprovals, WorkflowStatus } = cds.entities("ABMContratistaService");
 
       // SELECT directo
       const bp = await SELECT.one
@@ -1467,6 +1470,7 @@ module.exports = cds.service.impl(async function () {
       return await _importBPFromS4(lifnr, cds.tx(req));
     } catch (err) {
       console.error(`[importBPFromS4] ERROR para lifnr=${lifnr}:`, err.message);
+      console.error(`[importBPFromS4] Stack:`, err.stack);
       return req.reject(err.statusCode || 500, err.message || "Error al importar Business Partner desde S4");
     }
   });
@@ -1513,7 +1517,8 @@ module.exports = cds.service.impl(async function () {
     if (!bp_id) return req.reject(400, "bp_id es obligatorio");
     if (!comments) return req.reject(400, "El comentario es obligatorio");
 
-    const { BusinessPartners, WorkflowStatus, ApplicationLogs } = cds.entities;
+    const { BusinessPartners, WorkflowStatus } = cds.entities("ABMContratistaService");
+    const { ApplicationLogs } = cds.entities("suppliersInitiative");
 
     const bp = await SELECT.one.from(BusinessPartners).where({ ID: bp_id });
 
@@ -1573,7 +1578,8 @@ module.exports = cds.service.impl(async function () {
 
     if (!bp_id) return req.reject(400, "bp_id es obligatorio");
 
-    const { BusinessPartners, WorkflowStatus, ApplicationLogs, BusinessPartnerModifications } = cds.entities;
+    const { BusinessPartners, WorkflowStatus, BusinessPartnerModifications } = cds.entities("ABMContratistaService");
+    const { ApplicationLogs } = cds.entities("suppliersInitiative");
 
     const bp = await SELECT.one.from(BusinessPartners).where({ ID: bp_id });
 
@@ -1663,7 +1669,8 @@ module.exports = cds.service.impl(async function () {
     if (!isApproved && !additionalInfo)
       return req.reject(400, "Debe indicar la información solicitada al proveedor");
 
-    const { BusinessPartners, WorkflowStatus, ApplicationLogs, BusinessPartnerModifications } = cds.entities;
+    const { BusinessPartners, WorkflowStatus, BusinessPartnerModifications } = cds.entities("ABMContratistaService");
+    const { ApplicationLogs } = cds.entities("suppliersInitiative");
 
     const bp = await SELECT.one.from(BusinessPartners).where({ ID: bp_id });
     if (!bp) return req.reject(404, `Business Partner ${bp_id} no encontrado`);
@@ -1742,7 +1749,8 @@ module.exports = cds.service.impl(async function () {
     if (!bp_id) return req.reject(400, "bp_id es obligatorio");
     if (!comments) return req.reject(400, "El comentario es obligatorio");
 
-    const { BusinessPartners, WorkflowStatus, ApplicationLogs } = cds.entities;
+    const { BusinessPartners, WorkflowStatus } = cds.entities("ABMContratistaService");
+    const { ApplicationLogs } = cds.entities("suppliersInitiative");
 
     const bp = await SELECT.one.from(BusinessPartners).where({ ID: bp_id });
 
@@ -1813,7 +1821,8 @@ module.exports = cds.service.impl(async function () {
 
     if (!bp_id) return req.reject(400, "bp_id es obligatorio");
 
-    const { BusinessPartners, WorkflowStatus, ApplicationLogs, BusinessPartnerModifications } = cds.entities;
+    const { BusinessPartners, WorkflowStatus, BusinessPartnerModifications } = cds.entities("ABMContratistaService");
+    const { ApplicationLogs } = cds.entities("suppliersInitiative");
 
     const bp = await SELECT.one.from(BusinessPartners).where({ ID: bp_id });
 
@@ -1911,7 +1920,8 @@ module.exports = cds.service.impl(async function () {
     if (!isApproved && !additionalInfo)
       return req.reject(400, "Debe indicar la información solicitada al proveedor");
 
-    const { BusinessPartners, WorkflowStatus, ApplicationLogs, BusinessPartnerModifications } = cds.entities;
+    const { BusinessPartners, WorkflowStatus, BusinessPartnerModifications } = cds.entities("ABMContratistaService");
+    const { ApplicationLogs } = cds.entities("suppliersInitiative");
 
     const bp = await SELECT.one.from(BusinessPartners).where({ ID: bp_id });
     if (!bp) return req.reject(404, `Business Partner ${bp_id} no encontrado`);
@@ -2020,7 +2030,8 @@ module.exports = cds.service.impl(async function () {
     if (!oArea) return req.reject(400, `area inválida: se espera ${Object.keys(PROVIDER_MODIF_AREAS).join(" o ")}`);
     if (!payload) return req.reject(400, "El pedido no trae cambios (payload vacío)");
 
-    const { BusinessPartners, WorkflowStatus, ApplicationLogs, BusinessPartnerModifications } = cds.entities;
+    const { BusinessPartners, WorkflowStatus, BusinessPartnerModifications } = cds.entities("ABMContratistaService");
+    const { ApplicationLogs } = cds.entities("suppliersInitiative");
 
     const bp = await SELECT.one.from(BusinessPartners).where({ ID: bp_id });
     if (!bp) return req.reject(404, `Business Partner ${bp_id} no encontrado`);
@@ -2331,7 +2342,8 @@ function _fromODataDate(odataDate) {
 
 async function _importBPFromS4(lifnr, tx) {
   const MIGRATED_STATUS = "MIGRADO";
-  const { BusinessPartners, WorkflowStatus, ApplicationLogs, BPApprovals } = cds.entities;
+  const { BusinessPartners, WorkflowStatus, BPApprovals } = cds.entities("ABMContratistaService");
+  const { ApplicationLogs } = cds.entities("suppliersInitiative");
   const S4 = "OP_API_BUSINESS_PARTNER_SRV";
 
   const existing = await tx.run(SELECT.one.from(BusinessPartners).where({ lifnr }));
@@ -2809,7 +2821,8 @@ async function _readBPFromS4AsPayload(lifnr) {
 
 async function _buildS4BPPayload(bp_ID, oOverride) {
   console.log(`[_buildS4BPPayload] Iniciando construcción de payload para BP: ${bp_ID}`);
-  const { BusinessPartners, Addresses, BankDetails, TaxNumbers, Contacts, WithholdingTaxes, CollectionsEmails, Banks, PurchOrg, BusinessRoles, PaymentMethods, ExemptionReasons, CompanyData, PurchasingData, BusinessPartnerRoles } = cds.entities;
+  const { BusinessPartners, Addresses, BankDetails, TaxNumbers, Contacts, WithholdingTaxes, Banks, BusinessRoles, PaymentMethods, ExemptionReasons, CompanyData, PurchasingData, BusinessPartnerRoles } = cds.entities("ABMContratistaService");
+  const { CollectionsEmails, PurchOrg } = cds.entities("suppliersInitiative");
 
   let [bp, addresses, banks, taxNumbers, contacts, withholdingTaxes, collEmails, allBanks, purchOrgs, bpRoles, paymentMethods, exemptionReasons, companyData, purchasingData, bpRolesOwn] = await Promise.all([
     SELECT.one.from(BusinessPartners).where({ ID: bp_ID }),
@@ -3068,7 +3081,7 @@ async function _buildS4BPPayload(bp_ID, oOverride) {
 }
 
 async function startWorkflow(bp_ID, s4Payload, wfState, approvals = {}, infoArea = null, infoComment = "", targetApproverArea = null) {
-  const { BusinessPartners, Contacts, TaxNumbers, TaxIdentificationTypes, Addresses } = cds.entities;
+  const { BusinessPartners, Contacts, TaxNumbers, TaxIdentificationTypes, Addresses } = cds.entities("ABMContratistaService");
 
   try {
     const [bp, contacts, taxNumbers, taxTypes, addresses] = await Promise.all([
@@ -3415,7 +3428,7 @@ async function startBankCreationWorkflow(bp_ID, supplier, aBanks) {
     // Este WF es el único que CREA bancos en S/4: sin esta fila una cuenta nueva
     // aparecía en el BP sin rastro de quién ni cuándo. El detalle completo va a
     // new_data (LargeString) porque description es String(500).
-    await INSERT.into(cds.entities.ApplicationLogs).entries({
+    await INSERT.into(cds.entities("suppliersInitiative").ApplicationLogs).entries({
       app: 'ABM Contratistas',
       modification: 'TESO_BANK_CREATE',
       description: `Alta de ${context_bank.length} banco(s) enviada a S4 para BP ${supplier}. WF Instance: ${response.data?.id || 'N/A'}`,
@@ -3433,7 +3446,7 @@ async function startBankCreationWorkflow(bp_ID, supplier, aBanks) {
 
     // El alta corre ANTES del WF de modificación y si falla corta el flujo: sin esta
     // fila el intento no queda en ningún lado (el WorkflowStatus lo marca el caller).
-    await INSERT.into(cds.entities.ApplicationLogs).entries({
+    await INSERT.into(cds.entities("suppliersInitiative").ApplicationLogs).entries({
       app: 'ABM Contratistas',
       modification: 'TESO_BANK_CREATE',
       description: `Error dando de alta ${context_bank.length} banco(s) en S4 para BP ${supplier}: ${error.message}`.slice(0, 500),
@@ -3450,7 +3463,7 @@ async function startBankCreationWorkflow(bp_ID, supplier, aBanks) {
 // Workflow de modificación de tesorería (ABM). Solo reenvía datos bancarios y de
 // supplier company; reutiliza el mapeo de bancos de _buildS4BPPayload.
 async function startTreasuryModificationWorkflow(bp_ID, comments = "", wfState = "PENDIENTE", approverId = "", oOverride = null) {
-  const { BusinessPartners, BankDetails, Banks, CompanyData, Addresses, Contacts } = cds.entities;
+  const { BusinessPartners, BankDetails, Banks, CompanyData, Addresses, Contacts } = cds.entities("ABMContratistaService");
 
   let [bp, banks, allBanks, companyData, addresses, contacts] = await Promise.all([
     SELECT.one.from(BusinessPartners).where({ ID: bp_ID }),
@@ -3871,7 +3884,7 @@ async function startWithholdingTaxCreationWorkflow(bp_ID, supplier, aLines) {
     // línea nueva aparecía en el BP sin rastro de quién ni cuándo. El detalle
     // completo va a new_data (LargeString): el description es String(500) y el
     // listado de sociedad/indicador lo desborda apenas hay varias sociedades.
-    await INSERT.into(cds.entities.ApplicationLogs).entries({
+    await INSERT.into(cds.entities("suppliersInitiative").ApplicationLogs).entries({
       app: 'ABM Contratistas',
       modification: 'TAX_WHT_CREATE',
       description: `Alta de ${context_witholdingtax.length} retención(es) enviada a S4 para BP ${supplier}. WF Instance: ${response.data?.id || 'N/A'}`,
@@ -3889,7 +3902,7 @@ async function startWithholdingTaxCreationWorkflow(bp_ID, supplier, aLines) {
 
     // El alta corre ANTES del WF de modificación y si falla corta el flujo: sin esta
     // fila el intento no quedaba en ningún lado (el WorkflowStatus lo marca el caller).
-    await INSERT.into(cds.entities.ApplicationLogs).entries({
+    await INSERT.into(cds.entities("suppliersInitiative").ApplicationLogs).entries({
       app: 'ABM Contratistas',
       modification: 'TAX_WHT_CREATE',
       description: `Error dando de alta ${context_witholdingtax.length} retención(es) en S4 para BP ${supplier}: ${error.message}`.slice(0, 500),
@@ -3965,7 +3978,7 @@ async function startEmailCreationWorkflow(bp_ID, supplier, aEmails) {
 
     // Este WF es el único que CREA mails en S/4: sin esta fila un mail nuevo aparecía
     // en el BP sin rastro de quién ni cuándo.
-    await INSERT.into(cds.entities.ApplicationLogs).entries({
+    await INSERT.into(cds.entities("suppliersInitiative").ApplicationLogs).entries({
       app: 'ABM Contratistas',
       modification: 'TAX_EMAIL_CREATE',
       description: `Alta de ${context_email.length} mail(s) enviada a S4 para BP ${supplier}. WF Instance: ${response.data?.id || 'N/A'}`,
@@ -3981,7 +3994,7 @@ async function startEmailCreationWorkflow(bp_ID, supplier, aEmails) {
     console.error(`[startEmailCreationWorkflow] ❌ status HTTP: ${error.response?.status}`);
     console.error(`[startEmailCreationWorkflow] BPA response body:`, JSON.stringify(error.response?.data));
 
-    await INSERT.into(cds.entities.ApplicationLogs).entries({
+    await INSERT.into(cds.entities("suppliersInitiative").ApplicationLogs).entries({
       app: 'ABM Contratistas',
       modification: 'TAX_EMAIL_CREATE',
       description: `Error dando de alta ${context_email.length} mail(s) en S4 para BP ${supplier}: ${error.message}`.slice(0, 500),
@@ -4006,7 +4019,7 @@ async function startEmailCreationWorkflow(bp_ID, supplier, aEmails) {
 // _buildS4BPPayload sigue siendo la fuente única —así el alta y la modificación no
 // divergen— y acá se lo aplana.
 async function startTaxModificationWorkflow(bp_ID, comments = "", wfState = "PENDIENTE", approverId = "", oOverride = null) {
-  const { BusinessPartners, Contacts } = cds.entities;
+  const { BusinessPartners, Contacts } = cds.entities("ABMContratistaService");
 
   const [bp, contacts, s4] = await Promise.all([
     SELECT.one.from(BusinessPartners).where({ ID: bp_ID }),
@@ -4391,7 +4404,7 @@ async function postAbmWorkflow(bp_ID, s4Payload) {
 
   const builtPayload = s4Payload || await _buildS4BPPayload(bp_ID);
 
-  const { BusinessPartners, Contacts, TaxNumbers, TaxIdentificationTypes } = cds.entities;
+  const { BusinessPartners, Contacts, TaxNumbers, TaxIdentificationTypes } = cds.entities("ABMContratistaService");
   const [bp, contacts, taxNumbers, taxTypes] = await Promise.all([
     SELECT.one.from(BusinessPartners).where({ ID: bp_ID }),
     SELECT.from(Contacts).where({ business_partner_ID: bp_ID }),

@@ -305,6 +305,32 @@ entity Contacts : cuid, managed {
     @changelog billing_email      : String;
 }
 
+// Agregado persistente del servicio de un ítem de OC/Contrato — sobrevive a través de
+// múltiples precertificaciones (tickets) hechas contra el mismo ítem a lo largo del tiempo.
+// Identificado de forma lógica por (source_type, source_number, po_item); la unicidad se
+// resuelve con find-or-create en el backend, no con constraint de DB.
+entity PrecertTicketItems : cuid, managed {
+    source_type                          : String(10);
+    source_number                        : String(20);
+    po_item                              : Integer;
+    po_item_text                         : String(100);
+    service_id                           : String(80);
+    service_desc                         : String(300);
+    @changelog qty_total                 : Decimal(20, 3);
+    @changelog qty_certified             : Decimal(20, 3);
+    unit_price                           : Decimal(20, 3);
+    currency                             : String(3);
+    measure_unity                        : String;
+    account_assignment_number            : String(2);
+    project_network                      : String(12);
+    order                                : String(12);
+    cost_center                          : String(15);
+    global_ledger_account                : String(20);
+    wbs_element                          : String(50);
+    partials                             : Association to many PrecertTickets
+                                               on partials.precert_ticket_item = $self;
+}
+
 entity PrecertTickets : cuid, managed {
     ticket_number                        : Integer @readonly;
     @changelog source_type               : String(10);
@@ -365,6 +391,8 @@ entity PrecertTickets : cuid, managed {
     @changelog hes_long_text             : String(1000);
     @changelog pr_item                   : Integer;
     @changelog validator                 : String(250);
+    precert_ticket_item                  : Association to PrecertTicketItems;
+    @changelog ticket_model              : String(10) default 'LEGACY';
     messages                             : Composition of many TicketMessages
                                                on messages.ticket = $self;
 }

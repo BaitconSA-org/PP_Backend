@@ -102,6 +102,7 @@ service HESManagementService @(path: '/srv/hes') {
             key item.PurchaseOrderItem,
                 item.PurchaseOrderItemText,
                 item.Material,
+                item.ProductType,
                 item.Plant,
                 item.StorageLocation,
                 item.OrderQuantity,
@@ -249,17 +250,18 @@ service HESManagementService @(path: '/srv/hes') {
     }
 
     type PurchaseOrderItemService {
-        PONumber       : String;
-        POItemNumber   : String;
-        IntRow         : String;
-        ExtRow         : String;
-        ActivityNumber : Integer;
-        Quantity       : Integer;
-        BaseUOM        : String;
-        PriceUnit      : String;
-        GrossPrice     : Decimal;
-        NetValue       : Decimal;
-        ShortText      : String;
+        PONumber        : String;
+        POItemNumber    : String;
+        IntRow          : String;
+        ExtRow          : String;
+        ActivityNumber  : String;
+        Quantity        : Decimal;
+        BaseUOM         : String;
+        PriceUnit       : String;
+        GrossPrice      : Decimal;
+        NetValue        : Decimal;
+        ShortText       : String;
+        DeleteIndicator : String;
     };
 
     type PurchaseContractAccountAssignment {
@@ -467,9 +469,10 @@ service HESManagementService @(path: '/srv/hes') {
                                              PurchaseContractItem: String)            returns array of PurchaseOrderItemService;
 
     function me()                                                                     returns {
-        email : String;
-        roles : array of String;
-        bp_ID : String;
+        email            : String;
+        roles            : array of String;
+        bp_ID            : String;
+        itemModelEnabled : Boolean;
     };
 
     // ─── NUEVO: get completo con expand directo a S4 ──────────────
@@ -494,6 +497,7 @@ service HESManagementService @(path: '/srv/hes') {
         ![exists] : Boolean
     };
 
+    @(requires: ['FiscalizadorPrecertificacion'])
     action   onApproveTicket(ticket_id: UUID,
                              items: LargeString,
                              approved_by: String,
@@ -630,6 +634,7 @@ service HESManagementService @(path: '/srv/hes') {
 
     entity Logs                    as projection on db.ErrorLogs;
     entity PrecertTickets          as projection on db.PrecertTickets;
+    entity PrecertTicketItems      as projection on db.PrecertTicketItems;
     entity WorkflowStatus          as projection on db.WorkflowStatus;
     entity Provinces               as projection on db.Provinces;
     entity BusinessPartners        as projection on db.BusinessPartners;

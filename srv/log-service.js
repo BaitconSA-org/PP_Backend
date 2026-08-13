@@ -167,6 +167,32 @@ module.exports = cds.service.impl(async function () {
                 }
             }
 
+            // ── Avance acumulado del ítem (modelo ITEM) ────────────────────────────
+            // Recién acá, cuando SAP confirma que el HES se posteó, se da por certificada
+            // la parcial: se suma su qty_to_certify al qty_certified del PrecertTicketItems
+            // correspondiente. Una parcial que termina en ERROR_WF no descuenta remanente.
+            if (!isWfError && subIds.length) {
+                const certifiedSubs = await SELECT.from(PrecertTickets)
+                    .columns('ID', 'precert_ticket_item_ID', 'qty_to_certify')
+                    .where({ ID: { in: subIds } });
+
+                const qtyByItem = {};
+                for (const sub of certifiedSubs) {
+                    if (!sub.precert_ticket_item_ID) continue;
+                    qtyByItem[sub.precert_ticket_item_ID] =
+                        (qtyByItem[sub.precert_ticket_item_ID] || 0) + Number(sub.qty_to_certify || 0);
+                }
+
+                for (const [itemId, qtyToAdd] of Object.entries(qtyByItem)) {
+                    const item = await SELECT.one.from('suppliersInitiative.PrecertTicketItems')
+                        .columns('qty_certified')
+                        .where({ ID: itemId });
+                    await UPDATE('suppliersInitiative.PrecertTicketItems')
+                        .set({ qty_certified: Number(item?.qty_certified || 0) + qtyToAdd })
+                        .where({ ID: itemId });
+                }
+            }
+
             // ── Logs ──────────────────────────────────────────────────────────────
             await INSERT.into(ApplicationLogs).entries({
                 app: 'Precertificacion',
