@@ -373,7 +373,7 @@ entity PrecertTickets : cuid, managed {
     @changelog co_area                   : String(4);
     @changelog profit_center             : String(10);
     @changelog wbs_element               : String(50);
-    @changelog provisioned               : Boolean default false;
+    @changelog provisioned               : Boolean;
     @changelog provisioned_by            : String(75);
     @changelog provisioned_motive        : String(75);
     @changelog hes_number                : String(50);

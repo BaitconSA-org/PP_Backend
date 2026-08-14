@@ -16,7 +16,13 @@ const REPO_ID = process.env.DMS_REPOSITORY_ID;
 // Tickets creados fuera de esta lista siguen usando el modelo plano por subservicio (LEGACY).
 const PRECERT_ITEM_MODEL_ROLLOUT = process.env.PRECERT_ITEM_MODEL_ROLLOUT || "";
 
+// TEMP: modelo ITEM forzado ON para todos — ya no hay flujo por subservicio, todo el
+// precertificado pasa a ser directo contra el ítem de OC. El código LEGACY se deja en el
+// repo por ahora; cuando se confirme que no hace falta volver atrás, se puede borrar junto
+// con este override y PRECERT_ITEM_MODEL_ROLLOUT.
 function isItemModelEnabled(bpId) {
+  return true;
+  // eslint-disable-next-line no-unreachable
   const list = PRECERT_ITEM_MODEL_ROLLOUT.split(",").map(v => v.trim()).filter(Boolean);
   if (list.includes("ALL")) return true;
   if (!bpId) return false;
@@ -680,6 +686,10 @@ module.exports = cds.service.impl(async function () {
       return req.reject(400, "business_partner es obligatorio");
     }
 
+    if (!bp) {
+      return req.reject(400, `No se encontró el proveedor "${business_partner}" en BusinessPartners`);
+    }
+
     if (!currency || currency.length !== 3) {
       return req.reject(400, "currency inválida");
     }
@@ -818,7 +828,8 @@ module.exports = cds.service.impl(async function () {
         total_price,
         validator,
         parent_ticket_ID: null,
-        ticket_model: ticketModel
+        ticket_model: ticketModel,
+        provisioned: false
       })
     );
 
@@ -867,7 +878,8 @@ module.exports = cds.service.impl(async function () {
         po_item_text: pcItemDataMap[String(it.po_item)]?.PurchaseContractItemText ?? it.po_item_text ?? null,
         account_assignment_cat: pcItemDataMap[String(it.po_item)]?.AccountAssignmentCategory ?? null,
         plant: pcItemDataMap[String(it.po_item)]?.Plant ?? null,
-        material_group: pcItemDataMap[String(it.po_item)]?.MaterialGroup ?? null
+        material_group: pcItemDataMap[String(it.po_item)]?.MaterialGroup ?? null,
+        provisioned: false
       };
     });
 
