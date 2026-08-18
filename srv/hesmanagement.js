@@ -900,6 +900,11 @@ module.exports = cds.service.impl(async function () {
 
     await tx.run(INSERT.into(WorkflowStatus).entries(wfEntries));
 
+    // Commitear acá, antes de arrancar el WF: el primer paso de BPA ("POST AUDIT")
+    // llama de vuelta a endWorkflowPrecert casi al instante, y si el ticket todavía
+    // no está persistido pierde la carrera contra ese callback → "Ticket not found".
+    await tx.commit();
+
     const tempRoot = { source_number, ticket_number, validator };
     const sesPayload = _buildSesPayload(tempRoot, subTickets);
 
