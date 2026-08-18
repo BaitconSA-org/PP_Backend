@@ -41,11 +41,15 @@ module.exports = cds.service.impl(async function () {
 
     this.on('endWorkflowPrecert', async (req) => {
         try {
+            console.log('[endWorkflowPrecert] ── INICIO ──');
             console.log('[endWorkflowPrecert] req.data:', JSON.stringify(req.data));
             let { ticket_ID, status, comments, hes_number, workflow_instance_id, location, POItem } = req.data;
+            console.log('[endWorkflowPrecert] ticket_ID recibido=', JSON.stringify(ticket_ID), 'length=', ticket_ID?.length);
             const { PrecertTickets, ApplicationLogs } = cds.entities;
+            console.log('[endWorkflowPrecert] PrecertTickets bound?', !!PrecertTickets, 'ApplicationLogs bound?', !!ApplicationLogs);
 
             let ticket = await SELECT.one.from(PrecertTickets).where({ ID: ticket_ID });
+            console.log('[endWorkflowPrecert] resultado 1ra búsqueda (ID exacto)=', JSON.stringify(ticket));
 
             // El WF de HES dispara con businessKey "${ticket_ID}_${poNumber}" (ver
             // postHesWorkflows) y algunos connectors de BPA devuelven ese businessKey
@@ -53,17 +57,29 @@ module.exports = cds.service.impl(async function () {
             // pelando el sufijo "_<PO>" antes de dar por no encontrado el ticket.
             if (!ticket && ticket_ID?.includes('_')) {
                 const rootId = ticket_ID.slice(0, ticket_ID.lastIndexOf('_'));
+                console.log('[endWorkflowPrecert] sin match, reintentando sin sufijo. rootId=', rootId);
                 const retryTicket = await SELECT.one.from(PrecertTickets).where({ ID: rootId });
+                console.log('[endWorkflowPrecert] resultado retry=', JSON.stringify(retryTicket));
                 if (retryTicket) {
                     ticket_ID = rootId;
                     ticket = retryTicket;
                 }
             }
 
-            if (!ticket) return req.reject(404, 'Ticket not found');
+            if (!ticket) {
+                const total = await SELECT.one`count(*) as total`.from(PrecertTickets);
+                const sample = await SELECT.from(PrecertTickets).columns('ID').limit(5);
+                console.log('[endWorkflowPrecert] TICKET NO ENCONTRADO. ticket_ID buscado=', JSON.stringify(ticket_ID));
+                console.log('[endWorkflowPrecert] total filas en PrecertTickets=', total?.total);
+                console.log('[endWorkflowPrecert] muestra de IDs existentes=', JSON.stringify(sample.map(s => s.ID)));
+                return req.reject(404, 'Ticket not found');
+            }
+
+            console.log('[endWorkflowPrecert] TICKET ENCONTRADO=', ticket.ID, 'source_type=', ticket.source_type, 'ticket_number=', ticket.ticket_number);
 
             const newStatus = status === "SUCCESS" ? "APROBADO" : "ERROR_WF";
             const isWfError = status === 'ERROR_WF';
+            console.log('[endWorkflowPrecert] status=', status, 'newStatus=', newStatus, 'isWfError=', isWfError);
 
             // ── Determinar el campo correcto según el tipo de origen ──────────────
             // PO/OC: POItem que llega del WF coincide con po_item (posición real de la OC)
@@ -71,6 +87,7 @@ module.exports = cds.service.impl(async function () {
             //        no po_item (que guarda la posición real del contrato, ej. 180)
             const sItemField = ticket.source_type === "PC" ? "pr_item" : "po_item";
             const vItemValue = ticket.source_type === "PC" ? String(POItem) : parseInt(POItem);
+            console.log('[endWorkflowPrecert] sItemField=', sItemField, 'vItemValue=', vItemValue, 'POItem crudo=', POItem);
 
             let province_ID_filter = null;
             if (location) {
@@ -94,6 +111,7 @@ module.exports = cds.service.impl(async function () {
                 });
 
                 province_ID_filter = matched?.ID || null;
+                console.log('[endWorkflowPrecert] location=', location, '→ province_ID_filter=', province_ID_filter);
 
                 if (!province_ID_filter) {
                     console.warn(`[endWorkflowPrecert] No se pudo resolver location="${location}" a province_ID`);
@@ -104,23 +122,28 @@ module.exports = cds.service.impl(async function () {
             let subIds = [];
             let exactSubIds = [];   // ← match preciso por po_item+province, sin fallback "todos los del WF"
 
+            console.log('[endWorkflowPrecert] workflow_instance_id=', workflow_instance_id);
             if (workflow_instance_id) {
                 const wfRows = await SELECT
                     .from('suppliersInitiative.WorkflowStatus')
                     .columns('precert_ticket_ID')
                     .where({ workflow_instance_id });
+                console.log('[endWorkflowPrecert] wfRows (WorkflowStatus por workflow_instance_id)=', JSON.stringify(wfRows));
 
                 const allWfSubIds = wfRows.map(r => r.precert_ticket_ID).filter(Boolean);
+                console.log('[endWorkflowPrecert] allWfSubIds=', JSON.stringify(allWfSubIds));
 
                 if (allWfSubIds.length) {
                     const oWhere = { ID: { in: allWfSubIds } };
                     if (POItem) oWhere[sItemField] = vItemValue;
                     if (province_ID_filter) oWhere.province_ID = province_ID_filter;  // ← ID resuelto
+                    console.log('[endWorkflowPrecert] filtro exacto oWhere=', JSON.stringify(oWhere));
 
                     const aFiltered = await SELECT
                         .from(PrecertTickets)
                         .columns('ID')
                         .where(oWhere);
+                    console.log('[endWorkflowPrecert] aFiltered=', JSON.stringify(aFiltered));
 
                     exactSubIds = aFiltered.map(s => s.ID);
                     subIds = exactSubIds;
@@ -141,18 +164,24 @@ module.exports = cds.service.impl(async function () {
                 const oWhere = { parent_ticket_ID: ticket_ID };
                 if (POItem) oWhere[sItemField] = vItemValue;
                 if (province_ID_filter) oWhere.province_ID = province_ID_filter;
+                console.log('[endWorkflowPrecert] fallback oWhere=', JSON.stringify(oWhere));
 
                 const subs = await SELECT.from(PrecertTickets).columns('ID').where(oWhere);
+                console.log('[endWorkflowPrecert] fallback subs=', JSON.stringify(subs));
                 subIds = subs.map(s => s.ID);
                 exactSubIds = subIds;
             }
+
+            console.log('[endWorkflowPrecert] subIds finales=', JSON.stringify(subIds), 'exactSubIds=', JSON.stringify(exactSubIds));
 
             // ── Propagar hes_number ───────────────────────────────────────────────
             // Un mismo workflow_instance_id puede generar varias HES (una por grupo
             // provincia/po_item). Para esto se usa exactSubIds (match preciso por
             // po_item+province), NUNCA el fallback "todos los del WF" — ese fallback
             // es el que hacía que una HES pisara el hes_number de otro grupo.
+            console.log('[endWorkflowPrecert] hes_number=', hes_number);
             if (hes_number && exactSubIds.length && !isWfError) {
+                console.log('[endWorkflowPrecert] asignando hes_number a exactSubIds=', JSON.stringify(exactSubIds));
                 await UPDATE(PrecertTickets)
                     .set({ hes_number })
                     .where({ ID: { in: exactSubIds } });
@@ -164,6 +193,7 @@ module.exports = cds.service.impl(async function () {
             }
 
             // ── Actualizar WorkflowStatus ─────────────────────────────────────────
+            console.log('[endWorkflowPrecert] actualizando WorkflowStatus. subIds.length=', subIds.length, 'isWfError=', isWfError);
             if (subIds.length) {
                 if (isWfError) {
                     await UPDATE('suppliersInitiative.WorkflowStatus')
@@ -190,6 +220,7 @@ module.exports = cds.service.impl(async function () {
                 const certifiedSubs = await SELECT.from(PrecertTickets)
                     .columns('ID', 'precert_ticket_item_ID', 'qty_to_certify')
                     .where({ ID: { in: subIds } });
+                console.log('[endWorkflowPrecert] certifiedSubs=', JSON.stringify(certifiedSubs));
 
                 const qtyByItem = {};
                 for (const sub of certifiedSubs) {
@@ -197,11 +228,13 @@ module.exports = cds.service.impl(async function () {
                     qtyByItem[sub.precert_ticket_item_ID] =
                         (qtyByItem[sub.precert_ticket_item_ID] || 0) + Number(sub.qty_to_certify || 0);
                 }
+                console.log('[endWorkflowPrecert] qtyByItem=', JSON.stringify(qtyByItem));
 
                 for (const [itemId, qtyToAdd] of Object.entries(qtyByItem)) {
                     const item = await SELECT.one.from('suppliersInitiative.PrecertTicketItems')
                         .columns('qty_certified')
                         .where({ ID: itemId });
+                    console.log('[endWorkflowPrecert] item', itemId, 'qty_certified previo=', item?.qty_certified, '+', qtyToAdd);
                     await UPDATE('suppliersInitiative.PrecertTicketItems')
                         .set({ qty_certified: Number(item?.qty_certified || 0) + qtyToAdd })
                         .where({ ID: itemId });
@@ -209,6 +242,7 @@ module.exports = cds.service.impl(async function () {
             }
 
             // ── Logs ──────────────────────────────────────────────────────────────
+            console.log('[endWorkflowPrecert] insertando ApplicationLogs, subIds.length=', subIds.length);
             await INSERT.into(ApplicationLogs).entries({
                 app: 'Precertificacion',
                 modification: isWfError ? 'WF_ERROR' : 'WF_FINISHED',
@@ -218,6 +252,7 @@ module.exports = cds.service.impl(async function () {
                 ticket_display: String(ticket.ticket_number || 'N/A'),
                 result: status === "SUCCESS" ? 'SUCCESS' : 'ERROR'
             });
+            console.log('[endWorkflowPrecert] ── FIN OK ──');
 
             return {
                 message: "Precert ticket approved successfully",
