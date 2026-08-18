@@ -41,10 +41,25 @@ module.exports = cds.service.impl(async function () {
 
     this.on('endWorkflowPrecert', async (req) => {
         try {
-            const { ticket_ID, status, comments, hes_number, workflow_instance_id, location, POItem } = req.data;
+            console.log('[endWorkflowPrecert] req.data:', JSON.stringify(req.data));
+            let { ticket_ID, status, comments, hes_number, workflow_instance_id, location, POItem } = req.data;
             const { PrecertTickets, ApplicationLogs } = cds.entities;
 
-            const ticket = await SELECT.one.from(PrecertTickets).where({ ID: ticket_ID });
+            let ticket = await SELECT.one.from(PrecertTickets).where({ ID: ticket_ID });
+
+            // El WF de HES dispara con businessKey "${ticket_ID}_${poNumber}" (ver
+            // postHesWorkflows) y algunos connectors de BPA devuelven ese businessKey
+            // tal cual como ticket_ID en el callback de fin de workflow — se reintenta
+            // pelando el sufijo "_<PO>" antes de dar por no encontrado el ticket.
+            if (!ticket && ticket_ID?.includes('_')) {
+                const rootId = ticket_ID.slice(0, ticket_ID.lastIndexOf('_'));
+                const retryTicket = await SELECT.one.from(PrecertTickets).where({ ID: rootId });
+                if (retryTicket) {
+                    ticket_ID = rootId;
+                    ticket = retryTicket;
+                }
+            }
+
             if (!ticket) return req.reject(404, 'Ticket not found');
 
             const newStatus = status === "SUCCESS" ? "APROBADO" : "ERROR_WF";

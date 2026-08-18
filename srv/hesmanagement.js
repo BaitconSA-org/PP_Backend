@@ -2949,7 +2949,7 @@ module.exports = cds.service.impl(async function () {
               ticket_ID,
               app_link: ticketUrl,
               approvers: {
-                acap_approvers: [validator]
+                acap_approvers: validator
               },
               ticket_payload: sesPayload || [],
               is_updated_ticket: true,
@@ -2995,6 +2995,11 @@ module.exports = cds.service.impl(async function () {
     const FLP_BASE_URL = process.env.FLP_BASE_URL;
     const ticketUrl = `${FLP_BASE_URL}#ticketlist-display?sap-ui-app-id-hint=saas_approuter_vistaticketlist&/ticket/${ticket_ID}`;
 
+    const supplierBp = root.business_partner_ID
+      ? await cds.run(SELECT.one.from(BusinessPartners).columns("lifnr").where({ ID: root.business_partner_ID }))
+      : null;
+    const supplierLifnr = supplierBp?.lifnr || "";
+
     const provinceIds = [...new Set(subs.map(s => s.province_ID).filter(Boolean))];
     const provinceRows = provinceIds.length
       ? await cds.run(
@@ -3026,7 +3031,7 @@ module.exports = cds.service.impl(async function () {
     const errors = [];
 
     for (const [poNumber, subsGroupedByKey] of Object.entries(poGroups)) {
-      const sesPayload = _buildHesPayload(root, subsGroupedByKey, provinceS4Code);
+      const sesPayload = _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, supplierLifnr);
 
       const allSubIds = Object.values(subsGroupedByKey).flat().map(s => s.ID);
 
@@ -3045,7 +3050,7 @@ module.exports = cds.service.impl(async function () {
               input: {
                 ticket_ID,
                 app_link: ticketUrl,
-                approvers: { acap_approvers: [approverEmail] },
+                approvers: { acap_approvers: approverEmail },
                 is_updated_ticket: false,
                 acap_approval: { approved: true, user: "", date: "" }
               },
@@ -3058,7 +3063,7 @@ module.exports = cds.service.impl(async function () {
                 },
                 saveToSentItems: false
               },
-              data: sesPayload
+              hes: sesPayload
             }
           }
         });
@@ -3358,6 +3363,51 @@ module.exports = cds.service.impl(async function () {
     );
 
     return instanceId;
+  }
+
+  // Payload para el WF de HES en SAP Build Process Automation — nombres de campo
+  // alineados al schema del workflow (PurchaseOrder/ServiceEntrySheetName/
+  // to_ServiceEntrySheetItem), distinto del shape legacy que usa _buildHesPayload
+  // para el flujo de SOLPED (PONumber/POItem/to_service).
+  function _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, supplierLifnr) {
+    return Object.entries(subsGroupedByKey)
+      .filter(([, subs]) => Array.isArray(subs) && subs.length > 0)
+      .map(([, subs]) => {
+        const first = subs[0];
+        const dateFrom = first?.hes_date_from || root.date_from || first?.date_from;
+        const dateTo = first?.hes_date_to || root.date_to || first?.date_to;
+
+        const to_ServiceEntrySheetItem = subs.map((sub, idx) => {
+          const itemDateFrom = sub.hes_date_from || dateFrom;
+          const itemDateTo = sub.hes_date_to || dateTo;
+          return {
+            ServiceEntrySheetItem: String((idx + 1) * 10),
+            PurchaseOrder: root.source_number || "",
+            PurchaseOrderItem: String(sub.po_item || ""),
+            Plant: sub.plant || "",
+            ServiceEntrySheetItemDesc: sub.ses_subservice || sub.short_text || "",
+            ConfirmedQuantity: String(Number(sub.qty_to_certify || 0).toFixed(3)),
+            Currency: root.currency || "",
+            ServicePerformanceDate: itemDateFrom ? `/Date(${new Date(itemDateFrom).getTime()})/` : "",
+            QuantityUnit: sub.measure_unity || "",
+            ServicePerformanceEndDate: itemDateTo ? `/Date(${new Date(itemDateTo).getTime()})/` : "",
+            TaxJurisdiction: "",
+            TaxCountry: ""
+          };
+        });
+
+        return {
+          PurchaseOrder: root.source_number || "",
+          ServiceEntrySheetName: `SES - ${root.source_number || root.ticket_number}`,
+          to_ServiceEntrySheetItem: { results: to_ServiceEntrySheetItem },
+          PurchasingOrganization: first?.purchasing_org || "",
+          PurchasingGroup: first?.purchasing_group || "",
+          Currency: root.currency || "",
+          Supplier: supplierLifnr || "",
+          PostingDate: `/Date(${Date.now()})/`,
+          PurgDocExternalReference: String(root.ticket_number || "")
+        };
+      });
   }
 
   function _buildHesPayload(root, subsGroupedByKey, provinceS4Code) {
