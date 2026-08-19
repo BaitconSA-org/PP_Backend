@@ -45,7 +45,7 @@ module.exports = cds.service.impl(async function () {
             console.log('[endWorkflowPrecert] req.data:', JSON.stringify(req.data));
             let { ticket_ID, status, comments, hes_number, workflow_instance_id, location, POItem } = req.data;
             console.log('[endWorkflowPrecert] ticket_ID recibido=', JSON.stringify(ticket_ID), 'length=', ticket_ID?.length);
-            const { PrecertTickets, ApplicationLogs } = cds.entities;
+            const { PrecertTickets, ApplicationLogs } = cds.entities('suppliersInitiative');
             console.log('[endWorkflowPrecert] PrecertTickets bound?', !!PrecertTickets, 'ApplicationLogs bound?', !!ApplicationLogs);
 
             let ticket = await SELECT.one.from(PrecertTickets).where({ ID: ticket_ID });
@@ -269,7 +269,7 @@ module.exports = cds.service.impl(async function () {
 
     this.on('endWorkflowSolicitudSolped', async (req) => {
         const { ticket_ID, status, comments, workflow_instance_id, pr_number, approved_pr_items } = req.data;
-        const { PrecertTickets, ApplicationLogs } = cds.entities;
+        const { PrecertTickets, ApplicationLogs } = cds.entities('suppliersInitiative');
 
         const ticket = await SELECT.one.from(PrecertTickets).where({ ID: ticket_ID });
         if (!ticket) return req.reject(404, 'Ticket not found');
@@ -400,7 +400,7 @@ module.exports = cds.service.impl(async function () {
 
             if (!bp_id) return req.reject(400, 'bp_id es obligatorio');
 
-            const { ApplicationLogs } = cds.entities;
+            const { ApplicationLogs } = cds.entities('suppliersInitiative');
 
             const bp = await SELECT.one.from('suppliersInitiative.BusinessPartners').where({ ID: bp_id });
             if (!bp) {
@@ -617,7 +617,7 @@ module.exports = cds.service.impl(async function () {
     // ─────────────────────────────────────────────────────────────────────
     this.on('approveWorkflow', async (req) => {
         const { bpId, status } = req.data;
-        const { BusinessPartners, ApplicationLogs } = cds.entities;
+        const { BusinessPartners, ApplicationLogs } = cds.entities('suppliersInitiative');
 
         const bp = await SELECT.one.from(BusinessPartners).where({ ID: bpId });
         if (!bp) return req.reject(404, 'Business Partner not found');
@@ -640,7 +640,7 @@ module.exports = cds.service.impl(async function () {
 
             if (!business_partner_number) return req.reject(400, 'business_partner_number es obligatorio');
 
-            const { ApplicationLogs } = cds.entities;
+            const { ApplicationLogs } = cds.entities('suppliersInitiative');
 
             const bp = await SELECT.one.from('suppliersInitiative.BusinessPartners')
                 .where({ business_partner_number });
