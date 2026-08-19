@@ -740,7 +740,7 @@ module.exports = cds.service.impl(async function () {
         const [contract, contractItems] = await Promise.all([
           s4Contract.run(
             SELECT.one.from("A_PurchaseContract")
-              .columns("ZZ_FISCA", "ZZ_FISCA_EMAIL", "PurchasingGroup", "PurchasingOrganization")
+              .columns("PurchasingGroup", "PurchasingOrganization")
               .where({ PurchaseContract: source_number })
           ),
           s4Contract.run(
@@ -749,7 +749,6 @@ module.exports = cds.service.impl(async function () {
               .where({ PurchaseContract: source_number })
           )
         ]);
-        validator = contract?.ZZ_FISCA_EMAIL || null;
         pcPurchasingGroup = contract?.PurchasingGroup || null;
         pcPurchasingOrg = contract?.PurchasingOrganization || null;
         for (const item of (Array.isArray(contractItems) ? contractItems : [])) {
