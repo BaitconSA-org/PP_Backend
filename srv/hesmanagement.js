@@ -616,13 +616,13 @@ module.exports = cds.service.impl(async function () {
         const s4Contract = await getS4Service("OP_API_PURCHASECONTRACT_PROCESS_SRV_0002");
         const contractItem = await s4Contract.run(
           SELECT.one.from("A_PurchaseContractItem")
-            .columns("TargetQuantity", "OrderQuantityUnit", "NetPriceAmount", "NetPriceQuantity")
+            .columns("TargetQuantity", "OrderQuantityUnit", "ContractNetPriceAmount", "NetPriceQuantity")
             .where({ PurchaseContract: source_number, PurchaseContractItem: String(po_item).padStart(5, "0") })
         );
         qty_total = Number(contractItem?.TargetQuantity) || 0;
         measureUnity = contractItem?.OrderQuantityUnit || measureUnity;
         unit_price = Number(contractItem?.NetPriceQuantity) > 0
-          ? round2(Number(contractItem.NetPriceAmount) / Number(contractItem.NetPriceQuantity))
+          ? round2(Number(contractItem.ContractNetPriceAmount) / Number(contractItem.NetPriceQuantity))
           : 0;
       } catch (err) {
         console.error(`[_findOrCreatePrecertTicketItem] Error leyendo ítem de Contrato ${source_number}/${po_item}:`, err.message);
