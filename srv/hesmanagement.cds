@@ -490,7 +490,7 @@ service HESManagementService @(path: '/srv/hes') {
                                  source_number: String(20),
                                  currency: String(3),
                                  business_partner: String,
-                                 contact_vista: String,
+                                 contact_fiscalizador: String,
                                  items: array of PrecertItem)                         returns SubmitPrecertResult;
 
     action   checkIASUser(email: String)                                              returns {

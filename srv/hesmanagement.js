@@ -663,7 +663,7 @@ module.exports = cds.service.impl(async function () {
     const source_number = String(req.data?.source_number || "").trim();
     const currency = String(req.data?.currency || "").toUpperCase().trim();
     const business_partner = String(req.data?.business_partner || "").trim();
-    const contact_vista = String(req.data?.contact_vista || "").trim();
+    const contact_fiscalizador = String(req.data?.contact_fiscalizador || "").trim();
     const items = Array.isArray(req.data?.items) ? req.data.items : [];
 
     const bp = await tx.run(
@@ -692,6 +692,14 @@ module.exports = cds.service.impl(async function () {
 
     if (!currency || currency.length !== 3) {
       return req.reject(400, "currency inválida");
+    }
+
+    if (!contact_fiscalizador) {
+      return req.reject(400, "contact_fiscalizador es obligatorio");
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact_fiscalizador)) {
+      return req.reject(400, "contact_fiscalizador debe ser un email válido");
     }
 
     if (!items.length) {
@@ -728,7 +736,7 @@ module.exports = cds.service.impl(async function () {
     const ticket_number = await _nextTicketNumber(tx);
     const rootId = cds.utils.uuid();
 
-    let validator = contact_vista ? contact_vista : null;
+    let validator = contact_fiscalizador ? contact_fiscalizador : null;
     const pcItemDataMap = {};
     let pcPurchasingGroup = null;
     let pcPurchasingOrg = null;
