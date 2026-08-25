@@ -1,20 +1,9 @@
 ID;abbreviation;description
-01;S.A.;Sociedad Anónima
-02;S.R.L.;Sociedad de Responsabilidad Limitada
-03;S.C.S.;Sociedad en Comandita Simple
-04;S.C.A.;Sociedad en Comandita por Acciones
-05;S.C.;Sociedad Colectiva
-06;S.C.I.;Sociedad de Capital e Industria
-07;S.S.;Sociedad Simple
-08;S.H.;Sociedad de Hecho
-09;S.A.B.;Sociedad Anónima Bursátil
-10;S.C.;Sociedad Civil
-11;S.A.P.I.;Sociedad Anónima Promotora de Inversión
-12;A.C.;Asociación Civil
-13;PF;Persona Física Actividad Empresarial
-14;LLC;Limited Liability Company
-15;PF;Persona Física
-16;SAS;Sociedad por Acciones Simplificada
-17;SAU;Sociedad Anónima Unipersonal
-18;FNDC;Fundación
-19;FIDE;Fideicomiso
+01;Empresa;Empresa
+02;S.A.;Sociedad anónima
+03;Soc.comand.acc.;Sociedad comercial en comand. por acción
+04;Soc.comand.acc;Sociedad comercial en comand. por acción
+05;S.A. y S.L.;
+06;Soc. colectiva;Sociedad colectiva
+07;Empresa privada;Empresa privada
+08;Soc. limitada;Sociedad limitada

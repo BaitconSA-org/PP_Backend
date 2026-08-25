@@ -1,91 +1,15 @@
 country_code;tax_type;tax_code;description
-AR;J1;01;Capital Federal 0,00%
-AR;J1;02;Capital Federal 0,10%
-AR;J1;03;Capital Federal 0,20%
-AR;J1;04;Capital Federal 0,50%
-AR;J1;05;Capital Federal 0,75%
-AR;J1;06;Capital Federal 0,90%
-AR;J1;07;Capital Federal 1,00%
-AR;J1;08;Capital Federal 1,25%
-AR;J1;09;Capital Federal 1,50%
-AR;J1;10;Capital Federal 1,75%
-AR;J1;11;Capital Federal 2,00%
-AR;J1;12;Capital Federal 2,50%
-AR;J1;13;Capital Federal 2,75%
-AR;J1;14;Capital Federal 3,00%
-AR;J1;15;Capital Federal 4,00%
-AR;J1;16;Capital Federal 4,50%
-AR;J1;17;Capital Federal 3,50%
-AR;J2;01;Buenos Aires 0,00%
-AR;J2;02;Bs. As. 0,01%
-AR;J2;03;Bs. As. 0,05%
-AR;J2;04;Bs. As. 0,10%
-AR;J2;05;Bs. As. 0,20%
-AR;J2;06;Bs. As. 0,30%
-AR;J2;07;Bs. As. 0,40%
-AR;J2;08;Bs. As. 0,50%
-AR;J2;09;Bs. As. 0,70%
-AR;J2;10;Bs. As. 0,80%
-AR;J2;11;Bs. As. 0,90%
-AR;J2;12;Bs. As. 1,00%
-AR;J2;13;Bs. As. 1,10%
-AR;J2;14;Bs. As. 1,20%
-AR;J2;15;Bs. As. 1,30%
-AR;J2;16;Bs. As. 1,50%
-AR;J2;17;Bs. As. 1,60%
-AR;J2;18;Bs. As. 1,75%
-AR;J2;19;Bs. As. 2,00%
-AR;J2;20;Bs. As. 2,50%
-AR;J2;21;Bs. As. 3,00%
-AR;J2;22;Bs. As. 3,50%
-AR;J2;23;Bs. As. 4,00%
-AR;J2;24;Bs. As. 5,00%
-AR;J2;25;Bs. As. 6,00%
-AR;J2;26;Bs. As. 8,00%
-AR;J4;01;Neuquén Regimen Convenio Multilateral
-AR;J4;02;Neuquén Regimen General
-AR;J4;03;Neuquén No Inscriptos
-AR;J4;04;Neuquén Regimen CM con sede en la pcia.
-AR;GA;01;Gcias. Intereses
-AR;GA;02;Gcias. Otros Intereses
-AR;GA;03;Gcias. Comisiones
-AR;GA;04;Gcias. Alquileres de bienes muebles
-AR;GA;05;Gcias. Alquileres/Arren. Inmueble urban
-AR;GA;06;Gcias. Alquileres/Arren. Inmueble rural
-AR;GA;07;Gcias. Regalías
-AR;GA;08;Gcias. Interes accionario y dist. Util
-AR;GA;09;Gcias. Obligaciones no hacer, abandono
-AR;GA;10;Gcias. Mdo. Cereales a término
-AR;GA;11;Gcias. Distribución de películas y TV
-AR;GA;12;Gcias. Enajenación bienes
-AR;GA;13;Gcias. Transferencia derechos
-AR;GA;14;Gcias. Locaciones de obras, servicios
-AR;GA;15;Gcias. Transporte de carga nac e inter
-AR;GA;16;Gcias. Explotación de derechos de autor
-AR;GA;17;Gcias. Cesión o locación de derechos
-AR;GA;18;Gcias. Planes Seguro Retiro
-AR;GA;19;Gcias. Honorarios de directorio
-AR;GA;20;Gcias. Ejercicio profesionales liberales
-AR;GA;21;Gcias. Corredor, viajante, despachant
-AR;GA;22;Gcias. Subsidios del Estado bienes
-AR;GA;23;Gcias. Subsidios del Estado servicios
-AR;GA;G1;Gan. Intereses instituciones financieras
-AR;GA;G2;Beneficio: Intereses de demora
-AR;GA;G3;Gan. Ventas minoristas
-AR;GA;G4;Gan. Servicios profesionales
-AR;GA;G5;Gan. Ganancia neta extranjera
-AR;GA;G6;Gan. Ganancia neta extranjera
-AR;GA;G7;Gan. Transportes internacionales
-AR;GA;G8;Servicios Profesionales/Venta de Bienes
-AR;GA;GB;Ingresos por alquiler
-AR;J5;01;Rio Negro Regimen Conv Multilateral 1%
-AR;J5;02;Rio Negro Regimen Contribuyente local 1%
-AR;J5;03;Rio Negro No acredita situación 5%
-AR;J6;01;Santa Cruz Regimen Conv Multilateral
-AR;J6;02;Santa Cruz Regimen Contribuyente local
-AR;J6;03;Santa Cruz Regimen No inscripto
-AR;SC;01;Ret. Suss a constructoras arquitectura
-AR;SC;02;Ret. Suss a constructoras ingeniería
-AR;SE;01;Ret. Suss a constructoras ingeniería
-AR;SL;SL;Ret. Suss Limpieza
-AR;SV;SV;Ret. Suss Vigilancia y Seguridad
+AR;01;Responsable registrado en IVA (RI)
+AR;02;Responsable no registrado en IVA (RNI)
+AR;03;No responsable de IVA
+AR;04;Exento de IVA
+AR;05;Consumidor final
+AR;06;Responsable fiscal simple (monotributo)
+AR;07;Persona no categorizada
+AR;08;Prov.extranjero
+AR;09;Cliente extranjero
+AR;10;IVA liberado (ley 19.640)
+AR;11;Responsable registrado en IVA: Agente impto. compl.
+AR;12;Contribuyente ocasional pequeño
+AR;13;Impuesto simple social (Monotributo Social)
+AR;14;Contribuyente ocasional pequeño
