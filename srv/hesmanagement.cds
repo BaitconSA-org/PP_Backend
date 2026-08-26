@@ -345,6 +345,9 @@ service HESManagementService @(path: '/srv/hes') {
         AUFNR                : String(12);
         PSPNR                : String(50);
         delivery_date        : String;
+        MATNR                : String;
+        BUKRS                : String(4);
+        RELDT                : String;
     }
 
     type MAWizardCatalogItem {
@@ -579,6 +582,10 @@ service HESManagementService @(path: '/srv/hes') {
         moneda          : String(3);
         observations    : String(150);
         validator       : String(250);
+        plant           : String(8);
+        material        : String(18);
+        company_code    : String(4);
+        release_date    : String;
     })                                                                                returns {
         ticket_number   : String;
         ticket_id       : UUID;
@@ -623,6 +630,10 @@ service HESManagementService @(path: '/srv/hes') {
         precio_total    : String;
         observations    : String;
         validator       : String;
+        plant           : String(8);
+        material        : String(18);
+        company_code    : String(4);
+        release_date    : String;
     })                                                                                returns {
         value           : LargeBinary
     };

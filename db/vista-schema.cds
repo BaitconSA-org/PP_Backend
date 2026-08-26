@@ -386,6 +386,9 @@ entity PrecertTickets : cuid, managed {
     @changelog criticality               : String(1);
     @changelog plant                     : String(8);
     @changelog material_group            : String(9);
+    @changelog material                  : String(18);
+    @changelog company_code              : String(4);
+    @changelog release_date              : Date;
     @changelog hes_date_from             : Date;
     @changelog hes_date_to               : Date;
     @changelog hes_long_text             : String(1000);

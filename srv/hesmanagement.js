@@ -1477,7 +1477,11 @@ module.exports = cds.service.impl(async function () {
       po_item: Number(it.posicion) || 0,
       po_item_text: String(it.service_ID || "").trim(),
       observations: it.observations || null,
-      validator: it.validator || null
+      validator: it.validator || null,
+      plant: it.plant || null,
+      material: it.material || null,
+      company_code: it.company_code || null,
+      release_date: it.release_date || null
     }));
 
     if (aSubTickets.length) {
@@ -1691,10 +1695,6 @@ module.exports = cds.service.impl(async function () {
     const root = await tx.run(
       SELECT.one.from(PrecertTickets).where({ ID: ticket_id })
     );
-    const rootBP = await tx.run(
-      SELECT.one.from(BusinessPartners).where({ ID: root.business_partner_ID })
-    );
-    const sFixedVendor = rootBP?.business_partner_number || ""
     if (!root) return req.error(404, "Ticket inexistente");
 
     // Mapa positionGroups por po_item para lookup rápido
@@ -1712,7 +1712,10 @@ module.exports = cds.service.impl(async function () {
         purchasing_group: oPD.EKGRP || null,
         plant: oPD.WERKS || null,
         material_group: oPD.MATKL || null,
+        material: oPD.MATNR || null,
+        company_code: oPD.BUKRS || null,
         delivery_date: oPD.delivery_date || null,
+        release_date: oPD.RELDT || null,
         criticality: sZCRIT || null,
         // Estos vienen de cada línea — el cambio central
         account_assignment_number: line.KNTTP || null,
@@ -1823,81 +1826,55 @@ module.exports = cds.service.impl(async function () {
         oLinesByPo[sPo].push(l);
       });
 
-    const to_pritems = [];
-    const to_prservices = [];
-    const to_praccass = [];
+    const _toYMD = (v) => {
+      if (!v) return "";
+      const d = v instanceof Date ? v : new Date(v);
+      return isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
+    };
+    const sNowYMD = _toYMD(new Date());
+
+    const aPurchaseRequisitionItems = [];
 
     Object.entries(oLinesByPo).forEach(([sPo, aLines]) => {
       const oPD = oPosDataMap[sPo] || {};
       const sUnit = aLines.find(l => l.MEINS)?.MEINS || "UN";
+      const nQuantity = aLines.reduce((s, l) => s + (parseFloat(l.MENGE) || 0), 0);
+      const nPrice = aLines.reduce((s, l) => s + (parseFloat(l.MENGE) || 0) * (parseFloat(l.PREIS) || 0), 0);
+      const sDeliveryDate = _toYMD(oPD.delivery_date);
 
-      to_pritems.push({
-        PRItem: sPo,
-        PurGroup: oPD.EKGRP || "",
-        ShortText: sShortText,
-        WorkflowJustificationTextB02: sWorkflow || "",
+      aPurchaseRequisitionItems.push({
         Plant: oPD.WERKS || "",
-        MaterialGroup: "0" + (oPD.MATKL || ""),
-        Quantity: String(aLines.reduce((s, l) => s + (parseFloat(l.MENGE) || 0), 0)),
-        Unit: sUnit,
-        ItemCat: "9",
-        AcctAssCat: oPD.KNTTP || "",
-        FixedVendor: sFixedVendor,
-        PurchOrg: oPD.EKORG || "",
-        DeliveryDate: oPD.delivery_date
-          ? `/Date(${new Date(oPD.delivery_date).getTime()})/`
-          : null,
-        Criticidad: sZCRIT || ""
-      });
-
-      aLines.forEach((l, idx) => {
-        to_prservices.push({
-          PRItem: sPo,
-          ExtRow: String((idx + 1) * 10),
-          Service: l.SRVPOS || "",
-          Quantity: l.MENGE || "",
-          GrossPrice: l.PREIS || "",
-          Currency: l.WAERS || ""
-        });
-      });
-
-      aLines.forEach((l, idx) => {
-        to_praccass.push({
-          PRItem: sPo,
-          ExtRow: String((idx + 1) * 10),   // ← nuevo
-          Network: l.KNTTP === "N" ? (l.NPLNR || "") : "",
-          Activity: l.KNTTP === "N" ? (l.ACTIVITY || "") : "",
-          WBSElement: l.KNTTP === "P" ? (l.PSPNR || "") : "",
-          Order: l.KNTTP === "F" ? (l.AUFNR || "") : "",
-          CostCenter: l.KNTTP === "K" ? (l.KOSTL || "") : ""
-        });
+        Material: oPD.MATNR || "",
+        CompanyCode: oPD.BUKRS || "",
+        DeliveryDate: sDeliveryDate,
+        BaseUnitISOCode: sUnit,
+        RequestedQuantity: nQuantity,
+        PurReqCreationDate: sNowYMD,
+        PurReqnItemCurrency: aLines.find(l => l.WAERS)?.WAERS || "",
+        PurReqnPriceQuantity: nQuantity,
+        _PurchaseReqnAcctAssgmt: [{
+          Quantity: nQuantity,
+          ValidityDate: sNowYMD,
+          BaseUnitISOCode: sUnit
+        }],
+        PerformancePeriodEndDate: sDeliveryDate,
+        PurchaseRequisitionPrice: Math.round(nPrice * 100) / 100,
+        AccountAssignmentCategory: oPD.KNTTP || "",
+        PerformancePeriodStartDate: sNowYMD,
+        PurchaseRequisitionReleaseDate: _toYMD(oPD.RELDT),
+        PurchasingDocumentItemCategory: "0"
       });
     });
 
-    const FLP_BASE_URL = process.env.FLP_BASE_URL;
-    const ticketUrl = `${FLP_BASE_URL}#ticketlist-display?sap-ui-app-id-hint=saas_approuter_vistaticketlist&/ticket/${ticket_id}`;
-    const APPROVER = "tobias.racedo@datco.net";
-
     const bpaPayload = {
-      definitionId: process.env.SOLOSOLPED_WORKFLOW_DEFINITION_ID,//"br10.acap-dev-qas-cliou2p9.contralanada.workflowprecert",
+      definitionId: process.env.SOLOSOLPED_WORKFLOW_DEFINITION_ID,
       context: {
-        input: {
-          ticket_ID: ticket_id,
-          app_link: ticketUrl,
-          approvers: { acap_approvers: [APPROVER] },
-          acap_approval: { approved: true, user: "", date: "" },
-          is_updated_ticket: false
-        },
         log: { ticket_ID: ticket_id, status: "", comments: "" },
-        mail: {
-          message: {
-            subject: `Aprobación SolPed — Ticket #${root.ticket_number}`,
-            body: { contentType: "html", content: "" },
-            toRecipients: [{ emailAddress: { address: APPROVER } }]
-          },
-          saveToSentItems: false
-        },
-        solped: [{ PRType: "ZNB", to_pritems, to_prservices, to_praccass }]
+        context_solped: [{
+          PurReqnDescription: sShortText,
+          PurchaseRequisitionType: "NBS",
+          _PurchaseRequisitionItem: aPurchaseRequisitionItems
+        }]
       }
     };
 
