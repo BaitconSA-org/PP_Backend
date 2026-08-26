@@ -476,22 +476,22 @@ view SoxUnifiedAuditLog as
                     case
                         Changes.modification
                         when 'create'
-                             then 'Field ' || coalesce(
+                             then 'Campo ' || coalesce(
                                       Changes.attribute, ''
-                                  ) || ' set to [' || coalesce(
+                                  ) || ' establecido en [' || coalesce(
                                       Changes.valueChangedTo, ''
                                   ) || ']'
                         when 'delete'
-                             then 'Field ' || coalesce(
+                             then 'Campo ' || coalesce(
                                       Changes.attribute, ''
-                                  ) || ' was [' || coalesce(
+                                  ) || ' era [' || coalesce(
                                       Changes.valueChangedFrom, ''
                                   ) || ']'
-                        else 'Field ' || coalesce(
+                        else 'Campo ' || coalesce(
                                  Changes.attribute, ''
-                             ) || ' changed from [' || coalesce(
+                             ) || ' cambió de [' || coalesce(
                                  Changes.valueChangedFrom, ''
-                             ) || '] to [' || coalesce(
+                             ) || '] a [' || coalesce(
                                  Changes.valueChangedTo, ''
                              ) || ']'
                     end as String(500)

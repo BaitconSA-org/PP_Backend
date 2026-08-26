@@ -78,7 +78,7 @@ module.exports = cds.service.impl(async function () {
             console.log('[endWorkflowPrecert] TICKET ENCONTRADO=', ticket.ID, 'source_type=', ticket.source_type, 'ticket_number=', ticket.ticket_number);
 
             const newStatus = status === "SUCCESS" ? "APROBADO" : "ERROR_WF";
-            const isWfError = status === 'ERROR_WF';
+            const isWfError = status !== 'SUCCESS';
             console.log('[endWorkflowPrecert] status=', status, 'newStatus=', newStatus, 'isWfError=', isWfError);
 
             // ── Determinar el campo correcto según el tipo de origen ──────────────
