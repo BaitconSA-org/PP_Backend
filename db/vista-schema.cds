@@ -37,7 +37,7 @@ entity Companies : managed {
 
 entity LegalForms : managed {
     key ID           : String(2);
-        abbreviation : String(10);
+        abbreviation : String(40);
         description  : String(100);
 }
 
