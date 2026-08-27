@@ -5,6 +5,13 @@ const destinationName = 'DMSDest';
 const dmsDestination = SapCfAxios(destinationName);
 const axios = require('axios');
 
+// El browser binding de CMIS del SDM expone cada repositorio bajo
+// /browser/<repositoryId>. La destination solo lleva la URL base, asi que el
+// prefijo /browser/<repo>/root lo arma el codigo (igual que hesmanagement.js y
+// abmcontratista.js).
+const REPO_ID = process.env.DMS_REPOSITORY_ID;
+const DMS_ROOT = () => `/browser/${REPO_ID}/root`;
+
 const createFolder = async (folderName, relativePath = '') => {
   const oForm = new FormData();
 
@@ -16,7 +23,7 @@ const createFolder = async (folderName, relativePath = '') => {
   oForm.append('succinct', 'true');
 
   try {
-    const targetPath = relativePath ? `/root/${relativePath}` : '/root';
+    const targetPath = relativePath ? `${DMS_ROOT()}/${relativePath}` : DMS_ROOT();
 
     const config = {
       method: 'post',
@@ -74,7 +81,7 @@ const uploadDocument = async (relativePath, name, fileData) => {
   oForm.append('file', buffer, fileOptions);
 
   const data = oForm.getBuffer();
-  const fullPath = relativePath ? `/root/${relativePath}/` : '/root/';
+  const fullPath = relativePath ? `${DMS_ROOT()}/${relativePath}/` : `${DMS_ROOT()}/`;
 
   try {
     //Buscar si ya existe un documento con el mismo nombre
@@ -123,7 +130,7 @@ const deleteObject = async (objectId, type, relativePath = '') => {
   oForm.append('objectId', objectId);
   oForm.append('continueOnFailure', 'true');
 
-  const url = `/root${relativePath ? '/' + relativePath : ''}`;
+  const url = `${DMS_ROOT()}${relativePath ? '/' + relativePath : ''}`;
 
   try {
     const config = {
@@ -159,7 +166,7 @@ const getDocument = async (folderName, documentName) => {
     const encodedDocumentName = encodeURIComponent(documentName);
     const config = {
       method: 'get',
-      url: `/root/${encodedFolderPath}/${encodedDocumentName}`,
+      url: `${DMS_ROOT()}/${encodedFolderPath}/${encodedDocumentName}`,
       responseType: 'arraybuffer',
     };
     const response = await dmsDestination(config);
@@ -174,7 +181,7 @@ const getDocument = async (folderName, documentName) => {
 
 const listarDocumentosEnCarpeta = async (relativePath = '') => {
   try {
-    const response = await dmsDestination.get(`/root/${relativePath}?succinct=true`);
+    const response = await dmsDestination.get(`${DMS_ROOT()}/${relativePath}?succinct=true`);
     const objetos = response.data.objects ?? [];
 
     const documentos = objetos
