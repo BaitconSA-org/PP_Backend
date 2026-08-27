@@ -63,7 +63,9 @@ entity PurchOrg : IdDescription {}
 entity PurchGroup : IdDescription {}
 entity MaterialGroup : IdDescription {}
 entity Plants : IdDescription {}
-entity MeasureUnits : IdDescription {}
+entity MeasureUnits : IdDescription {
+    isoCode : String(3); // BaseUnitISOCode UN/ECE Rec.20 esperado por API_PURCHASEREQ_PROCESS_SRV
+}
 entity BusinessRoles : IdDescription {}
 
 

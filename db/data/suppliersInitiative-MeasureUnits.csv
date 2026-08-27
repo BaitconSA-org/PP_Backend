@@ -1,33 +1,33 @@
-ID;description
-UN;Unidad
-MON;Meses
-H;Hora
-D;Días
-DÍA;Días
-L;Litro
-KM;Kilómetro
-KG;Kilogramo
-M;Metro
-M3;Metro cúbico
-T;Tonelada
-PUL;Pulgada
-TON;Tonelada EE.UU.
-M2;Metro cuadrado
-GLN;Galón (EE.UU.)
-HRA;Horas
-PRS;Número de personas
-BOL;Bolsa
-HA;Hectárea
-BBL;British Thermal Unit/Barril EU
-MW;Milivatio
-MWH;Megavatio/Hora
-CM2;Centímetro cuadrado
-JHR;Años (annum)
-%;Porcentaje
-001;N/D
-K;Kelvin
-TOM;Tonelada/Metro cúbico
-LB;Libra (pound)
-TNM;Tonelada Métrica
-UP;Unidad de potencia
-BID;Bidón
+ID;description;isoCode
+UN;Unidad;EA
+MON;Meses;MON
+H;Hora;HUR
+D;Días;DAY
+DÍA;Días;DAY
+L;Litro;LTR
+KM;Kilómetro;KMT
+KG;Kilogramo;KGM
+M;Metro;MTR
+M3;Metro cúbico;MTQ
+T;Tonelada;TNE
+PUL;Pulgada;INH
+TON;Tonelada EE.UU.;STN
+M2;Metro cuadrado;MTK
+GLN;Galón (EE.UU.);GLL
+HRA;Horas;HUR
+PRS;Número de personas;
+BOL;Bolsa;BG
+HA;Hectárea;HAR
+BBL;British Thermal Unit/Barril EU;
+MW;Milivatio;
+MWH;Megavatio/Hora;MWH
+CM2;Centímetro cuadrado;CMK
+JHR;Años (annum);ANN
+%;Porcentaje;P1
+001;N/D;
+K;Kelvin;KEL
+TOM;Tonelada/Metro cúbico;
+LB;Libra (pound);LBR
+TNM;Tonelada Métrica;TNE
+UP;Unidad de potencia;
+BID;Bidón;

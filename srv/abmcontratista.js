@@ -811,7 +811,14 @@ module.exports = cds.service.impl(async function () {
       ? (u.attr.bp_id[0] || "")
       : (u.attr?.bp_id || "");
 
-
+    // TODO TEMP: log de diagnóstico para el issue de ProveedorProvisorio no detectado.
+    // Sacar una vez confirmado el origen del problema (attr de token vs role collection).
+    console.log("[me() DEBUG] user:", u.id);
+    console.log("[me() DEBUG] attr:", JSON.stringify(u.attr));
+    console.log("[me() DEBUG] roleCheck:", JSON.stringify(
+      Object.fromEntries(KNOWN_ROLES.map(r => [r, u.is(r)]))
+    ));
+    console.log("[me() DEBUG] raw token scopes:", JSON.stringify(u.tokenInfo?.getPayload?.()?.scope || u.tokenInfo?.payload?.scope || "n/a"));
 
     return {
       email: (u.id || "").toLowerCase(),

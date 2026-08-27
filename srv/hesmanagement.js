@@ -1431,7 +1431,7 @@ module.exports = cds.service.impl(async function () {
 
     const { PrecertTickets, WorkflowStatus } = cds.entities("suppliersInitiative");
     const bpId =
-      req.user.attr?.bp_id[0]
+      req.user.attr?.bp_id?.[0]
       ?? req.user.tokenInfo?.getTokenValue?.('customAttribute1')  // ← fallback XSUAA
       ?? null;
 
@@ -1833,34 +1833,60 @@ module.exports = cds.service.impl(async function () {
     };
     const sNowYMD = _toYMD(new Date());
 
+    // Proveedor SAP del ítem: el mismo BusinessPartner dueño del ticket (patrón sFixedVendor de sendSolped)
+    const rootBP = await tx.run(
+      SELECT.one.from(BusinessPartners).where({ ID: root.business_partner_ID })
+    );
+    const sSupplier = rootBP?.lifnr || "";
+
+    // MeasureUnits.ID es un código interno en español (ej. "UN", "H") — API_PURCHASEREQ_PROCESS_SRV
+    // exige el código ISO/UN-ECE real en BaseUnitISOCode (ej. "EA", "HUR"), no el código interno.
+    const { MeasureUnits } = cds.entities("suppliersInitiative");
+    const aUnitCatalog = await tx.run(SELECT.from(MeasureUnits));
+    const oUnitIsoMap = {};
+    aUnitCatalog.forEach(u => { oUnitIsoMap[u.ID] = u.isoCode; });
+    const _toIsoUnit = (sRawUnit) => {
+      const sIso = oUnitIsoMap[sRawUnit];
+      if (sIso) return sIso;
+      console.warn(`[saveApprovalManual] Sin ISO code mapeado para unidad "${sRawUnit}" — se envía tal cual, S4 puede rechazarlo.`);
+      return sRawUnit || "";
+    };
+
     const aPurchaseRequisitionItems = [];
 
     Object.entries(oLinesByPo).forEach(([sPo, aLines]) => {
       const oPD = oPosDataMap[sPo] || {};
-      const sUnit = aLines.find(l => l.MEINS)?.MEINS || "UN";
+      const sUnit = _toIsoUnit(aLines.find(l => l.MEINS)?.MEINS || "");
       const nQuantity = aLines.reduce((s, l) => s + (parseFloat(l.MENGE) || 0), 0);
       const nPrice = aLines.reduce((s, l) => s + (parseFloat(l.MENGE) || 0) * (parseFloat(l.PREIS) || 0), 0);
       const sDeliveryDate = _toYMD(oPD.delivery_date);
+      const sItemCurrency = aLines.find(l => l.WAERS)?.WAERS || "";
 
       aPurchaseRequisitionItems.push({
         Plant: oPD.WERKS || "",
         Material: oPD.MATNR || "",
+        Supplier: sSupplier,
         CompanyCode: oPD.BUKRS || "",
         DeliveryDate: sDeliveryDate,
+        MaterialGroup: oPD.MATKL || "",
         BaseUnitISOCode: sUnit,
+        PurchasingGroup: oPD.EKGRP || "",
         RequestedQuantity: nQuantity,
         PurReqCreationDate: sNowYMD,
-        PurReqnItemCurrency: aLines.find(l => l.WAERS)?.WAERS || "",
+        PurReqnItemCurrency: sItemCurrency,
         PurReqnPriceQuantity: nQuantity,
+        PurchaseOrderPriceType: "2",
         _PurchaseReqnAcctAssgmt: [{
           Quantity: nQuantity,
           ValidityDate: sNowYMD,
-          BaseUnitISOCode: sUnit
+          BaseUnitISOCode: sUnit,
+          PurReqnItemCurrency: sItemCurrency
         }],
         PerformancePeriodEndDate: sDeliveryDate,
         PurchaseRequisitionPrice: Math.round(nPrice * 100) / 100,
         AccountAssignmentCategory: oPD.KNTTP || "",
         PerformancePeriodStartDate: sNowYMD,
+        PurchaseRequisitionItemText: aLines[0]?.KTEXT1 || "",
         PurchaseRequisitionReleaseDate: _toYMD(oPD.RELDT),
         PurchasingDocumentItemCategory: "0"
       });
@@ -1878,6 +1904,10 @@ module.exports = cds.service.impl(async function () {
       }
     };
 
+    const aApprovedIds = lines
+      .filter(l => l.currentStatus === "APROBADO" && l.subticket_id)
+      .map(l => l.subticket_id);
+
     try {
       const axios = sapCfAxios("SBPA");
       const response = await axios({
@@ -1891,10 +1921,6 @@ module.exports = cds.service.impl(async function () {
       });
 
       const instanceId = response.data?.id;
-
-      const aApprovedIds = lines
-        .filter(l => l.currentStatus === "APROBADO" && l.subticket_id)
-        .map(l => l.subticket_id);
 
       for (const sSubId of aApprovedIds) {
         const oStatus = await tx.run(
@@ -3097,11 +3123,11 @@ module.exports = cds.service.impl(async function () {
       method: "POST",
       url: `/workflow/rest/v1/workflow-instances?environmentId=${process.env.SOLPED_WORKFLOW_ENV}`,
       headers: {
-        "irpa-api-key": process.env.SOLOSOLPED_IRPA_API_KEY,
+        "irpa-api-key": process.env.SOLPED_IRPA_API_KEY,
         "Content-Type": "application/json"
       },
       data: {
-        definitionId: process.env.SOLOSOLPED_WORKFLOW_DEFINITION_ID,
+        definitionId: process.env.SOLPED_WORKFLOW_DEFINITION_ID,
         businessKey: ticket.ID,
         context: {
           input: {
