@@ -1816,111 +1816,31 @@ module.exports = cds.service.impl(async function () {
       return JSON.stringify({ success: true, ticket_id, bpa: false });
     }
 
-    // ── Agrupar líneas aprobadas por po_item ──────────────────────────
-    const oLinesByPo = {};
-    lines
-      .filter(l => l.currentStatus === "APROBADO")
-      .forEach(l => {
-        const sPo = String(l.EXTROW || "").trim();
-        if (!oLinesByPo[sPo]) oLinesByPo[sPo] = [];
-        oLinesByPo[sPo].push(l);
-      });
-
-    const _toYMD = (v) => {
-      if (!v) return "";
-      const d = v instanceof Date ? v : new Date(v);
-      return isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
-    };
-    const sNowYMD = _toYMD(new Date());
-
-    // Proveedor SAP del ítem: el mismo BusinessPartner dueño del ticket (patrón sFixedVendor de sendSolped)
+    // ── context_solped (nombres estándar API_PURCHASEREQ_PROCESS_SRV) ──
+    // Proveedor SAP: el BusinessPartner dueño del ticket.
     const rootBP = await tx.run(
       SELECT.one.from(BusinessPartners).where({ ID: root.business_partner_ID })
     );
-    const sSupplier = rootBP?.lifnr || "";
+    const unitIsoMap = await _loadUnitIsoMap(tx);
 
-    // MeasureUnits.ID es un código interno en español (ej. "UN", "H") — API_PURCHASEREQ_PROCESS_SRV
-    // exige el código ISO/UN-ECE real en BaseUnitISOCode (ej. "EA", "HUR"), no el código interno.
-    const { MeasureUnits } = cds.entities("suppliersInitiative");
-    const aUnitCatalog = await tx.run(SELECT.from(MeasureUnits));
-    const oUnitIsoMap = {};
-    aUnitCatalog.forEach(u => { oUnitIsoMap[u.ID] = u.isoCode; });
-    const _toIsoUnit = (sRawUnit) => {
-      const sIso = oUnitIsoMap[sRawUnit];
-      if (sIso) return sIso;
-      console.warn(`[saveApprovalManual] Sin ISO code mapeado para unidad "${sRawUnit}" — se envía tal cual, S4 puede rechazarlo.`);
-      return sRawUnit || "";
-    };
-
-    const aPurchaseRequisitionItems = [];
-
-    Object.entries(oLinesByPo).forEach(([sPo, aLines]) => {
-      const oPD = oPosDataMap[sPo] || {};
-      const sUnit = _toIsoUnit(aLines.find(l => l.MEINS)?.MEINS || "");
-      const nQuantity = aLines.reduce((s, l) => s + (parseFloat(l.MENGE) || 0), 0);
-      const nPrice = aLines.reduce((s, l) => s + (parseFloat(l.MENGE) || 0) * (parseFloat(l.PREIS) || 0), 0);
-      const sDeliveryDate = _toYMD(oPD.delivery_date);
-      const sItemCurrency = aLines.find(l => l.WAERS)?.WAERS || "";
-
-      aPurchaseRequisitionItems.push({
-        Plant: oPD.WERKS || "",
-        Material: oPD.MATNR || "",
-        Supplier: sSupplier,
-        CompanyCode: oPD.BUKRS || "",
-        DeliveryDate: sDeliveryDate,
-        MaterialGroup: oPD.MATKL || "",
-        BaseUnitISOCode: sUnit,
-        PurchasingGroup: oPD.EKGRP || "",
-        RequestedQuantity: nQuantity,
-        PurReqCreationDate: sNowYMD,
-        PurReqnItemCurrency: sItemCurrency,
-        PurReqnPriceQuantity: nQuantity,
-        PurchaseOrderPriceType: "2",
-        _PurchaseReqnAcctAssgmt: [{
-          Quantity: nQuantity,
-          ValidityDate: sNowYMD,
-          BaseUnitISOCode: sUnit,
-          PurReqnItemCurrency: sItemCurrency
-        }],
-        PerformancePeriodEndDate: sDeliveryDate,
-        PurchaseRequisitionPrice: Math.round(nPrice * 100) / 100,
-        AccountAssignmentCategory: oPD.KNTTP || "",
-        PerformancePeriodStartDate: sNowYMD,
-        PurchaseRequisitionItemText: aLines[0]?.KTEXT1 || "",
-        PurchaseRequisitionReleaseDate: _toYMD(oPD.RELDT),
-        PurchasingDocumentItemCategory: "0"
-      });
+    const solpedPayload = _buildContextSolped(positionGroups, lines, {
+      sSupplier: rootBP?.lifnr || "",
+      unitIsoMap,
+      purReqType: header?.PurchaseRequisitionType || "NBS",
+      purReqnDescription: sShortText
     });
-
-    const bpaPayload = {
-      definitionId: process.env.SOLOSOLPED_WORKFLOW_DEFINITION_ID,
-      context: {
-        log: { ticket_ID: ticket_id, status: "", comments: "" },
-        context_solped: [{
-          PurReqnDescription: sShortText,
-          PurchaseRequisitionType: "NBS",
-          _PurchaseRequisitionItem: aPurchaseRequisitionItems
-        }]
-      }
-    };
 
     const aApprovedIds = lines
       .filter(l => l.currentStatus === "APROBADO" && l.subticket_id)
       .map(l => l.subticket_id);
 
     try {
-      const axios = sapCfAxios("SBPA");
-      const response = await axios({
-        method: "POST",
-        url: `/workflow/rest/v1/workflow-instances?environmentId=${process.env.SOLPED_WORKFLOW_ENV}`,
-        headers: {
-          "irpa-api-key": process.env.SOLOSOLPED_IRPA_API_KEY,
-          "Content-Type": "application/json"
-        },
-        data: bpaPayload
+      // Aprobación manual = sólo SolPed → context_hes vacío
+      const instanceId = await _sendSolpedHesWorkflow(ticket_id, {
+        solpedPayload,
+        hesPayload: [],
+        comment: header?.comment || ""
       });
-
-      const instanceId = response.data?.id;
 
       for (const sSubId of aApprovedIds) {
         const oStatus = await tx.run(
@@ -2214,15 +2134,6 @@ module.exports = cds.service.impl(async function () {
     // ── 2. hesPayload — usa resolvedPositionGroups ────────────────
     let hesPayload;
     if (root.source_type === "PC" && Object.keys(hesGroupsMap).length > 0) {
-      const pcProvinceIds = [...new Set(activeSubs.map(s => s.province_ID).filter(Boolean))];
-      const pcProvinceRows = pcProvinceIds.length
-        ? await tx.run(SELECT.from(Provinces).columns("ID", "s4_code", "description").where({ ID: { in: pcProvinceIds } }))
-        : [];
-      const pcProvinceS4Code = {};
-      for (const p of pcProvinceRows) {
-        pcProvinceS4Code[p.ID] = `${p.s4_code || ""} ${(p.description || "").trim()}`.trim();
-      }
-
       hesPayload = Object.entries(hesGroupsMap).map(([sKey, hesData]) => {
         const sParts = sKey.split("||");
         const sPoItem = sParts[0] || "";
@@ -2262,45 +2173,78 @@ module.exports = cds.service.impl(async function () {
         );
 
         const firstSub = subsForGroup[0];
-        const location = sProvinceId ? (pcProvinceS4Code[sProvinceId] || "") : "";
         const sPersonInt = firstSub?.purchasing_group || sEKGRP || "";
 
+        // context_hes con nombres estándar (A_ServiceEntrySheet). PurchaseOrder/
+        // PurchaseOrderItem quedan vacíos: el WF los completa tras crear la OC desde
+        // la SolPed. La correlación va por PurgDocExternalReference (nro de ticket).
         return {
-          PONumber: root.source_number || "",
-          POItem: sPRItem,
-          ShortText: `SES - ${root.source_number || root.ticket_number}`,
-          PackageNo: "1",
-          BeginDate: hesData.date_from ? `/Date(${new Date(hesData.date_from).getTime()})/` : "",
-          EndDate: hesData.date_to ? `/Date(${new Date(hesData.date_to).getTime()})/` : "",
-          LongText: hesData.long_text || "",
-          Location: location,
-          PersonInt: sPersonInt,
-          ZZ_FISCA_EMAIL: root.validator || firstSub?.validator || "",
-          to_service: subsForGroup.map((sub, idx) => {
-            const globalIdx = approvedSubIdsForPRItem.indexOf(sub.ID);
-            const externalLine = String(((globalIdx >= 0 ? globalIdx : idx) + 1) * 10);
-            return {
-              Quantity: String(Number(sub.qty_to_certify || 0).toFixed(3)),
-              ShortText: sub.ses_subservice || sub.short_text || "",
-              ExternalLine: externalLine
-            };
-          })
+          PurchaseOrder: "",
+          ServiceEntrySheetName: `SES - ${root.source_number || root.ticket_number}`,
+          to_ServiceEntrySheetItem: {
+            results: subsForGroup.map((sub, idx) => {
+              const globalIdx = approvedSubIdsForPRItem.indexOf(sub.ID);
+              const seq = (globalIdx >= 0 ? globalIdx : idx) + 1;
+              return {
+                ServiceEntrySheetItem: String(seq * 10),
+                PurchaseOrder: "",
+                PurchaseOrderItem: "",
+                Plant: sub.plant || "",
+                ServiceEntrySheetItemDesc: sub.ses_subservice || sub.short_text || "",
+                ConfirmedQuantity: String(Number(sub.qty_to_certify || 0).toFixed(3)),
+                Currency: root.currency || sub.currency || "",
+                ServicePerformanceDate: hesData.date_from ? `/Date(${new Date(hesData.date_from).getTime()})/` : "",
+                ServicePerformanceEndDate: hesData.date_to ? `/Date(${new Date(hesData.date_to).getTime()})/` : "",
+                QuantityUnit: sub.measure_unity || "",
+                TaxJurisdiction: "",
+                TaxCountry: ""
+              };
+            })
+          },
+          PurchasingOrganization: firstSub?.purchasing_org || "",
+          PurchasingGroup: sPersonInt,
+          Currency: root.currency || "",
+          Supplier: rootBP?.lifnr || "",
+          PostingDate: `/Date(${Date.now()})/`,
+          PurgDocExternalReference: String(root.ticket_number || "")
         };
       });
     } else {
-      hesPayload = _buildHesPayload(root, subsGroupedByKey, provinceS4Code);
+      // context_hes con nombres estándar (A_ServiceEntrySheet) — mismo builder que postHesWorkflows
+      hesPayload = _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, rootBP?.lifnr || "");
     }
 
-    // ── 3. solpedPayload y disparo WF ─────────────────────────────
+    // ── 3. solpedPayload y disparo WF unificado (CREATE_SOLPED_HES) ─────
     try {
 
+      const unitIsoMap = await _loadUnitIsoMap(tx);
+      const bIsPC = root.source_type === "PC";
 
-      const solpedPayload = root.source_type === "PC"
-        ? _buildSolpedPCPayload(resolvedPositionGroups, lines, root.source_number, activeSubs, sFixedVendor)
-        : _buildSolpedPayload(positionGroups, lines, { BSART });
+      const solpedPayload = _buildContextSolped(
+        bIsPC ? resolvedPositionGroups : positionGroups,
+        lines,
+        {
+          sSupplier: bIsPC ? (sFixedVendor || rootBP?.lifnr || "") : (rootBP?.lifnr || ""),
+          unitIsoMap,
+          purReqType: BSART || (bIsPC ? "ZCON" : "NBS"),
+          purReqnDescription: root.short_text || "",
+          groupBy: bIsPC ? "pr_item" : "EXTROW",
+          purchasingContract: bIsPC ? (root.source_number || "") : ""
+        }
+      );
 
+      const instanceId = await _sendSolpedHesWorkflow(ticket_id, { solpedPayload, hesPayload, comment });
 
-      const instanceId = await _sendSolpedWorkflow(ticket_id, root, solpedPayload, hesPayload, subIds, tx);
+      await tx.run(
+        UPDATE(WorkflowStatus)
+          .set({
+            status: "ENVIANDO_SOLPED",
+            workflow_instance_id: instanceId || null,
+            description: `WF SolPed+HES iniciado: ${instanceId}`
+          })
+          .where({ precert_ticket_ID: { in: subIds?.length ? subIds : [ticket_id] } })
+      );
+
       return JSON.stringify({ success: true, ticket_id, instanceId, status: "ENVIANDO_SOLPED" });
 
     } catch (err) {
@@ -3153,6 +3097,8 @@ module.exports = cds.service.impl(async function () {
 
   }
 
+  // LEGACY: shape to_pritems/to_prservices para el WF viejo _sendSolpedWorkflow.
+  // Reemplazado por _buildContextSolped (nombres estándar). Sin usar; se deja para rollback.
   function _buildSolpedPayload(positionGroups, lines, header) {
     const oLinesByPo = {};
     lines
@@ -3210,6 +3156,8 @@ module.exports = cds.service.impl(async function () {
 
     return [{ to_pritems, to_prservices, to_praccass, PRType: header?.BSART || "" }];
   }
+  // LEGACY: shape to_pritems para el WF viejo. PC ahora usa _buildContextSolped
+  // con groupBy "pr_item" + purchasingContract. Se deja para rollback.
   function _buildSolpedPCPayload(positionGroups, lines, source_number, subs, fixedVendor = "") {
     const oSubBySubticketId = {};
     (subs || []).forEach(s => { if (s.ID) oSubBySubticketId[s.ID] = s; });
@@ -3324,6 +3272,8 @@ module.exports = cds.service.impl(async function () {
       throw e;
     }
   }
+  // LEGACY: WF viejo con context.{input,mail,data,solped}. Reemplazado por
+  // _sendSolpedHesWorkflow (context_solped/context_hes/log). Sin usar; se deja para rollback.
   async function _sendSolpedWorkflow(ticket_id, _root, solpedPayload, hesPayload, subIds, tx) {
     const FLP_BASE_URL = process.env.FLP_BASE_URL;
     const ticketUrl = `${FLP_BASE_URL}#ticketlist-display?sap-ui-app-id-hint=saas_approuter_vistaticketlist&/ticket/${ticket_id}`;
@@ -3380,6 +3330,144 @@ module.exports = cds.service.impl(async function () {
     return instanceId;
   }
 
+  // ───────────────────────────────────────────────────────────────────────────
+  //  WF unificado SolPed + HES (definitionId CREATE_SOLPED_HES)
+  //  context = { context_solped[], context_hes[], log }  — sin input/mail/data.
+  //  Aprobadores y mail los resuelve el workflow internamente.
+  // ───────────────────────────────────────────────────────────────────────────
+  function _dateToYMD(v) {
+    if (!v) return "";
+    const d = v instanceof Date ? v : new Date(v);
+    return isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
+  }
+
+  async function _loadUnitIsoMap(tx) {
+    // MeasureUnits.ID es el código interno en español (ej. "UN", "H"); el API estándar
+    // exige el código ISO/UN-ECE real (ej. "EA", "HUR") en BaseUnitISOCode.
+    const { MeasureUnits } = cds.entities("suppliersInitiative");
+    const rows = await tx.run(SELECT.from(MeasureUnits));
+    const map = {};
+    rows.forEach(u => { map[u.ID] = u.isoCode; });
+    return map;
+  }
+
+  // context_solped con nombres estándar de API_PURCHASEREQ_PROCESS_SRV.
+  // Reemplaza a _buildSolpedPayload (shape legacy to_pritems/to_prservices).
+  function _buildContextSolped(positionGroups, lines, {
+    sSupplier = "",
+    unitIsoMap = {},
+    purReqType = "NBS",
+    purReqnDescription = "",
+    groupBy = "EXTROW",         // "EXTROW" (SO) | "pr_item" (PC)
+    purchasingContract = ""     // PC: nro de acuerdo marco → agrega PurchasingContract/Item por ítem
+  } = {}) {
+    const oPosDataMap = {};
+    (positionGroups || []).forEach(pg => { oPosDataMap[String(pg.po_item).trim()] = pg; });
+
+    const _toIsoUnit = (u) => {
+      if (!u) return "";
+      if (unitIsoMap[u]) return unitIsoMap[u];
+      console.warn(`[_buildContextSolped] Sin ISO code para unidad "${u}" — se envía tal cual.`);
+      return u;
+    };
+    const sNowYMD = _dateToYMD(new Date());
+
+    const oLinesByItem = {};
+    (lines || [])
+      .filter(l => l.currentStatus === "APROBADO")
+      .forEach(l => {
+        const sKey = String(
+          groupBy === "pr_item" ? (l.pr_item || l.EXTROW || "") : (l.EXTROW || "")
+        ).trim();
+        if (!sKey) return;
+        (oLinesByItem[sKey] ||= []).push(l);
+      });
+
+    const _PurchaseRequisitionItem = [];
+
+    Object.entries(oLinesByItem).forEach(([sItem, aLines]) => {
+      const oPD = oPosDataMap[sItem] || {};
+      const sUnit = _toIsoUnit(aLines.find(l => l.MEINS)?.MEINS || "");
+      const nQuantity = aLines.reduce((s, l) => s + (parseFloat(l.MENGE) || 0), 0);
+      const nNetAmount = Math.round(
+        aLines.reduce((s, l) => s + (parseFloat(l.MENGE) || 0) * (parseFloat(l.PREIS) || 0), 0) * 100
+      ) / 100;
+      const sDeliveryDate = _dateToYMD(oPD.delivery_date);
+      const sItemCurrency = aLines.find(l => l.WAERS)?.WAERS || "";
+
+      const oItem = {
+        Plant: oPD.WERKS || "",
+        Material: oPD.MATNR || "",
+        CompanyCode: oPD.BUKRS || "",
+        DeliveryDate: sDeliveryDate,
+        BaseUnitISOCode: sUnit,
+        RequestedQuantity: nQuantity,
+        PurReqCreationDate: sNowYMD,
+        PurReqnItemCurrency: sItemCurrency,
+        PurReqnPriceQuantity: nQuantity,
+        _PurchaseReqnAcctAssgmt: [{
+          Quantity: nQuantity,
+          ValidityDate: sNowYMD,
+          BaseUnitISOCode: sUnit,
+          PurReqnNetAmount: nNetAmount,
+          PurReqnItemCurrency: sItemCurrency
+        }],
+        PerformancePeriodEndDate: sDeliveryDate,
+        AccountAssignmentCategory: oPD.KNTTP || "",
+        PurchaseRequisitionPrice: nNetAmount,
+        PerformancePeriodStartDate: sNowYMD,
+        PurchaseRequisitionReleaseDate: _dateToYMD(oPD.RELDT),
+        PurchasingDocumentItemCategory: "0",
+        PurchaseOrderPriceType: "2",
+        ItemNetAmount: nNetAmount,
+        Supplier: sSupplier,
+        MaterialGroup: oPD.MATKL || "",
+        PurchasingGroup: oPD.EKGRP || "",
+        PurchaseRequisitionItemText: aLines[0]?.KTEXT1 || ""
+      };
+
+      // PC: referencia al acuerdo marco (equivale a Agreement/AgreementItem del payload legacy)
+      if (purchasingContract) {
+        oItem.PurchasingContract = purchasingContract;
+        oItem.PurchasingContractItem = String(oPD.po_item_original || sItem);
+      }
+
+      _PurchaseRequisitionItem.push(oItem);
+    });
+
+    return [{
+      PurReqnDescription: purReqnDescription,
+      PurchaseRequisitionType: purReqType,
+      _PurchaseRequisitionItem
+    }];
+  }
+
+  // POST a SBPA del WF unificado. No escribe en DB — el caller actualiza WorkflowStatus.
+  async function _sendSolpedHesWorkflow(ticket_id, { solpedPayload = [], hesPayload = [], comment = "" } = {}) {
+    const bpaPayload = {
+      definitionId: process.env.SOLPED_HES_WORKFLOW_DEFINITION_ID,
+      businessKey: ticket_id,
+      context: {
+        context_solped: solpedPayload,
+        context_hes: hesPayload,
+        log: { status: "", comments: comment || "", ticket_ID: ticket_id }
+      }
+    };
+
+    const axios = sapCfAxios("SBPA");
+    const response = await axios({
+      method: "POST",
+      url: `/workflow/rest/v1/workflow-instances?environmentId=${process.env.SOLPED_HES_WORKFLOW_ENV}`,
+      headers: {
+        "irpa-api-key": process.env.SOLPED_HES_IRPA_API_KEY,
+        "Content-Type": "application/json"
+      },
+      data: bpaPayload
+    });
+
+    return response.data?.id || null;
+  }
+
   // Payload para el WF de HES en SAP Build Process Automation — nombres de campo
   // alineados al schema del workflow (PurchaseOrder/ServiceEntrySheetName/
   // to_ServiceEntrySheetItem), distinto del shape legacy que usa _buildHesPayload
@@ -3425,6 +3513,8 @@ module.exports = cds.service.impl(async function () {
       });
   }
 
+  // LEGACY: shape PONumber/POItem/to_service para el WF viejo. El flujo SO ahora
+  // usa _buildHesWorkflowPayload (context_hes estándar). Sin usar; se deja para rollback.
   function _buildHesPayload(root, subsGroupedByKey, provinceS4Code) {
     return Object.entries(subsGroupedByKey)
       .filter(([, subs]) => Array.isArray(subs) && subs.length > 0)
