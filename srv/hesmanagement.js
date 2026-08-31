@@ -1827,7 +1827,8 @@ module.exports = cds.service.impl(async function () {
       sSupplier: rootBP?.lifnr || "",
       unitIsoMap,
       purReqType: header?.PurchaseRequisitionType || "NBS",
-      purReqnDescription: sShortText
+      purReqnDescription: sShortText,
+      currency: root.currency || ""
     });
 
     const aApprovedIds = lines
@@ -2074,6 +2075,8 @@ module.exports = cds.service.impl(async function () {
           EKGRP: fg.EKGRP || sub.purchasing_group || "",
           WERKS: fg.WERKS || sub.plant || "",
           MATKL: fg.MATKL || sub.material_group || "",
+          MATNR: fg.MATNR || sub.material || "",
+          BUKRS: fg.BUKRS || sub.company_code || "",
           EKORG: fg.EKORG || sub.purchasing_org || "",
           KNTTP: fg.KNTTP || sub.account_assignment_cat || "",
           PSPNR: fg.PSPNR || sub.wbs_element || "",
@@ -2096,6 +2099,8 @@ module.exports = cds.service.impl(async function () {
           EKGRP: fg.EKGRP || "",
           WERKS: fg.WERKS || "",
           MATKL: fg.MATKL || "",
+          MATNR: fg.MATNR || "",
+          BUKRS: fg.BUKRS || "",
           EKORG: fg.EKORG || "",
           KNTTP: fg.KNTTP || "",
           PSPNR: fg.PSPNR || "",
@@ -2132,6 +2137,7 @@ module.exports = cds.service.impl(async function () {
     }
 
     // ── 2. hesPayload — usa resolvedPositionGroups ────────────────
+    const unitIsoMap = await _loadUnitIsoMap(tx);
     let hesPayload;
     if (root.source_type === "PC" && Object.keys(hesGroupsMap).length > 0) {
       hesPayload = Object.entries(hesGroupsMap).map(([sKey, hesData]) => {
@@ -2195,7 +2201,7 @@ module.exports = cds.service.impl(async function () {
                 Currency: root.currency || sub.currency || "",
                 ServicePerformanceDate: hesData.date_from ? `/Date(${new Date(hesData.date_from).getTime()})/` : "",
                 ServicePerformanceEndDate: hesData.date_to ? `/Date(${new Date(hesData.date_to).getTime()})/` : "",
-                QuantityUnit: sub.measure_unity || "",
+                QuantityUnit: unitIsoMap[sub.measure_unity] || sub.measure_unity || "",
                 TaxJurisdiction: "",
                 TaxCountry: ""
               };
@@ -2210,14 +2216,13 @@ module.exports = cds.service.impl(async function () {
         };
       });
     } else {
-      // context_hes con nombres estándar (A_ServiceEntrySheet) — mismo builder que postHesWorkflows
-      hesPayload = _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, rootBP?.lifnr || "");
+      // context_hes estándar; la OC la crea el WF desde la SolPed → sin PurchaseOrder
+      hesPayload = _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, rootBP?.lifnr || "", { omitPurchaseOrder: true, unitIsoMap });
     }
 
     // ── 3. solpedPayload y disparo WF unificado (CREATE_SOLPED_HES) ─────
     try {
 
-      const unitIsoMap = await _loadUnitIsoMap(tx);
       const bIsPC = root.source_type === "PC";
 
       const solpedPayload = _buildContextSolped(
@@ -2229,7 +2234,8 @@ module.exports = cds.service.impl(async function () {
           purReqType: BSART || (bIsPC ? "ZCON" : "NBS"),
           purReqnDescription: root.short_text || "",
           groupBy: bIsPC ? "pr_item" : "EXTROW",
-          purchasingContract: bIsPC ? (root.source_number || "") : ""
+          currency: root.currency || activeSubs[0]?.currency || "",
+          companyCode: activeSubs.find(s => s.company_code)?.company_code || ""
         }
       );
 
@@ -2949,6 +2955,7 @@ module.exports = cds.service.impl(async function () {
   }
   async function postHesWorkflows(ticket_ID, root, subs, currentSubIds = []) {
     const axios = sapCfAxios("SBPA");
+    const unitIsoMap = await _loadUnitIsoMap(cds);
 
     const approverEmail = root.validator || "";
     const FLP_BASE_URL = process.env.FLP_BASE_URL;
@@ -2990,7 +2997,7 @@ module.exports = cds.service.impl(async function () {
     const errors = [];
 
     for (const [poNumber, subsGroupedByKey] of Object.entries(poGroups)) {
-      const sesPayload = _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, supplierLifnr);
+      const sesPayload = _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, supplierLifnr, { unitIsoMap });
 
       const allSubIds = Object.values(subsGroupedByKey).flat().map(s => s.ID);
 
@@ -3157,7 +3164,7 @@ module.exports = cds.service.impl(async function () {
     return [{ to_pritems, to_prservices, to_praccass, PRType: header?.BSART || "" }];
   }
   // LEGACY: shape to_pritems para el WF viejo. PC ahora usa _buildContextSolped
-  // con groupBy "pr_item" + purchasingContract. Se deja para rollback.
+  // con groupBy "pr_item". Se deja para rollback.
   function _buildSolpedPCPayload(positionGroups, lines, source_number, subs, fixedVendor = "") {
     const oSubBySubticketId = {};
     (subs || []).forEach(s => { if (s.ID) oSubBySubticketId[s.ID] = s; });
@@ -3359,7 +3366,8 @@ module.exports = cds.service.impl(async function () {
     purReqType = "NBS",
     purReqnDescription = "",
     groupBy = "EXTROW",         // "EXTROW" (SO) | "pr_item" (PC)
-    purchasingContract = ""     // PC: nro de acuerdo marco → agrega PurchasingContract/Item por ítem
+    currency = "",              // fallback de moneda cuando la línea no trae WAERS (caso PC)
+    companyCode = ""            // fallback de sociedad cuando el positionGroup no trae BUKRS (caso PC)
   } = {}) {
     const oPosDataMap = {};
     (positionGroups || []).forEach(pg => { oPosDataMap[String(pg.po_item).trim()] = pg; });
@@ -3393,12 +3401,13 @@ module.exports = cds.service.impl(async function () {
         aLines.reduce((s, l) => s + (parseFloat(l.MENGE) || 0) * (parseFloat(l.PREIS) || 0), 0) * 100
       ) / 100;
       const sDeliveryDate = _dateToYMD(oPD.delivery_date);
-      const sItemCurrency = aLines.find(l => l.WAERS)?.WAERS || "";
+      const sItemCurrency = aLines.find(l => l.WAERS)?.WAERS || currency || "";
+      const sCompanyCode = oPD.BUKRS || companyCode || "";
 
       const oItem = {
         Plant: oPD.WERKS || "",
         Material: oPD.MATNR || "",
-        CompanyCode: oPD.BUKRS || "",
+        CompanyCode: sCompanyCode,
         DeliveryDate: sDeliveryDate,
         BaseUnitISOCode: sUnit,
         RequestedQuantity: nQuantity,
@@ -3426,12 +3435,6 @@ module.exports = cds.service.impl(async function () {
         PurchaseRequisitionItemText: aLines[0]?.KTEXT1 || ""
       };
 
-      // PC: referencia al acuerdo marco (equivale a Agreement/AgreementItem del payload legacy)
-      if (purchasingContract) {
-        oItem.PurchasingContract = purchasingContract;
-        oItem.PurchasingContractItem = String(oPD.po_item_original || sItem);
-      }
-
       _PurchaseRequisitionItem.push(oItem);
     });
 
@@ -3443,13 +3446,14 @@ module.exports = cds.service.impl(async function () {
   }
 
   // POST a SBPA del WF unificado. No escribe en DB — el caller actualiza WorkflowStatus.
+  // El body lleva SOLO { definitionId, context } — el context es exactamente el schema
+  // del workflow: context_solped[], context_hes[], log. Nada fuera de eso.
   async function _sendSolpedHesWorkflow(ticket_id, { solpedPayload = [], hesPayload = [], comment = "" } = {}) {
     const bpaPayload = {
       definitionId: process.env.SOLPED_HES_WORKFLOW_DEFINITION_ID,
-      businessKey: ticket_id,
       context: {
-        context_solped: solpedPayload,
         context_hes: hesPayload,
+        context_solped: solpedPayload,
         log: { status: "", comments: comment || "", ticket_ID: ticket_id }
       }
     };
@@ -3472,7 +3476,10 @@ module.exports = cds.service.impl(async function () {
   // alineados al schema del workflow (PurchaseOrder/ServiceEntrySheetName/
   // to_ServiceEntrySheetItem), distinto del shape legacy que usa _buildHesPayload
   // para el flujo de SOLPED (PONumber/POItem/to_service).
-  function _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, supplierLifnr) {
+  function _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, supplierLifnr, { omitPurchaseOrder = false, unitIsoMap = {} } = {}) {
+    // omitPurchaseOrder: en el flujo combinado SolPed+HES la OC todavía no existe
+    // (la crea el WF desde la SolPed), así que PurchaseOrder/PurchaseOrderItem van vacíos.
+    const sPO = omitPurchaseOrder ? "" : (root.source_number || "");
     return Object.entries(subsGroupedByKey)
       .filter(([, subs]) => Array.isArray(subs) && subs.length > 0)
       .map(([, subs]) => {
@@ -3485,14 +3492,14 @@ module.exports = cds.service.impl(async function () {
           const itemDateTo = sub.hes_date_to || dateTo;
           return {
             ServiceEntrySheetItem: String((idx + 1) * 10),
-            PurchaseOrder: root.source_number || "",
-            PurchaseOrderItem: String(sub.po_item || ""),
+            PurchaseOrder: sPO,
+            PurchaseOrderItem: omitPurchaseOrder ? "" : String(sub.po_item || ""),
             Plant: sub.plant || "",
             ServiceEntrySheetItemDesc: sub.ses_subservice || sub.short_text || "",
             ConfirmedQuantity: String(Number(sub.qty_to_certify || 0).toFixed(3)),
             Currency: root.currency || "",
             ServicePerformanceDate: itemDateFrom ? `/Date(${new Date(itemDateFrom).getTime()})/` : "",
-            QuantityUnit: sub.measure_unity || "",
+            QuantityUnit: unitIsoMap[sub.measure_unity] || sub.measure_unity || "",
             ServicePerformanceEndDate: itemDateTo ? `/Date(${new Date(itemDateTo).getTime()})/` : "",
             TaxJurisdiction: "",
             TaxCountry: ""
@@ -3500,7 +3507,7 @@ module.exports = cds.service.impl(async function () {
         });
 
         return {
-          PurchaseOrder: root.source_number || "",
+          PurchaseOrder: sPO,
           ServiceEntrySheetName: `SES - ${root.source_number || root.ticket_number}`,
           to_ServiceEntrySheetItem: { results: to_ServiceEntrySheetItem },
           PurchasingOrganization: first?.purchasing_org || "",

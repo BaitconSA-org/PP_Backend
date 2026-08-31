@@ -76,10 +76,19 @@ module.exports = cds.service.impl(async function () {
             }
 
             console.log('[endWorkflowPrecert] TICKET ENCONTRADO=', ticket.ID, 'source_type=', ticket.source_type, 'ticket_number=', ticket.ticket_number);
+            console.log('[endWorkflowPrecert] hes_number YA guardado en el ticket ANTES de este callback=', ticket.hes_number);
 
-            const newStatus = status === "SUCCESS" ? "APROBADO" : "ERROR_WF";
-            const isWfError = status !== 'SUCCESS';
-            console.log('[endWorkflowPrecert] status=', status, 'newStatus=', newStatus, 'isWfError=', isWfError);
+            // El WF de HES manda 2 POSTs a este callback por corrida:
+            //  1) uno "por HES" creada (puede haber más de 1 en la misma corrida), con
+            //     status vacío — es solo informativo, no representa el resultado final.
+            //  2) uno "final", cuando termina todo el workflow, con el status real
+            //     ("SUCCESS" o "FINALIZADO" según el WF — no hay un único literal fijo).
+            // bIsFinal distingue ambos casos; solo el final decide APROBADO/ERROR_WF.
+            const bIsFinal = !!status;
+            const bIsSuccess = status === 'SUCCESS' || status === 'FINALIZADO';
+            const newStatus = bIsSuccess ? "APROBADO" : "ERROR_WF";
+            const isWfError = bIsFinal && !bIsSuccess;
+            console.log('[endWorkflowPrecert] status=', status, 'bIsFinal=', bIsFinal, 'bIsSuccess=', bIsSuccess, 'newStatus=', newStatus, 'isWfError=', isWfError);
 
             // ── Determinar el campo correcto según el tipo de origen ──────────────
             // PO/OC: POItem que llega del WF coincide con po_item (posición real de la OC)
@@ -179,13 +188,16 @@ module.exports = cds.service.impl(async function () {
             // provincia/po_item). Para esto se usa exactSubIds (match preciso por
             // po_item+province), NUNCA el fallback "todos los del WF" — ese fallback
             // es el que hacía que una HES pisara el hes_number de otro grupo.
+            // El hes_number se guarda siempre que llegue, sea el post "por HES" (interim,
+            // status vacío) o el post final — el número ya está confirmado en SAP en
+            // cualquiera de los dos casos, no depende de si el WF terminó bien o mal.
             console.log('[endWorkflowPrecert] hes_number=', hes_number);
-            if (hes_number && exactSubIds.length && !isWfError) {
+            if (hes_number && exactSubIds.length) {
                 console.log('[endWorkflowPrecert] asignando hes_number a exactSubIds=', JSON.stringify(exactSubIds));
                 await UPDATE(PrecertTickets)
                     .set({ hes_number })
                     .where({ ID: { in: exactSubIds } });
-            } else if (hes_number && !isWfError) {
+            } else if (hes_number) {
                 console.warn(
                     `[endWorkflowPrecert] No se pudo determinar el subticket exacto para HES ${hes_number}` +
                     ` (${sItemField}=${vItemValue}, location=${location}) — no se asigna para evitar pisar otro grupo.`
@@ -193,9 +205,23 @@ module.exports = cds.service.impl(async function () {
             }
 
             // ── Actualizar WorkflowStatus ─────────────────────────────────────────
-            console.log('[endWorkflowPrecert] actualizando WorkflowStatus. subIds.length=', subIds.length, 'isWfError=', isWfError);
-            if (subIds.length) {
+            // Solo en el post final (bIsFinal) — el post "por HES" interim no debe
+            // pisar el estado, ya que todavía no representa el resultado del workflow.
+            console.log('[endWorkflowPrecert] actualizando WorkflowStatus. subIds.length=', subIds.length, 'bIsFinal=', bIsFinal, 'isWfError=', isWfError);
+            if (subIds.length && bIsFinal) {
                 if (isWfError) {
+                    const prevStatusRows = await SELECT
+                        .from('suppliersInitiative.WorkflowStatus')
+                        .columns('precert_ticket_ID', 'status', 'description')
+                        .where({ precert_ticket_ID: { in: subIds } });
+                    console.log('[endWorkflowPrecert] WorkflowStatus ANTES de pisar con ERROR_WF=', JSON.stringify(prevStatusRows));
+                    if (prevStatusRows.some(r => r.status === 'APROBADO')) {
+                        console.warn(
+                            `[endWorkflowPrecert] ⚠ REGRESIÓN: subIds=${JSON.stringify(subIds)} ya estaban en` +
+                            ` APROBADO y este callback (status="${status}", comments="${comments || ''}",` +
+                            ` hes_number="${hes_number || ''}") los está bajando a ERROR_WF.`
+                        );
+                    }
                     await UPDATE('suppliersInitiative.WorkflowStatus')
                         .set({
                             status: 'ERROR_WF',
@@ -216,7 +242,7 @@ module.exports = cds.service.impl(async function () {
             // Recién acá, cuando SAP confirma que el HES se posteó, se da por certificada
             // la parcial: se suma su qty_to_certify al qty_certified del PrecertTicketItems
             // correspondiente. Una parcial que termina en ERROR_WF no descuenta remanente.
-            if (!isWfError && subIds.length) {
+            if (bIsFinal && !isWfError && subIds.length) {
                 const certifiedSubs = await SELECT.from(PrecertTickets)
                     .columns('ID', 'precert_ticket_item_ID', 'qty_to_certify')
                     .where({ ID: { in: subIds } });
@@ -242,15 +268,17 @@ module.exports = cds.service.impl(async function () {
             }
 
             // ── Logs ──────────────────────────────────────────────────────────────
-            console.log('[endWorkflowPrecert] insertando ApplicationLogs, subIds.length=', subIds.length);
+            console.log('[endWorkflowPrecert] insertando ApplicationLogs, subIds.length=', subIds.length, 'bIsFinal=', bIsFinal);
             await INSERT.into(ApplicationLogs).entries({
                 app: 'Precertificacion',
-                modification: isWfError ? 'WF_ERROR' : 'WF_FINISHED',
-                description: !isWfError
-                    ? `Workflow finalizado por ${req.user.id}. HES ${hes_number || 'N/A'} creada para ${subIds.length} subticket/s. ${sItemField}: ${POItem || 'N/A'}. Location: ${location || 'N/A'} → province_ID: ${province_ID_filter || 'N/A'}. WF Instance: ${workflow_instance_id || 'N/A'}. Status: ${status}. Comentarios: ${comments || 'Sin comentarios'}`
-                    : `Error en workflow S4: ${comments || 'Sin comentarios'}`,
+                modification: !bIsFinal ? 'HES_REGISTRADA' : (isWfError ? 'WF_ERROR' : 'WF_FINISHED'),
+                description: !bIsFinal
+                    ? `HES ${hes_number || 'N/A'} registrada (aviso intermedio, WF aún en curso) para ${subIds.length} subticket/s. ${sItemField}: ${POItem || 'N/A'}. WF Instance: ${workflow_instance_id || 'N/A'}.`
+                    : bIsSuccess
+                        ? `Workflow finalizado por ${req.user.id}. HES ${hes_number || 'N/A'} creada para ${subIds.length} subticket/s. ${sItemField}: ${POItem || 'N/A'}. Location: ${location || 'N/A'} → province_ID: ${province_ID_filter || 'N/A'}. WF Instance: ${workflow_instance_id || 'N/A'}. Status: ${status}. Comentarios: ${comments || 'Sin comentarios'}`
+                        : `Error en workflow S4: ${comments || 'Sin comentarios'}`,
                 ticket_display: String(ticket.ticket_number || 'N/A'),
-                result: status === "SUCCESS" ? 'SUCCESS' : 'ERROR'
+                result: !bIsFinal ? 'INFO' : (bIsSuccess ? 'SUCCESS' : 'ERROR')
             });
             console.log('[endWorkflowPrecert] ── FIN OK ──');
 

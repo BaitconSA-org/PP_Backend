@@ -1,5 +1,7 @@
 ID;description;isoCode
 UN;Unidad;EA
+C/U;Cada uno;EA
+CU;Cada uno;EA
 MON;Meses;MON
 H;Hora;HUR
 D;Días;DAY
