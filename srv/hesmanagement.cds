@@ -662,6 +662,7 @@ service HESManagementService @(path: '/srv/hes') {
     entity PurchGroup              as projection on db.PurchGroup;
     entity MeasureUnits            as projection on db.MeasureUnits;
     entity PurchOrg                as projection on db.PurchOrg;
+    entity Companies              as projection on db.Companies;
     entity TicketDocuments         as projection on db.TicketDocuments;
 }
 

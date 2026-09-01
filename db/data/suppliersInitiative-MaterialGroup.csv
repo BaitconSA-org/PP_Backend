@@ -1,5 +1,4 @@
 ID;description
-1;Grupo de artículos 1
 108;Equip. boca de Pozo
 112;Cañerias y Acces.
 116;Valvulas y Acces.
@@ -23,7 +22,6 @@ ID;description
 176;Computn Economato
 178;Producto Terminado
 199;Matrls Genericos
-2;Grupo de artículos 2
 200;No Stockeables
 300;Servicios Pozos
 301;Servicios Mantenimie

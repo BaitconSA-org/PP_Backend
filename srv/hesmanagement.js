@@ -1,4 +1,4 @@
-const { getS4Service } = require("./utils/s4-connector");
+nta funcioconst { getS4Service } = require("./utils/s4-connector");
 const { certificationRequestEmail, ocRequestEmail, solpedApprovalEmail } = require('./utils/email-templates');
 const fs = require("fs");
 const path = require("path");
@@ -2086,6 +2086,7 @@ module.exports = cds.service.impl(async function () {
           ACTIVITY: fg.ACTIVITY || sub.activity || "",
           ZCRIT: fg.ZCRIT || sub.criticality || "",
           delivery_date: fg.delivery_date || sub.delivery_date || "",
+          RELDT: fg.RELDT || sub.release_date || "",
           text_workflow_solped: fg.text_workflow_solped || sub.text_workflow_solped || ""
         };
       }
@@ -2110,6 +2111,7 @@ module.exports = cds.service.impl(async function () {
           ACTIVITY: fg.ACTIVITY || "",
           ZCRIT: fg.ZCRIT || "",
           delivery_date: fg.delivery_date || "",
+          RELDT: fg.RELDT || "",
           text_workflow_solped: fg.text_workflow_solped || ""
         };
       }
@@ -2201,7 +2203,10 @@ module.exports = cds.service.impl(async function () {
                 Currency: root.currency || sub.currency || "",
                 ServicePerformanceDate: hesData.date_from ? `/Date(${new Date(hesData.date_from).getTime()})/` : "",
                 ServicePerformanceEndDate: hesData.date_to ? `/Date(${new Date(hesData.date_to).getTime()})/` : "",
-                QuantityUnit: unitIsoMap[sub.measure_unity] || sub.measure_unity || "",
+                // A_ServiceEntrySheet.QuantityUnit espera la unidad interna de SAP (T006),
+                // NO el ISO code (ese va en QuantityUnitISOCode). Mandar el ISO acá provoca
+                // "Unit XXX is not created in language EN". El mapeo ISO es solo para la SolPed.
+                QuantityUnit: sub.measure_unity || "",
                 TaxJurisdiction: "",
                 TaxCountry: ""
               };
@@ -2217,7 +2222,7 @@ module.exports = cds.service.impl(async function () {
       });
     } else {
       // context_hes estándar; la OC la crea el WF desde la SolPed → sin PurchaseOrder
-      hesPayload = _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, rootBP?.lifnr || "", { omitPurchaseOrder: true, unitIsoMap });
+      hesPayload = _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, rootBP?.lifnr || "", { omitPurchaseOrder: true });
     }
 
     // ── 3. solpedPayload y disparo WF unificado (CREATE_SOLPED_HES) ─────
@@ -2231,7 +2236,10 @@ module.exports = cds.service.impl(async function () {
         {
           sSupplier: bIsPC ? (sFixedVendor || rootBP?.lifnr || "") : (rootBP?.lifnr || ""),
           unitIsoMap,
-          purReqType: BSART || (bIsPC ? "ZCON" : "NBS"),
+          // "ZCON" (usado antes acá para PC) no es un PurchaseRequisitionType válido en S4
+          // ("Document type ZCON not allowed with doc. category B") — se prueba con "NBS",
+          // el mismo tipo que ya funciona para SO.
+          purReqType: BSART || "NBS",
           purReqnDescription: root.short_text || "",
           groupBy: bIsPC ? "pr_item" : "EXTROW",
           currency: root.currency || activeSubs[0]?.currency || "",
@@ -2955,7 +2963,6 @@ module.exports = cds.service.impl(async function () {
   }
   async function postHesWorkflows(ticket_ID, root, subs, currentSubIds = []) {
     const axios = sapCfAxios("SBPA");
-    const unitIsoMap = await _loadUnitIsoMap(cds);
 
     const approverEmail = root.validator || "";
     const FLP_BASE_URL = process.env.FLP_BASE_URL;
@@ -2997,7 +3004,7 @@ module.exports = cds.service.impl(async function () {
     const errors = [];
 
     for (const [poNumber, subsGroupedByKey] of Object.entries(poGroups)) {
-      const sesPayload = _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, supplierLifnr, { unitIsoMap });
+      const sesPayload = _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, supplierLifnr);
 
       const allSubIds = Object.values(subsGroupedByKey).flat().map(s => s.ID);
 
@@ -3404,6 +3411,14 @@ module.exports = cds.service.impl(async function () {
       const sItemCurrency = aLines.find(l => l.WAERS)?.WAERS || currency || "";
       const sCompanyCode = oPD.BUKRS || companyCode || "";
 
+      // Período de prestación: NO usar "hoy" como inicio — si la fecha de entrega es
+      // anterior a hoy, S4 rechaza con "Enter an end date that is after the start date".
+      // Se toma la fecha de entrega (o RELDT) como inicio y fin; si el fin quedara
+      // antes del inicio, se iguala.
+      let sPerfStart = _dateToYMD(oPD.date_from) || _dateToYMD(oPD.RELDT) || sDeliveryDate || sNowYMD;
+      let sPerfEnd = _dateToYMD(oPD.date_to) || sDeliveryDate || sPerfStart;
+      if (sPerfEnd < sPerfStart) sPerfEnd = sPerfStart;
+
       const oItem = {
         Plant: oPD.WERKS || "",
         Material: oPD.MATNR || "",
@@ -3421,10 +3436,10 @@ module.exports = cds.service.impl(async function () {
           PurReqnNetAmount: nNetAmount,
           PurReqnItemCurrency: sItemCurrency
         }],
-        PerformancePeriodEndDate: sDeliveryDate,
+        PerformancePeriodEndDate: sPerfEnd,
         AccountAssignmentCategory: oPD.KNTTP || "",
         PurchaseRequisitionPrice: nNetAmount,
-        PerformancePeriodStartDate: sNowYMD,
+        PerformancePeriodStartDate: sPerfStart,
         PurchaseRequisitionReleaseDate: _dateToYMD(oPD.RELDT),
         PurchasingDocumentItemCategory: "0",
         PurchaseOrderPriceType: "2",
@@ -3435,14 +3450,31 @@ module.exports = cds.service.impl(async function () {
         PurchaseRequisitionItemText: aLines[0]?.KTEXT1 || ""
       };
 
+      // S4 (OData v2) rechaza propiedades tipadas (fechas, decimales) enviadas como
+      // string vacío → "Property 'X' has invalid value '' ... malformed syntax".
+      // Omitir toda clave con "" deja que S4 use su default en vez de fallar.
+      const _stripEmpty = (o) => {
+        Object.keys(o).forEach(k => {
+          if (o[k] === "" || o[k] === null || o[k] === undefined) delete o[k];
+        });
+        return o;
+      };
+      _stripEmpty(oItem);
+      (oItem._PurchaseReqnAcctAssgmt || []).forEach(_stripEmpty);
+
       _PurchaseRequisitionItem.push(oItem);
     });
 
-    return [{
-      PurReqnDescription: purReqnDescription,
-      PurchaseRequisitionType: purReqType,
+    const oHeader = {
+      PurReqnDescription: purReqnDescription || _PurchaseRequisitionItem[0]?.PurchaseRequisitionItemText || "SolPed",
+      PurchaseRequisitionType: purReqType || "NBS",
       _PurchaseRequisitionItem
-    }];
+    };
+    Object.keys(oHeader).forEach(k => {
+      if (oHeader[k] === "" || oHeader[k] === null || oHeader[k] === undefined) delete oHeader[k];
+    });
+
+    return [oHeader];
   }
 
   // POST a SBPA del WF unificado. No escribe en DB — el caller actualiza WorkflowStatus.
@@ -3476,7 +3508,7 @@ module.exports = cds.service.impl(async function () {
   // alineados al schema del workflow (PurchaseOrder/ServiceEntrySheetName/
   // to_ServiceEntrySheetItem), distinto del shape legacy que usa _buildHesPayload
   // para el flujo de SOLPED (PONumber/POItem/to_service).
-  function _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, supplierLifnr, { omitPurchaseOrder = false, unitIsoMap = {} } = {}) {
+  function _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, supplierLifnr, { omitPurchaseOrder = false } = {}) {
     // omitPurchaseOrder: en el flujo combinado SolPed+HES la OC todavía no existe
     // (la crea el WF desde la SolPed), así que PurchaseOrder/PurchaseOrderItem van vacíos.
     const sPO = omitPurchaseOrder ? "" : (root.source_number || "");
@@ -3499,7 +3531,10 @@ module.exports = cds.service.impl(async function () {
             ConfirmedQuantity: String(Number(sub.qty_to_certify || 0).toFixed(3)),
             Currency: root.currency || "",
             ServicePerformanceDate: itemDateFrom ? `/Date(${new Date(itemDateFrom).getTime()})/` : "",
-            QuantityUnit: unitIsoMap[sub.measure_unity] || sub.measure_unity || "",
+            // A_ServiceEntrySheet.QuantityUnit espera la unidad interna de SAP (T006),
+            // NO el ISO code (ese va en QuantityUnitISOCode). Mandar el ISO acá provoca
+            // "Unit XXX is not created in language EN". El mapeo ISO es solo para la SolPed.
+            QuantityUnit: sub.measure_unity || "",
             ServicePerformanceEndDate: itemDateTo ? `/Date(${new Date(itemDateTo).getTime()})/` : "",
             TaxJurisdiction: "",
             TaxCountry: ""
