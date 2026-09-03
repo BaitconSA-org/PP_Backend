@@ -1868,7 +1868,13 @@ module.exports = cds.service.impl(async function () {
       return JSON.stringify({ success: true, ticket_id, instanceId, bpa: true });
 
     } catch (err) {
-      console.error("[saveApprovalManual] Error BPA:", err.response?.data || err.message);
+      const bpaDetail = err.response?.data
+        ? (typeof err.response.data === "string" ? err.response.data : JSON.stringify(err.response.data))
+        : "";
+      console.error("[saveApprovalManual] Error BPA:", bpaDetail || err.message, {
+        definitionId: process.env.SOLOSOLPED_WORKFLOW_DEFINITION_ID,
+        env: process.env.SOLPED_WORKFLOW_ENV
+      });
 
       for (const sSubId of aApprovedIds) {
         const oStatus = await tx.run(
@@ -1879,13 +1885,13 @@ module.exports = cds.service.impl(async function () {
         if (oStatus) {
           await tx.run(
             UPDATE(WorkflowStatus)
-              .set({ status: "ERROR_WF", description: `Error SolPed: ${err.message}` })
+              .set({ status: "ERROR_WF", description: `Error SolPed: ${(bpaDetail || err.message).slice(0, 900)}` })
               .where({ ID: oStatus.ID })
           );
         }
       }
 
-      return req.error(500, `Error al iniciar workflow: ${err.message}`);
+      return req.error(500, `Error al iniciar workflow SolPed: ${bpaDetail || err.message}`);
     }
   });
 
@@ -3346,13 +3352,13 @@ module.exports = cds.service.impl(async function () {
     }
   }
   // WF de SOLO SolPed (definitionId createsolped.pURCHASEREQUISITION vía
-  // SOLPED_WORKFLOW_DEFINITION_ID). context = { context_solped, log } — sin context_hes,
+  // SOLOSOLPED_WORKFLOW_DEFINITION_ID). context = { context_solped, log } — sin context_hes,
   // sin input/mail/data. Lo dispara la aprobación manual (saveApprovalManual), donde el
   // HES no participa (viene después, en un ticket aparte). No escribe en DB — el caller
   // actualiza WorkflowStatus.
   async function _sendSolpedWorkflow(ticket_id, { solpedPayload = [], comment = "" } = {}) {
     const bpaPayload = {
-      definitionId: process.env.SOLPED_WORKFLOW_DEFINITION_ID,
+      definitionId: process.env.SOLOSOLPED_WORKFLOW_DEFINITION_ID,
       context: {
         context_solped: solpedPayload,
         log: { status: "", comments: comment || "", ticket_ID: ticket_id }
@@ -3364,7 +3370,7 @@ module.exports = cds.service.impl(async function () {
       method: "POST",
       url: `/workflow/rest/v1/workflow-instances?environmentId=${process.env.SOLPED_WORKFLOW_ENV}`,
       headers: {
-        "irpa-api-key": process.env.SOLPED_IRPA_API_KEY,
+        "irpa-api-key": process.env.SOLOSOLPED_IRPA_API_KEY,
         "Content-Type": "application/json"
       },
       data: bpaPayload
