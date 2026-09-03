@@ -1,4 +1,4 @@
-nta funcioconst { getS4Service } = require("./utils/s4-connector");
+const { getS4Service } = require("./utils/s4-connector");
 const { certificationRequestEmail, ocRequestEmail, solpedApprovalEmail } = require('./utils/email-templates');
 const fs = require("fs");
 const path = require("path");
@@ -1710,6 +1710,7 @@ module.exports = cds.service.impl(async function () {
 
       const oImputacion = {
         purchasing_group: oPD.EKGRP || null,
+        purchasing_org: oPD.EKORG || oPD.purchasing_org || null,
         plant: oPD.WERKS || null,
         material_group: oPD.MATKL || null,
         material: oPD.MATNR || null,
@@ -1823,12 +1824,15 @@ module.exports = cds.service.impl(async function () {
     );
     const unitIsoMap = await _loadUnitIsoMap(tx);
 
+    await _assertValidPurchOrgs(tx, positionGroups, req);
+
     const solpedPayload = _buildContextSolped(positionGroups, lines, {
-      sSupplier: rootBP?.lifnr || "",
+      sSupplier: rootBP?.lifnr || rootBP?.business_partner_number || "",
       unitIsoMap,
       purReqType: header?.PurchaseRequisitionType || "NBS",
       purReqnDescription: sShortText,
-      currency: root.currency || ""
+      currency: root.currency || "",
+      purchasingOrg: (positionGroups || []).map(pg => pg.EKORG || pg.purchasing_org).find(Boolean) || ""
     });
 
     const aApprovedIds = lines
@@ -1836,10 +1840,10 @@ module.exports = cds.service.impl(async function () {
       .map(l => l.subticket_id);
 
     try {
-      // Aprobación manual = sólo SolPed → context_hes vacío
-      const instanceId = await _sendSolpedHesWorkflow(ticket_id, {
+      // Aprobación manual = SOLO SolPed → WF createsolped.pURCHASEREQUISITION
+      // (context { context_solped, log }, sin HES). El HES se dispara aparte más adelante.
+      const instanceId = await _sendSolpedWorkflow(ticket_id, {
         solpedPayload,
-        hesPayload: [],
         comment: header?.comment || ""
       });
 
@@ -2140,6 +2144,7 @@ module.exports = cds.service.impl(async function () {
 
     // ── 2. hesPayload — usa resolvedPositionGroups ────────────────
     const unitIsoMap = await _loadUnitIsoMap(tx);
+    const unitHesMap = await _loadUnitHesMap(tx);
     let hesPayload;
     if (root.source_type === "PC" && Object.keys(hesGroupsMap).length > 0) {
       hesPayload = Object.entries(hesGroupsMap).map(([sKey, hesData]) => {
@@ -2203,10 +2208,11 @@ module.exports = cds.service.impl(async function () {
                 Currency: root.currency || sub.currency || "",
                 ServicePerformanceDate: hesData.date_from ? `/Date(${new Date(hesData.date_from).getTime()})/` : "",
                 ServicePerformanceEndDate: hesData.date_to ? `/Date(${new Date(hesData.date_to).getTime()})/` : "",
-                // A_ServiceEntrySheet.QuantityUnit espera la unidad interna de SAP (T006),
-                // NO el ISO code (ese va en QuantityUnitISOCode). Mandar el ISO acá provoca
-                // "Unit XXX is not created in language EN". El mapeo ISO es solo para la SolPed.
-                QuantityUnit: sub.measure_unity || "",
+                // A_ServiceEntrySheet.QuantityUnit espera la representación externa (T006A)
+                // del unit en inglés, NO el ISO code (ese va en QuantityUnitISOCode) ni
+                // necesariamente el ID local en español (ej. "C/U" → "PC"). unitHesMap trae
+                // ese mapeo desde MeasureUnits.hesCode; si no hay entrada, se manda el ID tal cual.
+                QuantityUnit: unitHesMap[sub.measure_unity] || sub.measure_unity || "",
                 TaxJurisdiction: "",
                 TaxCountry: ""
               };
@@ -2222,19 +2228,27 @@ module.exports = cds.service.impl(async function () {
       });
     } else {
       // context_hes estándar; la OC la crea el WF desde la SolPed → sin PurchaseOrder
-      hesPayload = _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, rootBP?.lifnr || "", { omitPurchaseOrder: true });
+      hesPayload = _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, rootBP?.lifnr || "", { omitPurchaseOrder: true, unitHesMap });
     }
+
+    const bIsPC = root.source_type === "PC";
+
+    // Fuera del try: si la org de compras es inválida queremos un 400 claro,
+    // no que el catch lo re-envuelva como 500 / ERROR_WF.
+    // Solo para SO: en PC el EKORG lo hereda el subticket del contrato en S4 (fuente
+    // confiable) y puede no estar en el mirror local PurchOrg.
+    if (!bIsPC) await _assertValidPurchOrgs(tx, positionGroups, req);
 
     // ── 3. solpedPayload y disparo WF unificado (CREATE_SOLPED_HES) ─────
     try {
-
-      const bIsPC = root.source_type === "PC";
 
       const solpedPayload = _buildContextSolped(
         bIsPC ? resolvedPositionGroups : positionGroups,
         lines,
         {
-          sSupplier: bIsPC ? (sFixedVendor || rootBP?.lifnr || "") : (rootBP?.lifnr || ""),
+          sSupplier: bIsPC
+            ? (sFixedVendor || rootBP?.lifnr || rootBP?.business_partner_number || "")
+            : (rootBP?.lifnr || rootBP?.business_partner_number || ""),
           unitIsoMap,
           // "ZCON" (usado antes acá para PC) no es un PurchaseRequisitionType válido en S4
           // ("Document type ZCON not allowed with doc. category B") — se prueba con "NBS",
@@ -2243,7 +2257,10 @@ module.exports = cds.service.impl(async function () {
           purReqnDescription: root.short_text || "",
           groupBy: bIsPC ? "pr_item" : "EXTROW",
           currency: root.currency || activeSubs[0]?.currency || "",
-          companyCode: activeSubs.find(s => s.company_code)?.company_code || ""
+          companyCode: activeSubs.find(s => s.company_code)?.company_code || "",
+          purchasingOrg: activeSubs.find(s => s.purchasing_org)?.purchasing_org
+            || ((bIsPC ? resolvedPositionGroups : positionGroups) || []).map(pg => pg.EKORG || pg.purchasing_org).find(Boolean)
+            || ""
         }
       );
 
@@ -2991,6 +3008,47 @@ module.exports = cds.service.impl(async function () {
       ? subs.filter(s => currentSubIds.includes(s.ID))
       : subs;
 
+    const unitHesMap = await _loadUnitHesMap(cds);
+
+    // Cuando ya existe una OC real en S4 (source_type "PO"), la unidad de la HES
+    // tiene que coincidir con la de la OC sí o sí (S4 rechaza con "Unit of measure
+    // in SES item X differs from unit of measure in PO item Y" si no matchea).
+    // measure_unity del subticket puede haberse desincronizado (edición manual vía
+    // Excel, etc.), así que acá se relee la unidad real de la OC en S4 y se pisa —
+    // esa es la fuente de verdad, no lo que haya quedado guardado localmente.
+    if (root.source_type === "PO") {
+      try {
+        const s4Purchase = await getS4Service("OP_API_PURCHASEORDER_PROCESS_SRV_0001");
+        const poItemKeys = [...new Set(
+          activeSubs
+            .map(s => {
+              const poNumber = s.source_number || root.source_number;
+              return poNumber && s.po_item ? `${poNumber}|${s.po_item}` : null;
+            })
+            .filter(Boolean)
+        )];
+
+        const poUnitEntries = await Promise.all(poItemKeys.map(async (key) => {
+          const [poNumber, poItem] = key.split("|");
+          const poItemData = await s4Purchase.run(
+            SELECT.one.from("A_PurchaseOrderItem")
+              .columns("PurchaseOrderQuantityUnit")
+              .where({ PurchaseOrder: poNumber, PurchaseOrderItem: String(poItem).padStart(5, "0") })
+          );
+          return [key, poItemData?.PurchaseOrderQuantityUnit || null];
+        }));
+        const poUnitByKey = Object.fromEntries(poUnitEntries.filter(([, u]) => u));
+
+        for (const sub of activeSubs) {
+          const poNumber = sub.source_number || root.source_number;
+          const key = poNumber && sub.po_item ? `${poNumber}|${sub.po_item}` : null;
+          if (key && poUnitByKey[key]) sub.measure_unity = poUnitByKey[key];
+        }
+      } catch (err) {
+        console.error("[postHesWorkflows] No se pudo releer la unidad real de la OC, se usa measure_unity local:", err.message);
+      }
+    }
+
     const poGroups = {};
     for (const sub of activeSubs) {
       const poKey = sub.source_number || root.source_number || "NO_PO";
@@ -3004,7 +3062,7 @@ module.exports = cds.service.impl(async function () {
     const errors = [];
 
     for (const [poNumber, subsGroupedByKey] of Object.entries(poGroups)) {
-      const sesPayload = _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, supplierLifnr);
+      const sesPayload = _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, supplierLifnr, { unitHesMap });
 
       const allSubIds = Object.values(subsGroupedByKey).flat().map(s => s.ID);
 
@@ -3111,8 +3169,9 @@ module.exports = cds.service.impl(async function () {
 
   }
 
-  // LEGACY: shape to_pritems/to_prservices para el WF viejo _sendSolpedWorkflow.
-  // Reemplazado por _buildContextSolped (nombres estándar). Sin usar; se deja para rollback.
+  // LEGACY: shape to_pritems/to_prservices del WF de SolPed viejo (context.solped).
+  // Reemplazado por _buildContextSolped (context_solped, nombres estándar API_PURCHASEREQ).
+  // Sin usar; se deja para rollback.
   function _buildSolpedPayload(positionGroups, lines, header) {
     const oLinesByPo = {};
     lines
@@ -3286,35 +3345,17 @@ module.exports = cds.service.impl(async function () {
       throw e;
     }
   }
-  // LEGACY: WF viejo con context.{input,mail,data,solped}. Reemplazado por
-  // _sendSolpedHesWorkflow (context_solped/context_hes/log). Sin usar; se deja para rollback.
-  async function _sendSolpedWorkflow(ticket_id, _root, solpedPayload, hesPayload, subIds, tx) {
-    const FLP_BASE_URL = process.env.FLP_BASE_URL;
-    const ticketUrl = `${FLP_BASE_URL}#ticketlist-display?sap-ui-app-id-hint=saas_approuter_vistaticketlist&/ticket/${ticket_id}`;
-
-    const mailHtml = solpedApprovalEmail({ ticketNumber: _root.ticket_number, ticketUrl });
-
+  // WF de SOLO SolPed (definitionId createsolped.pURCHASEREQUISITION vía
+  // SOLPED_WORKFLOW_DEFINITION_ID). context = { context_solped, log } — sin context_hes,
+  // sin input/mail/data. Lo dispara la aprobación manual (saveApprovalManual), donde el
+  // HES no participa (viene después, en un ticket aparte). No escribe en DB — el caller
+  // actualiza WorkflowStatus.
+  async function _sendSolpedWorkflow(ticket_id, { solpedPayload = [], comment = "" } = {}) {
     const bpaPayload = {
       definitionId: process.env.SOLPED_WORKFLOW_DEFINITION_ID,
       context: {
-        input: {
-          ticket_ID: ticket_id,
-          app_link: ticketUrl,
-          approvers: { acap_approvers: [""] },
-          acap_approval: { approved: true, user: "", date: "" },
-          is_updated_ticket: false
-        },
-        log: { ticket_ID: ticket_id, status: "", comments: "" },
-        mail: {
-          message: {
-            subject: `Aprobación SolPed — Ticket #${_root.ticket_number}`,
-            body: { contentType: "HTML", content: mailHtml },
-            toRecipients: [{ emailAddress: { address: _root.validator || "" } }]
-          },
-          saveToSentItems: false
-        },
-        data: hesPayload || [],
-        solped: solpedPayload
+        context_solped: solpedPayload,
+        log: { status: "", comments: comment || "", ticket_ID: ticket_id }
       }
     };
 
@@ -3329,19 +3370,7 @@ module.exports = cds.service.impl(async function () {
       data: bpaPayload
     });
 
-    const instanceId = response.data?.id;
-
-    await tx.run(
-      UPDATE(WorkflowStatus)
-        .set({
-          status: "ENVIANDO_SOLPED",
-          workflow_instance_id: instanceId || null,
-          description: `WF SolPed iniciado: ${instanceId}`
-        })
-        .where({ precert_ticket_ID: { in: subIds?.length ? subIds : [ticket_id] } })
-    );
-
-    return instanceId;
+    return response.data?.id || null;
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -3365,6 +3394,45 @@ module.exports = cds.service.impl(async function () {
     return map;
   }
 
+  async function _loadUnitHesMap(tx) {
+    // A_ServiceEntrySheet.QuantityUnit espera la representación externa (T006A) del
+    // unit en el idioma con el que S4 procesa el WF (EN). MeasureUnits.ID es la
+    // representación en ES (ej. "C/U"); MeasureUnits.hesCode guarda el equivalente EN
+    // (ej. "PC") cuando difiere. Si está vacío, se sigue enviando el ID tal cual.
+    const { MeasureUnits } = cds.entities("suppliersInitiative");
+    const rows = await tx.run(SELECT.from(MeasureUnits));
+    const map = {};
+    rows.forEach(u => { if (u.hesCode) map[u.ID] = u.hesCode; });
+    return map;
+  }
+
+  // Valida que cada EKORG que viene en positionGroups exista en la tabla PurchOrg y,
+  // si PurchOrg trae company_code, que coincida con la sociedad (BUKRS) de esa línea.
+  // Falla temprano con un mensaje claro en vez de dejar que S4 rechace la SolPed con
+  // un error críptico. No exige EKORG: si no vino, se deja que el comprador lo cargue.
+  async function _assertValidPurchOrgs(tx, positionGroups, req) {
+    const orgs = [...new Set((positionGroups || []).map(pg => pg.EKORG || pg.purchasing_org).filter(Boolean))];
+    if (!orgs.length) return;
+
+    const { PurchOrg } = cds.entities("suppliersInitiative");
+    const rows = await tx.run(SELECT.from(PurchOrg).where({ ID: { in: orgs } }));
+    const byId = Object.fromEntries(rows.map(r => [r.ID, r]));
+
+    for (const pg of positionGroups || []) {
+      const ekorg = pg.EKORG || pg.purchasing_org;
+      if (!ekorg) continue;
+      const row = byId[ekorg];
+      if (!row) {
+        // req.reject lanza y aborta el handler — no queremos disparar el WF con una org inválida.
+        req.reject(400, `Organización de compras "${ekorg}" (ítem ${pg.po_item}) no existe en el catálogo PurchOrg`);
+      }
+      const bukrs = pg.BUKRS || pg.company_code;
+      if (row.company_code && bukrs && row.company_code !== bukrs) {
+        req.reject(400, `Organización de compras "${ekorg}" no pertenece a la sociedad "${bukrs}" (ítem ${pg.po_item})`);
+      }
+    }
+  }
+
   // context_solped con nombres estándar de API_PURCHASEREQ_PROCESS_SRV.
   // Reemplaza a _buildSolpedPayload (shape legacy to_pritems/to_prservices).
   function _buildContextSolped(positionGroups, lines, {
@@ -3374,7 +3442,8 @@ module.exports = cds.service.impl(async function () {
     purReqnDescription = "",
     groupBy = "EXTROW",         // "EXTROW" (SO) | "pr_item" (PC)
     currency = "",              // fallback de moneda cuando la línea no trae WAERS (caso PC)
-    companyCode = ""            // fallback de sociedad cuando el positionGroup no trae BUKRS (caso PC)
+    companyCode = "",           // fallback de sociedad cuando el positionGroup no trae BUKRS (caso PC)
+    purchasingOrg = ""          // fallback de org. de compras cuando el positionGroup no trae EKORG
   } = {}) {
     const oPosDataMap = {};
     (positionGroups || []).forEach(pg => { oPosDataMap[String(pg.po_item).trim()] = pg; });
@@ -3385,6 +3454,14 @@ module.exports = cds.service.impl(async function () {
       console.warn(`[_buildContextSolped] Sin ISO code para unidad "${u}" — se envía tal cual.`);
       return u;
     };
+
+    // El front puede mandar precio/cantidad/moneda con distintas keys según la grilla
+    // (PREIS/total_price/precio_val/... ). Se toleran varias y, si la línea no trae nada,
+    // se cae al positionGroup / al fallback del caller.
+    const _num = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
+    const _linePrice = (l) => _num(l.PREIS ?? l.preis ?? l.total_price ?? l.precio_val ?? l.precioVal ?? l.precio_unitario ?? l.NETPR);
+    const _lineQty = (l) => _num(l.MENGE ?? l.menge ?? l.qty_to_certify ?? l.cantidad);
+    const _lineCurr = (l) => l.WAERS || l.waers || l.currency || l.moneda || "";
     const sNowYMD = _dateToYMD(new Date());
 
     const oLinesByItem = {};
@@ -3403,13 +3480,23 @@ module.exports = cds.service.impl(async function () {
     Object.entries(oLinesByItem).forEach(([sItem, aLines]) => {
       const oPD = oPosDataMap[sItem] || {};
       const sUnit = _toIsoUnit(aLines.find(l => l.MEINS)?.MEINS || "");
-      const nQuantity = aLines.reduce((s, l) => s + (parseFloat(l.MENGE) || 0), 0);
-      const nNetAmount = Math.round(
-        aLines.reduce((s, l) => s + (parseFloat(l.MENGE) || 0) * (parseFloat(l.PREIS) || 0), 0) * 100
+      const nQuantity = aLines.reduce((s, l) => s + _lineQty(l), 0);
+      let nNetAmount = Math.round(
+        aLines.reduce((s, l) => s + _lineQty(l) * _linePrice(l), 0) * 100
       ) / 100;
+      // Fallback: si las líneas no trajeron precio, tomar el del positionGroup (precio unitario).
+      if (!nNetAmount) {
+        const nPdUnitPrice = _num(oPD.PREIS ?? oPD.total_price ?? oPD.precio_unitario ?? oPD.price);
+        if (nPdUnitPrice) nNetAmount = Math.round(nPdUnitPrice * (nQuantity || 1) * 100) / 100;
+      }
       const sDeliveryDate = _dateToYMD(oPD.delivery_date);
-      const sItemCurrency = aLines.find(l => l.WAERS)?.WAERS || currency || "";
+      const sItemCurrency = aLines.map(_lineCurr).find(Boolean) || oPD.WAERS || oPD.currency || currency || "";
       const sCompanyCode = oPD.BUKRS || companyCode || "";
+      const sPurchOrg = oPD.EKORG || oPD.purchasing_org || purchasingOrg || "";
+
+      if (!sItemCurrency) console.warn(`[_buildContextSolped] item ${sItem}: sin moneda — el front no envió WAERS y no hay fallback`);
+      if (!nNetAmount) console.warn(`[_buildContextSolped] item ${sItem}: precio neto 0 — el front no envió PREIS y no hay fallback en positionGroup`);
+      if (!sPurchOrg) console.warn(`[_buildContextSolped] item ${sItem}: sin organización de compras (EKORG)`);
 
       // Período de prestación: NO usar "hoy" como inicio — si la fecha de entrega es
       // anterior a hoy, S4 rechaza con "Enter an end date that is after the start date".
@@ -3423,6 +3510,7 @@ module.exports = cds.service.impl(async function () {
         Plant: oPD.WERKS || "",
         Material: oPD.MATNR || "",
         CompanyCode: sCompanyCode,
+        PurchasingOrganization: sPurchOrg,
         DeliveryDate: sDeliveryDate,
         BaseUnitISOCode: sUnit,
         RequestedQuantity: nQuantity,
@@ -3464,6 +3552,8 @@ module.exports = cds.service.impl(async function () {
 
       _PurchaseRequisitionItem.push(oItem);
     });
+
+    if (!sSupplier) console.warn(`[_buildContextSolped] sin proveedor — rootBP sin lifnr ni business_partner_number`);
 
     const oHeader = {
       PurReqnDescription: purReqnDescription || _PurchaseRequisitionItem[0]?.PurchaseRequisitionItemText || "SolPed",
@@ -3508,7 +3598,7 @@ module.exports = cds.service.impl(async function () {
   // alineados al schema del workflow (PurchaseOrder/ServiceEntrySheetName/
   // to_ServiceEntrySheetItem), distinto del shape legacy que usa _buildHesPayload
   // para el flujo de SOLPED (PONumber/POItem/to_service).
-  function _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, supplierLifnr, { omitPurchaseOrder = false } = {}) {
+  function _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, supplierLifnr, { omitPurchaseOrder = false, unitHesMap = {} } = {}) {
     // omitPurchaseOrder: en el flujo combinado SolPed+HES la OC todavía no existe
     // (la crea el WF desde la SolPed), así que PurchaseOrder/PurchaseOrderItem van vacíos.
     const sPO = omitPurchaseOrder ? "" : (root.source_number || "");
@@ -3531,10 +3621,11 @@ module.exports = cds.service.impl(async function () {
             ConfirmedQuantity: String(Number(sub.qty_to_certify || 0).toFixed(3)),
             Currency: root.currency || "",
             ServicePerformanceDate: itemDateFrom ? `/Date(${new Date(itemDateFrom).getTime()})/` : "",
-            // A_ServiceEntrySheet.QuantityUnit espera la unidad interna de SAP (T006),
-            // NO el ISO code (ese va en QuantityUnitISOCode). Mandar el ISO acá provoca
-            // "Unit XXX is not created in language EN". El mapeo ISO es solo para la SolPed.
-            QuantityUnit: sub.measure_unity || "",
+            // A_ServiceEntrySheet.QuantityUnit espera la representación externa (T006A)
+            // del unit en inglés, NO el ISO code (ese va en QuantityUnitISOCode) ni
+            // necesariamente el ID local en español (ej. "C/U" → "PC"). unitHesMap trae
+            // ese mapeo desde MeasureUnits.hesCode; si no hay entrada, se manda el ID tal cual.
+            QuantityUnit: unitHesMap[sub.measure_unity] || sub.measure_unity || "",
             ServicePerformanceEndDate: itemDateTo ? `/Date(${new Date(itemDateTo).getTime()})/` : "",
             TaxJurisdiction: "",
             TaxCountry: ""

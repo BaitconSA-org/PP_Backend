@@ -59,12 +59,26 @@ entity Provinces : IdDescription {
 }
 
 entity Services : IdDescription {}
-entity PurchOrg : IdDescription {}
+
+// company_code: sociedad a la que pertenece la organización de compras. Se usa para
+// filtrar el value help del front (GET PurchOrg?$filter=company_code eq '<sociedad>')
+// según el centro/sociedad de la línea. Una sociedad puede tener más de una org
+// (ej. 10AA productiva / 11AA no productiva), por eso el usuario igual elige.
+entity PurchOrg : IdDescription {
+    company_code : String(4);
+}
 entity PurchGroup : IdDescription {}
 entity MaterialGroup : IdDescription {}
+entity Materials : IdDescription {
+    plant : String(4); // centro al que pertenece el material (informativo)
+}
 entity Plants : IdDescription {}
 entity MeasureUnits : IdDescription {
     isoCode : String(3); // BaseUnitISOCode UN/ECE Rec.20 esperado por API_PURCHASEREQ_PROCESS_SRV
+    hesCode : String(3); // Representación externa (T006A) en idioma EN del mismo internal key,
+                          // esperada por A_ServiceEntrySheet.QuantityUnit en el WF de HES.
+                          // ID es la representación en ES (ej. "C/U"); en EN el mismo unit es "PC".
+                          // Vacío ⇒ se sigue enviando ID tal cual (fallback).
 }
 entity BusinessRoles : IdDescription {}
 

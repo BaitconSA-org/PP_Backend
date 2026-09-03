@@ -1,8 +1,15 @@
 ID;description
-01;Responsable Inscripto
-02;Responsable No Inscripto
-04;Sujeto exento
-05;Consumidor final
-06;Responsable Monotributista
-07;Sujeto No Categorizado
-09;Contribuyente Exterior
+01;AR - Responsable registrado en IVA (RI)
+02;AR - Responsable no registrado en IVA (RNI)
+03;AR - No responsable de IVA
+04;AR - Exento de IVA
+05;AR - Consumidor final
+06;AR - Responsable fiscal simple (monotributo)
+07;AR - Persona no categorizada
+08;AR - Prov.extranjero
+09;AR - Cliente extranjero
+10;AR - IVA liberado (ley 19.640)
+11;AR - Responsable registrado en IVA: Agente impto.compl.
+12;AR - Contribuyente ocasional pequeño
+13;AR - Impuesto simple social (Monotributo Social)
+14;AR - Contribuyente ocasional pequeño

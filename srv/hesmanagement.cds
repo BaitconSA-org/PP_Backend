@@ -658,6 +658,13 @@ service HESManagementService @(path: '/srv/hes') {
     entity Services                as projection on db.Services;
 
     entity MaterialGroup           as projection on db.MaterialGroup;
+
+    @cds.query.limit: {
+        default: 99999,
+        max    : 99999
+    }
+    entity Materials               as projection on db.Materials;
+
     entity Plants                  as projection on db.Plants;
     entity PurchGroup              as projection on db.PurchGroup;
     entity MeasureUnits            as projection on db.MeasureUnits;

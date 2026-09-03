@@ -1,3 +1,5 @@
-ID;description
-1710;US Plant
-3110;AR COMPANY CODE
+ID;description;company_code
+1710;US Purchasing Org;1710
+3110;AR Purchasing Org;3110
+10AA;Compras Prod Sweet;10AA
+11AA;Compras No prod Swee;10AA
