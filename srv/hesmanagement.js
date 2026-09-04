@@ -740,6 +740,7 @@ module.exports = cds.service.impl(async function () {
     const pcItemDataMap = {};
     let pcPurchasingGroup = null;
     let pcPurchasingOrg = null;
+    let pcCompanyCode = null;
 
     if (source_type === "PC") {
       try {
@@ -748,7 +749,7 @@ module.exports = cds.service.impl(async function () {
         const [contract, contractItems] = await Promise.all([
           s4Contract.run(
             SELECT.one.from("A_PurchaseContract")
-              .columns("PurchasingGroup", "PurchasingOrganization")
+              .columns("PurchasingGroup", "PurchasingOrganization", "CompanyCode")
               .where({ PurchaseContract: source_number })
           ),
           s4Contract.run(
@@ -759,7 +760,9 @@ module.exports = cds.service.impl(async function () {
         ]);
         pcPurchasingGroup = contract?.PurchasingGroup || null;
         pcPurchasingOrg = contract?.PurchasingOrganization || null;
-        for (const item of (Array.isArray(contractItems) ? contractItems : [])) {
+        pcCompanyCode = contract?.CompanyCode || null;
+        const contractItemsList = Array.isArray(contractItems) ? contractItems : [contractItems].filter(Boolean);
+        for (const item of contractItemsList) {
           pcItemDataMap[String(parseInt(item.PurchaseContractItem))] = item;
         }
       } catch (err) {
@@ -835,6 +838,7 @@ module.exports = cds.service.impl(async function () {
         total_price,
         validator,
         parent_ticket_ID: null,
+        company_code: pcCompanyCode ?? null,
         ticket_model: ticketModel,
         provisioned: false
       })
@@ -882,6 +886,7 @@ module.exports = cds.service.impl(async function () {
         subservice_position: it.subservice_position ?? null,
         purchasing_group: pcPurchasingGroup ?? it.purchasing_group ?? null,
         purchasing_org: pcPurchasingOrg ?? it.purchasing_org ?? null,
+        company_code: pcCompanyCode ?? it.company_code ?? null,
         po_item_text: pcItemDataMap[String(it.po_item)]?.PurchaseContractItemText ?? it.po_item_text ?? null,
         account_assignment_cat: pcItemDataMap[String(it.po_item)]?.AccountAssignmentCategory ?? null,
         plant: pcItemDataMap[String(it.po_item)]?.Plant ?? null,
@@ -2208,12 +2213,12 @@ module.exports = cds.service.impl(async function () {
                 ServiceEntrySheetItem: String(seq * 10),
                 PurchaseOrder: "",
                 PurchaseOrderItem: "",
-                Plant: sub.plant || "",
+                Plant: sub.plant || hesData.WERKS || "",
                 ServiceEntrySheetItemDesc: sub.ses_subservice || sub.short_text || "",
                 ConfirmedQuantity: String(Number(sub.qty_to_certify || 0).toFixed(3)),
                 Currency: root.currency || sub.currency || "",
-                ServicePerformanceDate: hesData.date_from ? `/Date(${new Date(hesData.date_from).getTime()})/` : "",
-                ServicePerformanceEndDate: hesData.date_to ? `/Date(${new Date(hesData.date_to).getTime()})/` : "",
+                ServicePerformanceDate: (hesData.date_from || sub.date_from) ? `/Date(${new Date(hesData.date_from || sub.date_from).getTime()})/` : "",
+                ServicePerformanceEndDate: (hesData.date_to || sub.date_to) ? `/Date(${new Date(hesData.date_to || sub.date_to).getTime()})/` : "",
                 // A_ServiceEntrySheet.QuantityUnit espera la representación externa (T006A)
                 // del unit en inglés, NO el ISO code (ese va en QuantityUnitISOCode) ni
                 // necesariamente el ID local en español (ej. "C/U" → "PC"). unitHesMap trae
@@ -3512,6 +3517,16 @@ module.exports = cds.service.impl(async function () {
       let sPerfEnd = _dateToYMD(oPD.date_to) || sDeliveryDate || sPerfStart;
       if (sPerfEnd < sPerfStart) sPerfEnd = sPerfStart;
 
+      // S4 rechaza (ME/546 "Realistic release date") una PurchaseRequisitionReleaseDate
+      // posterior a la entrega/prestación del ítem — no tiene sentido liberar la SolPed
+      // después de que el servicio ya debía estar prestado. Si el RELDT que mandó el
+      // front queda después del período de prestación, se omite y se deja que S4 default.
+      let sReleaseDate = _dateToYMD(oPD.RELDT);
+      if (sReleaseDate && sReleaseDate > sPerfEnd) {
+        console.warn(`[_buildContextSolped] item ${sItem}: RELDT (${sReleaseDate}) posterior al período de prestación (${sPerfEnd}) — se omite para evitar "Realistic release date"`);
+        sReleaseDate = "";
+      }
+
       const oItem = {
         Plant: oPD.WERKS || "",
         Material: oPD.MATNR || "",
@@ -3534,7 +3549,7 @@ module.exports = cds.service.impl(async function () {
         AccountAssignmentCategory: oPD.KNTTP || "",
         PurchaseRequisitionPrice: nNetAmount,
         PerformancePeriodStartDate: sPerfStart,
-        PurchaseRequisitionReleaseDate: _dateToYMD(oPD.RELDT),
+        PurchaseRequisitionReleaseDate: sReleaseDate,
         PurchasingDocumentItemCategory: "0",
         PurchaseOrderPriceType: "2",
         ItemNetAmount: nNetAmount,
