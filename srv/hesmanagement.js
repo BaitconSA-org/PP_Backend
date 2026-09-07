@@ -2285,7 +2285,8 @@ module.exports = cds.service.impl(async function () {
           companyCode: activeSubs.find(s => s.company_code)?.company_code || "",
           purchasingOrg: activeSubs.find(s => s.purchasing_org)?.purchasing_org
             || ((bIsPC ? resolvedPositionGroups : positionGroups) || []).map(pg => pg.EKORG || pg.purchasing_org).find(Boolean)
-            || ""
+            || "",
+          perfPeriodByItem: _hesPerfPeriodsByItem(hesPayload)
         }
       );
 
@@ -3409,6 +3410,37 @@ module.exports = cds.service.impl(async function () {
     return isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
   }
 
+  // "/Date(1790726400000)/" → "2026-09-30". Las fechas de context_hes ya salen en el
+  // formato OData v2, así que para compararlas con el período de la SolPed (YYYY-MM-DD)
+  // hay que volver atrás.
+  function _odataDateToYMD(v) {
+    const m = /\/Date\((-?\d+)\)\//.exec(String(v || ""));
+    return m ? _dateToYMD(new Date(Number(m[1]))) : "";
+  }
+
+  // Período de prestación que necesita cada posición de SolPed para que las HES que
+  // cuelgan de ella entren: S4 rechaza la HES con "Enter a valid performance period for
+  // purchase order item" si su ServicePerformanceDate/EndDate cae fuera del período de
+  // la posición de OC, que se hereda de la SolPed. Se recorre el context_hes ya armado
+  // y se toma, por posición, el mínimo inicio y el máximo fin.
+  function _hesPerfPeriodsByItem(hesPayload) {
+    const oPeriods = {};
+    (hesPayload || []).forEach(h => {
+      (h.to_ServiceEntrySheetItem?.results || []).forEach(it => {
+        // PurchaseOrderItem del ítem lleva la posición de SolPed hasta que el WF lo pisa.
+        const sPos = String(it.PurchaseOrderItem || "").trim();
+        if (!sPos) return;
+        const sStart = _odataDateToYMD(it.ServicePerformanceDate);
+        const sEnd = _odataDateToYMD(it.ServicePerformanceEndDate) || sStart;
+        if (!sStart && !sEnd) return;
+        const o = (oPeriods[sPos] ||= { start: "", end: "" });
+        if (sStart && (!o.start || sStart < o.start)) o.start = sStart;
+        if (sEnd && (!o.end || sEnd > o.end)) o.end = sEnd;
+      });
+    });
+    return oPeriods;
+  }
+
   async function _loadUnitIsoMap(tx) {
     // MeasureUnits.ID es el código interno en español (ej. "UN", "H"); el API estándar
     // exige el código ISO/UN-ECE real (ej. "EA", "HUR") en BaseUnitISOCode.
@@ -3513,7 +3545,8 @@ module.exports = cds.service.impl(async function () {
     groupBy = "EXTROW",         // "EXTROW" (SO) | "pr_item" (PC)
     currency = "",              // fallback de moneda cuando la línea no trae WAERS (caso PC)
     companyCode = "",           // fallback de sociedad cuando el positionGroup no trae BUKRS (caso PC)
-    purchasingOrg = ""          // fallback de org. de compras cuando el positionGroup no trae EKORG
+    purchasingOrg = "",         // fallback de org. de compras cuando el positionGroup no trae EKORG
+    perfPeriodByItem = {}       // período de prestación exigido por las HES, por posición
   } = {}) {
     const oPosDataMap = {};
     (positionGroups || []).forEach(pg => { oPosDataMap[String(pg.po_item).trim()] = pg; });
@@ -3538,7 +3571,7 @@ module.exports = cds.service.impl(async function () {
 
     const _PurchaseRequisitionItem = [];
 
-    Object.entries(oLinesByItem).forEach(([sItem, aLines]) => {
+    Object.entries(oLinesByItem).forEach(([sItem, aLines], iPos) => {
       const oPD = oPosDataMap[sItem] || {};
       const sUnit = _toIsoUnit(aLines.find(l => l.MEINS)?.MEINS || "");
       const nQuantity = aLines.reduce((s, l) => s + _lineQty(l), 0);
@@ -3566,6 +3599,21 @@ module.exports = cds.service.impl(async function () {
       let sPerfStart = _dateToYMD(oPD.date_from) || _dateToYMD(oPD.RELDT) || sDeliveryDate || sNowYMD;
       let sPerfEnd = _dateToYMD(oPD.date_to) || sDeliveryDate || sPerfStart;
       if (sPerfEnd < sPerfStart) sPerfEnd = sPerfStart;
+
+      // La posición de OC hereda este período y la HES tiene que caer adentro, si no S4
+      // la rechaza con "Enter a valid performance period for purchase order item 00010".
+      // El período de la HES lo elige el usuario en el wizard y no tiene por qué coincidir
+      // con la fecha de entrega de la SolPed, así que se ensancha para cubrirlo.
+      const oHesPeriod = perfPeriodByItem[String((iPos + 1) * 10)];
+      if (oHesPeriod) {
+        const sPrevStart = sPerfStart;
+        const sPrevEnd = sPerfEnd;
+        if (oHesPeriod.start && oHesPeriod.start < sPerfStart) sPerfStart = oHesPeriod.start;
+        if (oHesPeriod.end && oHesPeriod.end > sPerfEnd) sPerfEnd = oHesPeriod.end;
+        if (sPerfStart !== sPrevStart || sPerfEnd !== sPrevEnd) {
+          console.log(`[_buildContextSolped] item ${sItem}: período de prestación ampliado de ${sPrevStart}..${sPrevEnd} a ${sPerfStart}..${sPerfEnd} para cubrir la HES`);
+        }
+      }
 
       // S4 rechaza (ME/546 "Realistic release date") una PurchaseRequisitionReleaseDate
       // posterior a la entrega/prestación del ítem — no tiene sentido liberar la SolPed
@@ -3651,6 +3699,24 @@ module.exports = cds.service.impl(async function () {
       }
     };
 
+    // ── Debug del flujo combinado ──────────────────────────────────────────────
+    // Primero un resumen de la correlación HES → posición de SolPed, que es lo que hay
+    // que mirar cuando la OC termina sin posición. La posición de SolPed es implícita:
+    // context_solped no manda PurchaseRequisitionItem, así que S4 numera 10/20/30 según
+    // el orden de _PurchaseRequisitionItem — por eso se imprime el índice ya calculado,
+    // que es contra lo que tiene que matchear el PurchaseOrderItem de cada ítem de HES.
+    const aSolpedPos = (solpedPayload[0]?._PurchaseRequisitionItem || []).map(
+      (it, i) => `${(i + 1) * 10}="${it.PurchaseRequisitionItemText || ""}"`
+    );
+    console.log(`[_sendSolpedHesWorkflow] ticket ${ticket_id} — posiciones de SolPed (implícitas): ${aSolpedPos.join(" | ") || "(ninguna)"}`);
+    (hesPayload || []).forEach((h, i) => {
+      const aItems = (h.to_ServiceEntrySheetItem?.results || []).map(
+        it => `item ${it.ServiceEntrySheetItem} → PurchaseOrderItem "${it.PurchaseOrderItem}"`
+      );
+      console.log(`[_sendSolpedHesWorkflow]   context_hes[${i}] "${h.ServiceEntrySheetName}": ${aItems.join(" | ") || "(sin ítems)"}`);
+    });
+    console.log(`[_sendSolpedHesWorkflow] payload completo:\n${JSON.stringify(bpaPayload, null, 2)}`);
+
     const axios = sapCfAxios("SBPA");
     const response = await axios({
       method: "POST",
@@ -3661,6 +3727,8 @@ module.exports = cds.service.impl(async function () {
       },
       data: bpaPayload
     });
+
+    console.log(`[_sendSolpedHesWorkflow] instancia creada: ${response.data?.id || "(sin id)"}`);
 
     return response.data?.id || null;
   }
