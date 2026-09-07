@@ -2156,6 +2156,9 @@ module.exports = cds.service.impl(async function () {
     // ── 2. hesPayload — usa resolvedPositionGroups ────────────────
     const unitIsoMap = await _loadUnitIsoMap(tx);
     const unitHesMap = await _loadUnitHesMap(tx);
+    // Numeración de posiciones de SolPed, para que cada HES viaje con la posición de
+    // la que nace su posición de OC. Ver el comentario en la cabecera de context_hes.
+    const solpedItemNumbers = _solpedItemNumbers(lines, root.source_type === "PC" ? "pr_item" : "EXTROW");
     let hesPayload;
     if (root.source_type === "PC" && Object.keys(hesGroupsMap).length > 0) {
       hesPayload = Object.entries(hesGroupsMap).map(([sKey, hesData]) => {
@@ -2199,9 +2202,20 @@ module.exports = cds.service.impl(async function () {
         const firstSub = subsForGroup[0];
         const sPersonInt = firstSub?.purchasing_group || sEKGRP || "";
 
-        // context_hes con nombres estándar (A_ServiceEntrySheet). PurchaseOrder/
-        // PurchaseOrderItem quedan vacíos: el WF los completa tras crear la OC desde
-        // la SolPed. La correlación va por PurgDocExternalReference (nro de ticket).
+        // context_hes con nombres estándar (A_ServiceEntrySheet). PurchaseOrder queda
+        // vacío: lo completa el WF tras crear la OC desde la SolPed.
+        //
+        // PurchaseOrderItem de cada ÍTEM viaja con la posición de SOLPED (10/20/30...),
+        // no con la de OC: es la clave con la que el WF resuelve qué posición de OC
+        // corresponde a esta HES, y la pisa con el valor real antes de postear a S4.
+        // Mismo mecanismo que el WF anterior implementaba sobre el campo POItem (ver
+        // _buildHesPayload legacy). Va en el ítem y no en la cabecera porque el schema
+        // del workflow solo declara PurchaseOrderItem dentro de to_ServiceEntrySheetItem,
+        // y BPA descarta en el borde toda propiedad que el schema no declare.
+        //
+        // Todos los ítems de una misma HES comparten posición: el agrupamiento de
+        // hesGroupsMap es por po_item, así que hay un único PRItem por cabecera.
+        const sSolpedItem = _lookupSolpedItemNumber(solpedItemNumbers, sPRItem);
         return {
           PurchaseOrder: "",
           ServiceEntrySheetName: `SES - ${root.source_number || root.ticket_number}`,
@@ -2212,7 +2226,7 @@ module.exports = cds.service.impl(async function () {
               return {
                 ServiceEntrySheetItem: String(seq * 10),
                 PurchaseOrder: "",
-                PurchaseOrderItem: "",
+                PurchaseOrderItem: sSolpedItem,
                 Plant: sub.plant || hesData.WERKS || "",
                 ServiceEntrySheetItemDesc: sub.ses_subservice || sub.short_text || "",
                 ConfirmedQuantity: String(Number(sub.qty_to_certify || 0).toFixed(3)),
@@ -2239,7 +2253,7 @@ module.exports = cds.service.impl(async function () {
       });
     } else {
       // context_hes estándar; la OC la crea el WF desde la SolPed → sin PurchaseOrder
-      hesPayload = _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, rootBP?.lifnr || "", { omitPurchaseOrder: true, unitHesMap });
+      hesPayload = _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, rootBP?.lifnr || "", { omitPurchaseOrder: true, unitHesMap, solpedItemNumbers });
     }
 
     const bIsPC = root.source_type === "PC";
@@ -3446,6 +3460,51 @@ module.exports = cds.service.impl(async function () {
 
   // context_solped con nombres estándar de API_PURCHASEREQ_PROCESS_SRV.
   // Reemplaza a _buildSolpedPayload (shape legacy to_pritems/to_prservices).
+  // Agrupa las líneas aprobadas por posición de SolPed. El orden de las claves define
+  // la numeración de posiciones: es el mismo orden en el que _buildContextSolped arma
+  // _PurchaseRequisitionItem y, por lo tanto, el orden en el que S4 las numera (10, 20,
+  // 30...). Se aísla acá para que context_solped y context_hes no puedan desalinearse.
+  function _groupSolpedLines(lines, groupBy = "EXTROW") {
+    const oLinesByItem = {};
+    (lines || [])
+      .filter(l => l.currentStatus === "APROBADO")
+      .forEach(l => {
+        const sKey = String(
+          groupBy === "pr_item" ? (l.pr_item || l.EXTROW || "") : (l.EXTROW || "")
+        ).trim();
+        if (!sKey) return;
+        (oLinesByItem[sKey] ||= []).push(l);
+      });
+    return oLinesByItem;
+  }
+
+  // Nº de posición de SolPed (10, 20, 30...) por clave de agrupación.
+  function _solpedItemNumbers(lines, groupBy = "EXTROW") {
+    const oNumbers = {};
+    Object.keys(_groupSolpedLines(lines, groupBy)).forEach((sKey, i) => {
+      oNumbers[sKey] = String((i + 1) * 10);
+    });
+    return oNumbers;
+  }
+
+  // Lookup tolerante a ceros a la izquierda: la clave del SO es EXTROW ("00010")
+  // mientras que el subticket guarda po_item ya pasado por parseInt (10).
+  function _lookupSolpedItemNumber(oNumbers, sKey) {
+    const s = String(sKey ?? "").trim();
+    if (!s) return "";
+    if (oNumbers[s]) return oNumbers[s];
+    const n = parseInt(s, 10);
+    if (!Number.isFinite(n)) return "";
+    const sMatch = Object.keys(oNumbers).find(k => parseInt(k, 10) === n);
+    if (!sMatch) {
+      // Sin esta clave el WF no puede resolver la posición de OC y la HES termina
+      // fallando en S4 con "purchase order item 00000". Mejor verlo en el log.
+      console.warn(`[_lookupSolpedItemNumber] sin posición de SolPed para "${s}" — claves disponibles: ${Object.keys(oNumbers).join(", ") || "(ninguna)"}`);
+      return "";
+    }
+    return oNumbers[sMatch];
+  }
+
   function _buildContextSolped(positionGroups, lines, {
     sSupplier = "",
     unitIsoMap = {},
@@ -3475,16 +3534,7 @@ module.exports = cds.service.impl(async function () {
     const _lineCurr = (l) => l.WAERS || l.waers || l.currency || l.moneda || "";
     const sNowYMD = _dateToYMD(new Date());
 
-    const oLinesByItem = {};
-    (lines || [])
-      .filter(l => l.currentStatus === "APROBADO")
-      .forEach(l => {
-        const sKey = String(
-          groupBy === "pr_item" ? (l.pr_item || l.EXTROW || "") : (l.EXTROW || "")
-        ).trim();
-        if (!sKey) return;
-        (oLinesByItem[sKey] ||= []).push(l);
-      });
+    const oLinesByItem = _groupSolpedLines(lines, groupBy);
 
     const _PurchaseRequisitionItem = [];
 
@@ -3619,7 +3669,7 @@ module.exports = cds.service.impl(async function () {
   // alineados al schema del workflow (PurchaseOrder/ServiceEntrySheetName/
   // to_ServiceEntrySheetItem), distinto del shape legacy que usa _buildHesPayload
   // para el flujo de SOLPED (PONumber/POItem/to_service).
-  function _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, supplierLifnr, { omitPurchaseOrder = false, unitHesMap = {} } = {}) {
+  function _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, supplierLifnr, { omitPurchaseOrder = false, unitHesMap = {}, solpedItemNumbers = null } = {}) {
     // omitPurchaseOrder: en el flujo combinado SolPed+HES la OC todavía no existe
     // (la crea el WF desde la SolPed), así que PurchaseOrder/PurchaseOrderItem van vacíos.
     const sPO = omitPurchaseOrder ? "" : (root.source_number || "");
@@ -3629,6 +3679,12 @@ module.exports = cds.service.impl(async function () {
         const first = subs[0];
         const dateFrom = first?.hes_date_from || root.date_from || first?.date_from;
         const dateTo = first?.hes_date_to || root.date_to || first?.date_to;
+        // Flujo combinado: posición de SolPed en PurchaseOrderItem — ver el comentario
+        // en la rama PC de sendSolped. En el flujo de HES sola (solpedItemNumbers null)
+        // la OC ya existe y va la posición real del subticket.
+        const sSolpedItem = solpedItemNumbers
+          ? _lookupSolpedItemNumber(solpedItemNumbers, first?.po_item)
+          : "";
 
         const to_ServiceEntrySheetItem = subs.map((sub, idx) => {
           const itemDateFrom = sub.hes_date_from || dateFrom;
@@ -3636,7 +3692,7 @@ module.exports = cds.service.impl(async function () {
           return {
             ServiceEntrySheetItem: String((idx + 1) * 10),
             PurchaseOrder: sPO,
-            PurchaseOrderItem: omitPurchaseOrder ? "" : String(sub.po_item || ""),
+            PurchaseOrderItem: solpedItemNumbers ? sSolpedItem : String(sub.po_item || ""),
             Plant: sub.plant || "",
             ServiceEntrySheetItemDesc: sub.ses_subservice || sub.short_text || "",
             ConfirmedQuantity: String(Number(sub.qty_to_certify || 0).toFixed(3)),
