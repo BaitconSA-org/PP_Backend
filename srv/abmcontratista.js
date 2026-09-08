@@ -3165,9 +3165,12 @@ async function startWorkflow(bp_ID, s4Payload, wfState, approvals = {}, infoArea
       AuthorizationGroup: builtPayload.AuthorizationGroup || "",
       BusinessPartnerIDByExtSystem: builtPayload.BusinessPartnerIDByExtSystem || "",
       to_BusinessPartnerAddress: {
-        results: (builtPayload.to_BusinessPartnerAddress?.results || []).map(addr => {
-          const { to_AddressEmailAddress, to_AddressPhoneNumber, ...rest } = addr;
-          return {
+        // Floor y TimeZone no están en el contrato del WF (que pide AddressTimeZone,
+        // no TimeZone): _buildS4BPPayload los arma para otros consumidores y acá se
+        // descartan junto con los sub-arrays de contacto, igual que en
+        // startTaxModificationWorkflow.
+        results: (builtPayload.to_BusinessPartnerAddress?.results || []).map(
+          ({ to_AddressEmailAddress, to_AddressPhoneNumber, Floor, TimeZone, ...rest }) => ({
             ...rest,
             CareOfName: "",
             AddressTimeZone: "",
@@ -3183,12 +3186,26 @@ async function startWorkflow(bp_ID, s4Payload, wfState, approvals = {}, infoArea
                 AddressCommunicationRemarkText: ""
               }))
             }
-          };
-        })
+          })
+        )
+      },
+      // BankName no está en el contrato del WF: _buildS4BPPayload lo resuelve contra el
+      // catálogo de bancos para las pantallas, pero el POST a A_BusinessPartnerBank
+      // identifica el banco por BankCountryKey + BankNumber y el nombre sale del maestro.
+      to_BusinessPartnerBank: {
+        results: (builtPayload.to_BusinessPartnerBank?.results || [])
+          .map(({ BankName, ...b }) => b)
       },
       to_Supplier: {
         ...builtPayload.to_Supplier,
         TaxNumberType: "",
+        // El contrato pide el CUIT también en A_Supplier.TaxNumber1 (LFA1-STCD1), que es
+        // por donde se buscan los duplicados contra S/4 (ver la búsqueda por TaxNumber1
+        // del alta). Sale del mismo número que viaja en to_BusinessPartnerTax.
+        TaxNumber1: builtPayload.to_BusinessPartnerTax?.results?.[0]?.BPTaxNumber || "",
+        // IsNaturalPerson viaja en la cabecera y también en el supplier ("X" para la
+        // persona física, vacío para la organización).
+        IsNaturalPerson: builtPayload.IsNaturalPerson || "",
         AuthorizationGroup: "",
         to_SupplierCompany: {
           results: (builtPayload.to_Supplier?.to_SupplierCompany?.results || []).map(c => ({

@@ -37,9 +37,24 @@ async function _enrichSupplierName(records, BusinessPartners) {
   for (const r of records) r.SupplierName = byLifnr[r.Supplier] ?? null;
 }
 
+// IsDeleted en A_ServiceEntrySheetItem es booleano, mientras que el shape legacy del
+// servicio Z (PurchaseOrderItemServicesSet) marcaba la baja con "L"/"X". Se contemplan
+// las tres formas para no depender de cuál devuelva S/4 en cada entorno.
+function _isSesItemDeleted(it) {
+  const v = it?.IsDeleted;
+  if (v === true) return true;
+  const s = String(v ?? "").trim().toUpperCase();
+  return s === "X" || s === "L" || s === "TRUE";
+}
+
 // Mapea A_ServiceEntrySheetItem (nombres reales de S/4) al shape que espera el
 // frontend (type PurchaseOrderItemService). PriceUnit no existe en esta entidad
 // de S/4 — se fija en "1" (default estándar SAP cuando no se informa).
+//
+// OJO: estas son las líneas de HES YA POSTEADAS contra la posición, no las líneas de
+// servicio planificadas de la OC. El API estándar de OC no expone el ESLL, así que
+// "lo pendiente de certificar" NO sale de acá — sale de la cantidad abierta que calcula
+// _confirmedQtyByPoItem / getPurchaseOrderItemsOpenQuantity.
 function _mapServiceEntrySheetItem(it) {
   return {
     PONumber: it.PurchaseOrder || "",
@@ -53,8 +68,75 @@ function _mapServiceEntrySheetItem(it) {
     GrossPrice: it.NetPriceAmount != null ? Number(it.NetPriceAmount) : 0,
     NetValue: it.NetAmount != null ? Number(it.NetAmount) : 0,
     ShortText: it.ServiceEntrySheetItemDesc || "",
-    DeleteIndicator: it.IsDeleted || ""
+    DeleteIndicator: _isSesItemDeleted(it) ? "L" : ""
   };
+}
+
+// Suma, por posición de OC, la cantidad ya confirmada en las HES posteadas en S/4.
+// Es la única fuente de consumo disponible: OP_API_PURCHASEORDER_PROCESS_SRV_0001 no
+// tiene entidad de líneas de servicio ni campo de cantidad abierta (a diferencia de
+// A_PurchaseContractItem, que sí trae ContractItemConsumedQuantity).
+//
+// Cuenta todas las HES de la OC, hayan nacido en esta app o no — incluidas las que
+// crea el workflow de SolPed, que son las que quedaban sin descontar.
+async function _confirmedQtyByPoItem(poPadded) {
+  const s4Ses = await getS4Service("API_SERVICE_ENTRY_SHEET_SRV");
+
+  // Se pagina de a $top/$skip en vez de leer de una: si S/4 corta la respuesta en su
+  // page size (100 por defecto en OData v2) se contaría de menos, y contar de menos el
+  // consumo es justo el error que deja volver a certificar algo ya certificado.
+  //
+  // Las filas se acumulan por clave de HES + posición de HES: además de deduplicar, es
+  // la condición de corte segura si el backend ignorara $skip (una página que no aporta
+  // ninguna fila nueva termina el recorrido en lugar de sumar dos veces lo mismo).
+  const PAGE_SIZE = 500;
+  const MAX_PAGES = 100;
+
+  const seen = new Set();
+  const byItem = {};
+  let skip = 0;
+
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const result = await s4Ses.get(
+      `/A_ServiceEntrySheetItem?$filter=PurchaseOrder eq '${poPadded}'` +
+      `&$top=${PAGE_SIZE}&$skip=${skip}`
+    );
+    const rows = Array.isArray(result) ? result : result?.value ?? [];
+    if (!rows.length) break;
+
+    // Avanza por las filas realmente devueltas, no por PAGE_SIZE: S/4 puede cortar la
+    // página en su propio máximo (100 por defecto) y saltar de a 500 se saltearía HES.
+    skip += rows.length;
+
+    let nuevas = 0;
+    for (const row of rows) {
+      const sesKey = `${row.ServiceEntrySheet || ""}/${row.ServiceEntrySheetItem || ""}`;
+      if (seen.has(sesKey)) continue;
+      seen.add(sesKey);
+      nuevas++;
+
+      if (_isSesItemDeleted(row)) continue;
+      const key = String(row.PurchaseOrderItem || "").trim().padStart(5, "0");
+      if (!key || key === "00000") continue;
+      byItem[key] = (byItem[key] || 0) + (Number(row.ConfirmedQuantity) || 0);
+    }
+
+    if (!nuevas) break;
+
+    if (page === MAX_PAGES - 1) {
+      console.warn(`[_confirmedQtyByPoItem] OC ${poPadded}: se alcanzó el tope de ${MAX_PAGES} páginas de HES; el consumo puede estar incompleto.`);
+    }
+  }
+
+  return byItem;
+}
+
+// Cantidad abierta de una posición de OC = OrderQuantity - lo ya confirmado en HES.
+// Se redondea a 3 decimales (la precisión de OrderQuantity en el EDMX) para que la
+// resta de floats no deje remanentes fantasma del tipo 0.0000000001.
+function _openQtyForPoItem(orderQuantity, consumedQuantity) {
+  const open = (Number(orderQuantity) || 0) - (Number(consumedQuantity) || 0);
+  return Math.max(0, Number(open.toFixed(3)));
 }
 
 global._uploadTokens = global._uploadTokens ?? new Map();
@@ -67,6 +149,7 @@ module.exports = cds.service.impl(async function () {
   attachReadOnlyGuard(this, [
     'me', 'getPurchaseOrderAccountAssignment', 'getPurchaseContractAccountAssignment',
     'getPurchaseOrderItemServices', 'getPurchaseContractItemServices', 'getPurchaseOrderExpanded',
+    'getPurchaseOrderItemsOpenQuantity',
     'getHESExpanded', 'getPurchaseRequisitionExpanded', 'debugEntitySets',
     'checkIASUser', 'getHESDocument', 'downloadTicketDocument',
     'downloadPurchaseContractExcel', 'downloadPrecertExcel', 'downloadSubTicketExcel',
@@ -582,7 +665,11 @@ module.exports = cds.service.impl(async function () {
   // servicio desde SAP (OrderQuantity de A_PurchaseOrderItem / TargetQuantity de
   // A_PurchaseContractItem) — el mismo campo que ya expone PurchaseOrderItemExt/
   // PurchaseContractItemExt, sin agregar ninguna llamada nueva a SAP.
-  async function _findOrCreatePrecertTicketItem(tx, { source_type, source_number, po_item, po_item_text, service_id, sampleItem, pcItemDataMap }) {
+  //
+  // El agregado arranca con qty_certified = lo que S/4 ya tiene consumido en HES para esa
+  // posición (sapConsumedQty), no en 0: una OC nacida de SolPed llega acá con su HES ya
+  // posteada por el workflow, y arrancar en 0 habilitaba certificarla una segunda vez.
+  async function _findOrCreatePrecertTicketItem(tx, { source_type, source_number, po_item, po_item_text, service_id, sampleItem, pcItemDataMap, sapConsumedQty = 0 }) {
     const existing = await tx.run(
       SELECT.one.from(PrecertTicketItems).where({ source_type, source_number, po_item })
     );
@@ -639,7 +726,7 @@ module.exports = cds.service.impl(async function () {
       service_id: service_id ?? null,
       service_desc: sampleItem?.ses_subservice ?? null,
       qty_total,
-      qty_certified: 0,
+      qty_certified: Math.min(Number(sapConsumedQty) || 0, qty_total),
       unit_price,
       currency: currencyCode,
       measure_unity: measureUnity,
@@ -799,6 +886,20 @@ module.exports = cds.service.impl(async function () {
         qtyByPoItem[key] = (qtyByPoItem[key] || 0) + n(it.qty_to_certify);
       }
 
+      // Consumo real en S/4 por posición, leído una sola vez para toda la OC. Cubre las
+      // HES que no pasaron por el agregado local (las que crea el workflow de SolPed, o
+      // cualquier carga hecha directo en SAP). Si esta lectura falla se corta el submit:
+      // dejar pasar la certificación sin poder verificar el consumo es el error caro.
+      let sapConsumedByItem = {};
+      if (source_type === "PO") {
+        try {
+          sapConsumedByItem = await _confirmedQtyByPoItem(String(source_number).padStart(10, "0"));
+        } catch (err) {
+          console.error(`[submitPrecertTicket] Error leyendo consumo de HES de la OC ${source_number}:`, err.message);
+          return req.reject(500, "No se pudo verificar la cantidad ya certificada de la OC en SAP. Reintentá en unos minutos.");
+        }
+      }
+
       for (const key of Object.keys(qtyByPoItem)) {
         if (!key) {
           return req.reject(400, "po_item es obligatorio para el modelo de precertificación por ítem");
@@ -806,6 +907,7 @@ module.exports = cds.service.impl(async function () {
 
         const sampleItem = items.find(it => String(it.po_item ?? "") === key);
         const serviceId = serviceDescToId[sampleItem?.ses_subservice] ?? null;
+        const sapConsumedQty = sapConsumedByItem[String(key).padStart(5, "0")] || 0;
 
         const aggregate = await _findOrCreatePrecertTicketItem(tx, {
           source_type,
@@ -814,10 +916,17 @@ module.exports = cds.service.impl(async function () {
           po_item_text: sampleItem.po_item_text,
           service_id: serviceId,
           sampleItem,
-          pcItemDataMap
+          pcItemDataMap,
+          sapConsumedQty
         });
 
-        const remaining = Number(aggregate.qty_total || 0) - Number(aggregate.qty_certified || 0);
+        // Manda el más chico de los dos remanentes: el local conoce las parciales de esta
+        // app todavía no posteadas, y el de SAP conoce las HES creadas por fuera de ella.
+        const localRemaining = Number(aggregate.qty_total || 0) - Number(aggregate.qty_certified || 0);
+        const remaining = source_type === "PO"
+          ? Math.min(localRemaining, _openQtyForPoItem(aggregate.qty_total, sapConsumedQty))
+          : localRemaining;
+
         if (qtyByPoItem[key] > remaining + 1e-9) {
           return req.reject(400,
             `La cantidad a certificar del ítem ${key} (${qtyByPoItem[key]}) supera el remanente disponible del servicio (${remaining}).`);
@@ -2741,6 +2850,60 @@ module.exports = cds.service.impl(async function () {
     } catch (err) {
       console.error("Error en getPurchaseOrderItemServices:", err.response?.data || err.message);
       return req.reject(500, "Error al consultar servicios de la orden de compra");
+    }
+  });
+
+  // Cantidad abierta por posición de OC: lo que realmente queda por certificar.
+  //
+  // El API estándar de OC no expone cantidad abierta (ni entidad de líneas de servicio),
+  // así que se deriva restándole a OrderQuantity lo ya confirmado en las HES de S/4. Es
+  // el equivalente para OC de lo que PurchaseContractItemExt ya hace con
+  // TargetQuantity - ContractItemConsumedQuantity.
+  //
+  // Se calcula en una sola llamada por OC (no una por posición) y contempla las HES que
+  // nacieron fuera de esta app: una OC creada desde SolPed llega con su HES ya posteada
+  // por el workflow, y hasta ahora se seguía ofreciendo con la cantidad completa.
+  this.on("getPurchaseOrderItemsOpenQuantity", async (req) => {
+    const { PurchaseOrder } = req.data;
+
+    if (!PurchaseOrder) {
+      return req.reject(400, "PurchaseOrder es obligatorio");
+    }
+
+    const poPadded = String(PurchaseOrder).padStart(10, "0");
+
+    try {
+      const s4Purchase = await getS4Service("OP_API_PURCHASEORDER_PROCESS_SRV_0001");
+
+      const [itemsResult, consumedByItem] = await Promise.all([
+        s4Purchase.run(
+          SELECT.from("A_PurchaseOrderItem")
+            .columns("PurchaseOrder", "PurchaseOrderItem", "OrderQuantity", "PurchaseOrderQuantityUnit")
+            .where({ PurchaseOrder: poPadded })
+        ),
+        _confirmedQtyByPoItem(poPadded)
+      ]);
+
+      const poItems = Array.isArray(itemsResult) ? itemsResult : [itemsResult].filter(Boolean);
+
+      return poItems.map((it) => {
+        const key = String(it.PurchaseOrderItem || "").trim().padStart(5, "0");
+        const ordered = Number(it.OrderQuantity) || 0;
+        const consumed = consumedByItem[key] || 0;
+
+        return {
+          PurchaseOrder: it.PurchaseOrder || poPadded,
+          PurchaseOrderItem: it.PurchaseOrderItem || key,
+          OrderQuantity: ordered,
+          ConsumedQuantity: consumed,
+          OpenQuantity: _openQtyForPoItem(ordered, consumed),
+          QuantityUnit: it.PurchaseOrderQuantityUnit || ""
+        };
+      });
+
+    } catch (err) {
+      console.error("Error en getPurchaseOrderItemsOpenQuantity:", err.response?.data || err.message);
+      return req.reject(500, "Error al calcular la cantidad pendiente de certificar de la orden de compra");
     }
   });
 

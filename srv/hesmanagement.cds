@@ -264,6 +264,18 @@ service HESManagementService @(path: '/srv/hes') {
         DeleteIndicator : String;
     };
 
+    // Cantidad abierta de una posición de OC. OpenQuantity = OrderQuantity - lo ya
+    // confirmado en las HES posteadas en S/4 (el API estándar de OC no expone ni la
+    // cantidad abierta ni las líneas de servicio, así que se calcula en el backend).
+    type PurchaseOrderItemOpenQty {
+        PurchaseOrder     : String;
+        PurchaseOrderItem : String;
+        OrderQuantity     : Decimal;
+        ConsumedQuantity  : Decimal;
+        OpenQuantity      : Decimal;
+        QuantityUnit      : String;
+    };
+
     type PurchaseContractAccountAssignment {
         PurchaseContract        : String;
         PurchaseContractItem    : String;
@@ -470,6 +482,8 @@ service HESManagementService @(path: '/srv/hes') {
 
     function getPurchaseContractItemServices(PurchaseContract: String,
                                              PurchaseContractItem: String)            returns array of PurchaseOrderItemService;
+
+    function getPurchaseOrderItemsOpenQuantity(PurchaseOrder: String)                  returns array of PurchaseOrderItemOpenQty;
 
     function me()                                                                     returns {
         email            : String;
