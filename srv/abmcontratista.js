@@ -1071,7 +1071,7 @@ module.exports = cds.service.impl(async function () {
       return req.reject(404, `Business Partner ${bp_id} no encontrado`);
     }
 
-    // como info solicitada aunque el proveedor ya respondió.
+    // como info solicitada aunque el proveedor ya respondió ok .
     const SECTION_FIELDS = {
       banking: { status: "teso_status", info: "teso_additional_info", decision: "teso_decision" },
       tax: { status: "tax_status", info: "tax_additional_info", decision: "tax_decision" },
