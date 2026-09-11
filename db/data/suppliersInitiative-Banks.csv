@@ -1,15 +1,17 @@
 country_code;ID;name
-AR;007;Galicia
-AR;011;BNA
-AR;015;ICBC
-AR;017;BBVA
-AR;020;Bancor
-AR;027;Supervielle
-AR;034;Patagonia
-AR;072;Santander
-AR;097;BPN
-AR;191;Credicoop
-AR;254;Mariva
-AR;285;Macro
-AR;299;Comafi
-AR;319;CM
+AR;008;Banco Provincia
+AR;011;Bank 1 - SAMPLE BANK
+AR;016;Bank 4 - SAMPLE BANK (AR)
+AR;020;Credit Card Bank Account
+AR;030;AR Internal Bank for Basic Bank Account Management
+AR;040;AR Standard Bank for Advanced Bank Account Management Direct
+AR;050;AR Standard Bank for Advanced Bank Account Management Dual C
+AR;060;AR International Bank
+AR;070;AR Internal Bank for Santander
+AR;080;Banco Provincia
+AR;160;AR Internal International Bank
+AR;230;AR Standard Bank for Basic Bank Account Management
+AR;285;Bank 3 - SAMPLE BANK (AR)
+AR;700;Santander
+AR;88888889;AR Internal Bank for Advanced Bank Account Management Direct
+AR;88888890;AR Internal Bank for Advanced Cash Management Dual Control M

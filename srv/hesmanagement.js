@@ -1412,6 +1412,8 @@ module.exports = cds.service.impl(async function () {
     let totalPrice = 0;
 
     // ── Normalizar items ──────────────────────────────────────────────────────
+    // req.data.items puede venir con un subconjunto de subtickets — se admite
+    // aprobar de a partes (algunos ahora, el resto en otra llamada más adelante).
     let itemsToProcess = subs.map(s => ({ ID: s.ID }));
     if (req.data.items) {
       try {
@@ -1424,6 +1426,20 @@ module.exports = cds.service.impl(async function () {
       } catch (e) {
         console.warn("[WARN] No se pudo parsear items:", e.message);
       }
+    }
+
+    // Sin esto, reenviar subtickets que ya tienen HES vuelve a pedirle a S4 una SES con
+    // la misma PurgDocExternalReference y revienta con "An SES with reference N already
+    // exists" (ver ticket 97) — mejor cortarlo acá con un mensaje claro. Se mira SOLO lo
+    // que esta llamada va a procesar, no todo el ticket: una aprobación parcial previa no
+    // tiene que bloquear la aprobación del resto de las líneas.
+    const aYaConHes = itemsToProcess
+      .map(i => map.get(i.ID))
+      .filter(s => s?.hes_number);
+    if (aYaConHes.length) {
+      const sNumeros = [...new Set(aYaConHes.map(s => s.hes_number))].join(", ");
+      return req.reject(400,
+        `${aYaConHes.length} de las líneas seleccionadas ya tienen HES generada (${sNumeros}). No se pueden volver a enviar.`);
     }
 
     // ── Parsear hes_groups → mapa clave "province_ID__po_item" ───────────────
@@ -1941,7 +1957,10 @@ module.exports = cds.service.impl(async function () {
     await _assertValidPurchOrgs(tx, positionGroups, req);
 
     const solpedPayload = _buildContextSolped(positionGroups, lines, {
-      sSupplier: rootBP?.lifnr || rootBP?.business_partner_number || "",
+      // El proveedor de la SolPed sale de business_partner_number, no de lifnr: es el
+      // número que se ve como "Proveedor: NNNN" en la cabecera del ticket y el mismo que
+      // VISTA manda como proveedor fijo de la SolPed (lifnr lo usa solo para la HES).
+      sSupplier: rootBP?.business_partner_number || rootBP?.lifnr || "",
       unitIsoMap,
       purReqType: header?.PurchaseRequisitionType || "NBS",
       purReqnDescription: sShortText,
@@ -2180,6 +2199,13 @@ module.exports = cds.service.impl(async function () {
       subsGroupedByKey[groupKey].push(sub);
     }
 
+    // Sobre TODOS los subtickets del ticket (updatedSubs), no solo los de este envío
+    // (activeSubs) — ver el comentario en _buildHesWorkflowPayload sobre por qué el
+    // índice no puede depender de qué subconjunto se está mandando ahora.
+    const allGroupKeys = [...new Set(
+      updatedSubs.map(s => `${s.province_ID || "NO_PROVINCE"}__${s.po_item || "NO_ITEM"}`)
+    )].sort();
+
     // ── 1. resolvedPositionGroups — SIEMPRE PRIMERO ───────────────
     let resolvedPositionGroups = positionGroups;
     if (root.source_type === "PC") {
@@ -2362,7 +2388,7 @@ module.exports = cds.service.impl(async function () {
       });
     } else {
       // context_hes estándar; la OC la crea el WF desde la SolPed → sin PurchaseOrder
-      hesPayload = _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, rootBP?.lifnr || "", { omitPurchaseOrder: true, unitHesMap, solpedItemNumbers });
+      hesPayload = _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, rootBP?.lifnr || "", { omitPurchaseOrder: true, unitHesMap, solpedItemNumbers, allGroupKeys });
     }
 
     const bIsPC = root.source_type === "PC";
@@ -2380,9 +2406,9 @@ module.exports = cds.service.impl(async function () {
         bIsPC ? resolvedPositionGroups : positionGroups,
         lines,
         {
-          sSupplier: bIsPC
-            ? (sFixedVendor || rootBP?.lifnr || rootBP?.business_partner_number || "")
-            : (rootBP?.lifnr || rootBP?.business_partner_number || ""),
+          // Mismo criterio que saveApprovalManual y que VISTA: business_partner_number.
+          // sFixedVendor ya es business_partner_number; lifnr queda solo de respaldo.
+          sSupplier: sFixedVendor || rootBP?.lifnr || "",
           unitIsoMap,
           // "ZCON" (usado antes acá para PC) no es un PurchaseRequisitionType válido en S4
           // ("Document type ZCON not allowed with doc. category B") — se prueba con "NBS",
@@ -3247,11 +3273,21 @@ module.exports = cds.service.impl(async function () {
       poGroups[poKey][groupKey].push(sub);
     }
 
+    // Sobre TODOS los subtickets del ticket (subs, el parámetro completo), no solo los
+    // de este envío (activeSubs) — ver el comentario en _buildHesWorkflowPayload: el
+    // índice no puede depender de qué subconjunto se está mandando en esta llamada,
+    // porque una aprobación posterior de otro grupo del mismo ticket (caso ticket 101:
+    // Catamarca/30 y Córdoba/20 mandados por separado) tiene que caer en un número
+    // distinto igual, aunque esa llamada solo vea un grupo.
+    const allGroupKeys = [...new Set(
+      subs.map(s => `${s.province_ID || "NO_PROVINCE"}__${s.po_item || "NO_ITEM"}`)
+    )].sort();
+
     const results = [];
     const errors = [];
 
     for (const [poNumber, subsGroupedByKey] of Object.entries(poGroups)) {
-      const sesPayload = _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, supplierLifnr, { unitHesMap });
+      const sesPayload = _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, supplierLifnr, { unitHesMap, allGroupKeys });
 
       const allSubIds = Object.values(subsGroupedByKey).flat().map(s => s.ID);
 
@@ -3547,6 +3583,15 @@ module.exports = cds.service.impl(async function () {
         log: { status: "", comments: comment || "", ticket_ID: ticket_id }
       }
     };
+
+    // Sin este log no se puede distinguir un campo que sale vacío de acá de uno que
+    // descarta BPA: el proceso solo mapea los campos declarados en sus Process Inputs,
+    // el resto se persiste en la instancia pero nunca llega al POST a S4.
+    const aPos = (solpedPayload[0]?._PurchaseRequisitionItem || []).map(
+      (it, i) => `${(i + 1) * 10}: Supplier="${it.Supplier || ""}" EKORG="${it.PurchasingOrganization || ""}" BUKRS="${it.CompanyCode || ""}"`
+    );
+    console.log(`[_sendSolpedWorkflow] ticket ${ticket_id} — ${aPos.join(" | ") || "(sin posiciones)"}`);
+    console.log(`[_sendSolpedWorkflow] payload completo:\n${JSON.stringify(bpaPayload, null, 2)}`);
 
     const axios = sapCfAxios("SBPA");
     const response = await axios({
@@ -3869,7 +3914,7 @@ module.exports = cds.service.impl(async function () {
     // el orden de _PurchaseRequisitionItem — por eso se imprime el índice ya calculado,
     // que es contra lo que tiene que matchear el PurchaseOrderItem de cada ítem de HES.
     const aSolpedPos = (solpedPayload[0]?._PurchaseRequisitionItem || []).map(
-      (it, i) => `${(i + 1) * 10}="${it.PurchaseRequisitionItemText || ""}"`
+      (it, i) => `${(i + 1) * 10}="${it.PurchaseRequisitionItemText || ""}" Supplier="${it.Supplier || ""}" EKORG="${it.PurchasingOrganization || ""}"`
     );
     console.log(`[_sendSolpedHesWorkflow] ticket ${ticket_id} — posiciones de SolPed (implícitas): ${aSolpedPos.join(" | ") || "(ninguna)"}`);
     (hesPayload || []).forEach((h, i) => {
@@ -3900,13 +3945,13 @@ module.exports = cds.service.impl(async function () {
   // alineados al schema del workflow (PurchaseOrder/ServiceEntrySheetName/
   // to_ServiceEntrySheetItem), distinto del shape legacy que usa _buildHesPayload
   // para el flujo de SOLPED (PONumber/POItem/to_service).
-  function _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, supplierLifnr, { omitPurchaseOrder = false, unitHesMap = {}, solpedItemNumbers = null } = {}) {
+  function _buildHesWorkflowPayload(root, subsGroupedByKey, provinceS4Code, supplierLifnr, { omitPurchaseOrder = false, unitHesMap = {}, solpedItemNumbers = null, allGroupKeys = null } = {}) {
     // omitPurchaseOrder: en el flujo combinado SolPed+HES la OC todavía no existe
     // (la crea el WF desde la SolPed), así que PurchaseOrder/PurchaseOrderItem van vacíos.
     const sPO = omitPurchaseOrder ? "" : (root.source_number || "");
     return Object.entries(subsGroupedByKey)
       .filter(([, subs]) => Array.isArray(subs) && subs.length > 0)
-      .map(([, subs]) => {
+      .map(([sGroupKey, subs]) => {
         const first = subs[0];
         const dateFrom = first?.hes_date_from || root.date_from || first?.date_from;
         const dateTo = first?.hes_date_to || root.date_to || first?.date_to;
@@ -3949,7 +3994,18 @@ module.exports = cds.service.impl(async function () {
           Currency: root.currency || "",
           Supplier: supplierLifnr || "",
           PostingDate: `/Date(${Date.now()})/`,
-          PurgDocExternalReference: String(root.ticket_number || "")
+          // S4 rechaza una 2ª SES con la misma PurgDocExternalReference para el mismo
+          // proveedor ("An SES with reference 101 already exists..." — ticket 101, 2 grupos
+          // (Catamarca/30 y Córdoba/20) mandados en LLAMADOS SEPARADOS). El índice no puede
+          // salir de "cuántos grupos hay en ESTE envío" (aGroups.length/iGroup) — cada
+          // llamado ve un subconjunto distinto de subtickets y, si cada uno trae un solo
+          // grupo, los dos calculan "soy el único, uso el ticket_number pelado" y chocan
+          // igual. `allGroupKeys` es la lista de TODOS los grupos del ticket completo
+          // (independiente de qué subconjunto se esté mandando ahora), así el mismo grupo
+          // cae siempre en el mismo número, lo mandes hoy o en otro llamado más adelante.
+          PurgDocExternalReference: (allGroupKeys && allGroupKeys.length > 1)
+            ? `${root.ticket_number}-${allGroupKeys.indexOf(sGroupKey) + 1}`
+            : String(root.ticket_number || "")
         };
       });
   }
