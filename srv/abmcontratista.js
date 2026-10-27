@@ -3004,7 +3004,11 @@ async function _buildS4BPPayload(bp_ID, oOverride) {
   const bpGrouping = bp?.business_partner_grouping || "BPEX";
   const corrLanguage = isNational ? "ES" : "EN";
 
-  const sFullName = bp?.fullname || bp?.provider_name || "";
+  // trade_name entra como último fallback: hay BPs con fullname/provider_name vacíos
+  // (carga previa a la validación del front) pero trade_name cargado. Sin este fallback,
+  // SearchTerm1 sale con dato (ya priorizaba trade_name) pero OrganizationBPName1/LastName
+  // quedan vacíos y S/4 rechaza el alta con "Enter a value for field Name 1 of organization".
+  const sFullName = bp?.fullname || bp?.provider_name || bp?.trade_name || "";
   const sSearchTerm = (bp?.trade_name || sFullName).substring(0, 20);
 
   const payload = {
@@ -3124,6 +3128,18 @@ async function startWorkflow(bp_ID, s4Payload, wfState, approvals = {}, infoArea
 
     const builtPayload = s4Payload || await _buildS4BPPayload(bp_ID);
 
+    console.log(`[startWorkflow] LOG nombre BP ${bp_ID}:`, JSON.stringify({
+      is_human: bp?.is_human,
+      fullname: bp?.fullname,
+      provider_name: bp?.provider_name,
+      trade_name: bp?.trade_name,
+      OrganizationBPName1: builtPayload.OrganizationBPName1,
+      BusinessPartnerCategory: builtPayload.BusinessPartnerCategory,
+      IsNaturalPerson: builtPayload.IsNaturalPerson,
+      LastName: builtPayload.LastName,
+      SearchTerm1: builtPayload.SearchTerm1
+    }));
+
     const axios = sapCfAxios('SBPA');
 
     const TEST_APPROVER_LEGAL_EMAILS = (process.env.TEST_APPROVER_LEGAL_EMAIL || "").split(",").map(e => e.trim()).filter(Boolean);
@@ -3166,6 +3182,9 @@ async function startWorkflow(bp_ID, s4Payload, wfState, approvals = {}, infoArea
     // tocar S4_CONFIG/_COMPANY_CODES_TAXES, que sigue siendo la sociedad/cuenta real
     // usada por _buildS4BPPayload para los otros WF (modificación, bancos, etc).
     const context_bp = {
+      // OrganizationBPName1 es obligatorio en S/4 cuando el BP es organización
+      // (BusinessPartnerCategory "2"); para persona física va vacío.
+      OrganizationBPName1: builtPayload.OrganizationBPName1 || "",
       LastName: builtPayload.LastName || "",
       FirstName: builtPayload.FirstName || "",
       SearchTerm1: builtPayload.SearchTerm1 || "",
