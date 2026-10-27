@@ -3181,12 +3181,23 @@ async function startWorkflow(bp_ID, s4Payload, wfState, approvals = {}, infoArea
     // fijas (10AA + GA/I3/SG tal cual, sin importar lo cargado en pantalla) — no
     // tocar S4_CONFIG/_COMPANY_CODES_TAXES, que sigue siendo la sociedad/cuenta real
     // usada por _buildS4BPPayload para los otros WF (modificación, bancos, etc).
+    // El WF de BPA arma el nombre del BP combinando FirstName + LastName, incluso
+    // para organización: si ambos quedan vacíos, S/4 rechaza el alta pidiendo
+    // "Name 1 of organization" aunque OrganizationBPName1 sí tenga el nombre
+    // completo. Se derivan del mismo nombre separando por espacio (misma
+    // heurística que ya usa el front para contact_first_name/contact_last_name):
+    // la primera palabra es FirstName, el resto LastName.
+    const sBpFullName = (builtPayload.OrganizationBPName1 || builtPayload.LastName || "").trim();
+    const aBpNameParts = sBpFullName.split(/\s+/).filter(Boolean);
+    const sBpFirstName = aBpNameParts.length > 1 ? aBpNameParts[0] : "";
+    const sBpLastName = aBpNameParts.length > 1 ? aBpNameParts.slice(1).join(" ") : sBpFullName;
+
     const context_bp = {
       // OrganizationBPName1 es obligatorio en S/4 cuando el BP es organización
       // (BusinessPartnerCategory "2"); para persona física va vacío.
       OrganizationBPName1: builtPayload.OrganizationBPName1 || "",
-      LastName: builtPayload.LastName || "",
-      FirstName: builtPayload.FirstName || "",
+      LastName: sBpLastName,
+      FirstName: sBpFirstName,
       SearchTerm1: builtPayload.SearchTerm1 || "",
       to_Supplier: {
         // El contrato pide el CUIT también en A_Supplier.TaxNumber1 (LFA1-STCD1), que es
