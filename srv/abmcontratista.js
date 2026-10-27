@@ -3160,86 +3160,99 @@ async function startWorkflow(bp_ID, s4Payload, wfState, approvals = {}, infoArea
     // Dedup por si un mismo aprobador está en más de un área.
     const approverRecipients = [...new Set(approverEmails)].map(address => ({ emailAddress: { address } }));
 
+    // Contrato simplificado del WF de alta "ABM proveedores" (acordado con la
+    // usuaria 2026-10-27): sin banco ni purchasing org, y con sociedad/retenciones
+    // fijas (10AA + GA/I3/SG tal cual, sin importar lo cargado en pantalla) — no
+    // tocar S4_CONFIG/_COMPANY_CODES_TAXES, que sigue siendo la sociedad/cuenta real
+    // usada por _buildS4BPPayload para los otros WF (modificación, bancos, etc).
     const context_bp = {
-      ...builtPayload,
-      AuthorizationGroup: builtPayload.AuthorizationGroup || "",
-      BusinessPartnerIDByExtSystem: builtPayload.BusinessPartnerIDByExtSystem || "",
-      to_BusinessPartnerAddress: {
-        // Floor y TimeZone no están en el contrato del WF (que pide AddressTimeZone,
-        // no TimeZone): _buildS4BPPayload los arma para otros consumidores y acá se
-        // descartan junto con los sub-arrays de contacto, igual que en
-        // startTaxModificationWorkflow.
-        results: (builtPayload.to_BusinessPartnerAddress?.results || []).map(
-          ({ to_AddressEmailAddress, to_AddressPhoneNumber, Floor, TimeZone, ...rest }) => ({
-            ...rest,
-            CareOfName: "",
-            AddressTimeZone: "",
-            to_EmailAddress: {
-              results: (to_AddressEmailAddress?.results || []).map(e => ({
-                ...e,
-                AddressCommunicationRemarkText: ""
-              }))
-            },
-            to_PhoneNumber: {
-              results: (to_AddressPhoneNumber?.results || []).map(p => ({
-                ...p,
-                AddressCommunicationRemarkText: ""
-              }))
-            }
-          })
-        )
-      },
-      // BankName no está en el contrato del WF: _buildS4BPPayload lo resuelve contra el
-      // catálogo de bancos para las pantallas, pero el POST a A_BusinessPartnerBank
-      // identifica el banco por BankCountryKey + BankNumber y el nombre sale del maestro.
-      to_BusinessPartnerBank: {
-        results: (builtPayload.to_BusinessPartnerBank?.results || [])
-          .map(({ BankName, ...b }) => b)
-      },
+      LastName: builtPayload.LastName || "",
+      FirstName: builtPayload.FirstName || "",
+      SearchTerm1: builtPayload.SearchTerm1 || "",
       to_Supplier: {
-        ...builtPayload.to_Supplier,
-        TaxNumberType: "",
         // El contrato pide el CUIT también en A_Supplier.TaxNumber1 (LFA1-STCD1), que es
         // por donde se buscan los duplicados contra S/4 (ver la búsqueda por TaxNumber1
         // del alta). Sale del mismo número que viaja en to_BusinessPartnerTax.
         TaxNumber1: builtPayload.to_BusinessPartnerTax?.results?.[0]?.BPTaxNumber || "",
+        TaxNumberType: "80",
         // IsNaturalPerson viaja en la cabecera y también en el supplier ("X" para la
         // persona física, vacío para la organización).
         IsNaturalPerson: builtPayload.IsNaturalPerson || "",
-        AuthorizationGroup: "",
+        PostingIsBlocked: false,
+        DeletionIndicator: false,
         to_SupplierCompany: {
-          results: (builtPayload.to_Supplier?.to_SupplierCompany?.results || []).map(c => ({
-            ...c,
-            AuthorizationGroup: "",
-            PaymentBlockingReason: "",
-            WithholdingTaxCountry: "",
-            Supplier: "",
+          results: [{
+            Currency: "ARS",
+            CompanyCode: "10AA",
+            PaymentTerms: "0001",
+            DeletionIndicator: false,
+            ClearCustomerSupplier: false,
+            ReconciliationAccount: "21100000",
+            IsToBeLocallyProcessed: false,
+            PaymentIsToBeSentByEDI: false,
+            ItemIsToBePaidSeparately: false,
             to_SupplierWithHoldingTax: {
-              results: (c.to_SupplierWithHoldingTax?.results || []).map(wt => {
-                const wtObj = {
-                  WithholdingTaxCode: wt.WithholdingTaxCode || "",
-                  WithholdingTaxType: wt.WithholdingTaxType || "",
-                  IsWithholdingTaxSubject: wt.IsWithholdingTaxSubject,
-                  WithholdingTaxCertificate: wt.WithholdingTaxCertificate || "",
-                  WithholdingTaxExmptPercent: wt.WithholdingTaxExmptPercent || "",
-                  WithholdingTaxNumber: wt.WithholdingTaxNumber || "",
-                  ExemptionReason: wt.ExemptionReason || ""
-                };
-                if (wt.ExemptionDateEnd) wtObj.ExemptionDateEnd = wt.ExemptionDateEnd;
-                if (wt.ExemptionDateBegin) wtObj.ExemptionDateBegin = wt.ExemptionDateBegin;
-                return wtObj;
-              })
-            }
-          }))
+              results: [
+                {
+                  ExemptionDateEnd: "/Date(1835481600000)/",
+                  ExemptionDateBegin: "/Date(1788307200000)/",
+                  WithholdingTaxCode: "",
+                  WithholdingTaxType: "GA",
+                  IsWithholdingTaxSubject: true,
+                  WithholdingTaxCertificate: "543534534",
+                  WithholdingTaxExmptPercent: "100.00"
+                },
+                {
+                  WithholdingTaxCode: "",
+                  WithholdingTaxType: "I3",
+                  IsWithholdingTaxSubject: true,
+                  WithholdingTaxExmptPercent: "0.00"
+                },
+                {
+                  ExemptionDateEnd: "/Date(1788998400000)/",
+                  ExemptionDateBegin: "/Date(1788307200000)/",
+                  WithholdingTaxCode: "",
+                  WithholdingTaxType: "SG",
+                  IsWithholdingTaxSubject: true,
+                  WithholdingTaxCertificate: "4434",
+                  WithholdingTaxExmptPercent: "10.00"
+                }
+              ]
+            },
+            IsToBeCheckedForDuplicates: false,
+            SupplierIsBlockedForPosting: false
+          }]
         },
-        to_SupplierPurchasingOrg: {
-          results: (builtPayload.to_Supplier?.to_SupplierPurchasingOrg?.results || []).map(o => ({
-            ...o,
-            Supplier: "",
-            PurchasingGroup: "",
-            IncotermsClassification: ""
-          }))
-        }
+        PurchasingIsBlocked: false,
+        SupplierAccountGroup: "SUPL",
+        PaymentIsBlockedForSupplier: false
+      },
+      IsNaturalPerson: builtPayload.IsNaturalPerson || "",
+      IsMarkedForArchiving: false,
+      to_BusinessPartnerTax: {
+        results: (builtPayload.to_BusinessPartnerTax?.results || []).map(t => ({
+          BPTaxType: "AR1A",
+          BPTaxNumber: t.BPTaxNumber || ""
+        }))
+      },
+      CorrespondenceLanguage: "ES",
+      to_BusinessPartnerRole: {
+        results: [
+          { BusinessPartnerRole: "FLVN00" },
+          { BusinessPartnerRole: "FLVN01" }
+        ]
+      },
+      BusinessPartnerCategory: builtPayload.BusinessPartnerCategory,
+      BusinessPartnerIsBlocked: false,
+      to_BusinessPartnerAddress: {
+        results: (builtPayload.to_BusinessPartnerAddress?.results || []).map(a => ({
+          Country: a.Country || "AR",
+          CityName: a.CityName || "",
+          Language: "ES",
+          PostalCode: a.PostalCode || "",
+          StreetName: a.StreetName || "",
+          HouseNumber: a.HouseNumber || ""
+        }))
       }
     };
 
